@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">IoniqScope</string>
+
+    <!-- Navigation -->
+    <string name="nav_connect">Connect</string>
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_performance">Performance</string>
+    <string name="nav_diagnostics">Diagnostics</string>
+    <string name="nav_trips">Trips</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Permissions -->
+    <string name="perm_title">Bluetooth permission needed</string>
+    <string name="perm_body">IoniqScope needs Bluetooth access to find and talk to your OBD-II adapter. Nothing leaves your phone — the app has no internet permission at all.</string>
+    <string name="perm_location_note">On Android 11 and older, Android requires location permission to scan for Bluetooth LE devices. IoniqScope never uses your location.</string>
+    <string name="perm_grant">Grant permission</string>
+    <string name="perm_denied_settings">Permission was denied. Enable it in system settings to scan for adapters.</string>
+
+    <!-- Performance safety -->
+    <string name="perf_disclaimer">Closed road or track use only. Never operate this screen while driving — set it running, then keep your eyes on the road.</string>
+
+    <!-- Trip logging -->
+    <string name="trip_notification_channel">Trip logging</string>
+    <string name="trip_notification_channel_desc">Shown while a trip is being recorded.</string>
+    <string name="trip_notification_title">Recording trip</string>
+    <string name="trip_notification_stop">Stop</string>
+
+    <!-- Diagnostics -->
+    <string name="dtc_clear_title">Clear stored trouble codes?</string>
+    <string name="dtc_clear_body">This erases stored DTCs and freeze-frame data from the vehicle. It cannot be undone, and it also resets readiness monitors. Only do this if you know why the codes are there.</string>
+    <string name="dtc_clear_confirm">Clear codes</string>
+    <string name="cancel">Cancel</string>
+</resources>

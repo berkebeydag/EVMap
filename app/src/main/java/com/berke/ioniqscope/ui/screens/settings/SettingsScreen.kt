@@ -1,0 +1,209 @@
+package com.berke.ioniqscope.ui.screens.settings
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import com.berke.ioniqscope.ServiceLocator
+import com.berke.ioniqscope.data.AdapterType
+import com.berke.ioniqscope.data.AppSettings
+import com.berke.ioniqscope.data.PidCatalog
+import com.berke.ioniqscope.data.SettingsRepository
+import com.berke.ioniqscope.data.SpeedUnit
+import com.berke.ioniqscope.ui.components.Banner
+import com.berke.ioniqscope.ui.components.BannerTone
+import com.berke.ioniqscope.ui.components.SectionLabel
+import com.berke.ioniqscope.ui.serviceViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+class SettingsViewModel(services: ServiceLocator) : ViewModel() {
+
+    private val repo = services.settings
+
+    val settings: StateFlow<AppSettings> = repo.settings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
+
+    fun setUnit(unit: SpeedUnit) = viewModelScope.launch { repo.setSpeedUnit(unit) }
+    fun setAdapter(type: AdapterType) = viewModelScope.launch { repo.setAdapterType(type) }
+    fun setPollInterval(ms: Int) = viewModelScope.launch { repo.setPollInterval(ms) }
+
+    fun togglePid(key: String, enabled: Boolean) = viewModelScope.launch {
+        val current = settings.value.dashboardPidKeys
+        val next = if (enabled) current + key else current - key
+        repo.setDashboardPids(next)
+    }
+}
+
+@Composable
+fun SettingsScreen(services: ServiceLocator) {
+    val vm = serviceViewModel(services) { SettingsViewModel(it) }
+    val settings by vm.settings.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        SectionLabel("Units", Modifier.padding(top = 16.dp))
+        SpeedUnit.entries.forEach { unit ->
+            ChoiceRow(
+                selected = settings.speedUnit == unit,
+                title = unit.label,
+                subtitle = "Displayed as ${unit.suffix}",
+                onClick = { vm.setUnit(unit) }
+            )
+        }
+
+        HorizontalDivider()
+        SectionLabel("Adapter")
+        AdapterType.entries.forEach { type ->
+            ChoiceRow(
+                selected = settings.adapterType == type,
+                title = type.label,
+                subtitle = type.description,
+                onClick = { vm.setAdapter(type) }
+            )
+        }
+
+        HorizontalDivider()
+        SectionLabel("Dashboard PIDs")
+        Text(
+            "Which values the Dashboard polls. Fewer PIDs means each one updates faster.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        PidCatalog.all.forEach { entry ->
+            val checked = entry.pid.key in settings.dashboardPidKeys
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { vm.togglePid(entry.pid.key, !checked) }
+                    .padding(vertical = 4.dp)
+            ) {
+                Checkbox(checked = checked, onCheckedChange = { vm.togglePid(entry.pid.key, it) })
+                Column(Modifier.weight(1f)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(entry.pid.label, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            entry.pid.request,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    entry.caveat?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider()
+        SectionLabel("Poll interval")
+
+        var sliderValue by remember(settings.pollIntervalMs) {
+            mutableFloatStateOf(settings.pollIntervalMs.toFloat())
+        }
+        Text(
+            "${sliderValue.toInt()} ms between full poll cycles",
+            style = MaterialTheme.typography.bodyLarge,
+            fontFamily = FontFamily.Monospace
+        )
+        Slider(
+            value = sliderValue,
+            onValueChange = { sliderValue = it },
+            onValueChangeFinished = { vm.setPollInterval(sliderValue.toInt()) },
+            valueRange = SettingsRepository.POLL_MIN_MS.toFloat()..
+                SettingsRepository.POLL_MAX_MS.toFloat()
+        )
+        Text(
+            "The Performance screen always overrides this with speed-only polling at 50 ms.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        HorizontalDivider()
+        SectionLabel("Ioniq 6 battery data")
+        Banner(
+            title = "Not implemented — deliberately",
+            text = "State of charge, HV battery voltage/current, power in kW and cell " +
+                "temperatures are not standard OBD-II PIDs; they need manufacturer-specific " +
+                "UDS requests. None are shipped, because guessing a DID and mis-parsing the " +
+                "response would show you convincing numbers that are wrong. Supply verified " +
+                "values (EVNotify, Car Scanner Ioniq profile) and they drop into EgmpPids.",
+            tone = BannerTone.Info
+        )
+
+        HorizontalDivider()
+        SectionLabel("Privacy")
+        Text(
+            "IoniqScope holds no INTERNET permission. There is no analytics, no crash " +
+                "reporting and no account. Trips, runs and settings live only on this phone.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+    }
+}
+
+@Composable
+private fun ChoiceRow(
+    selected: Boolean,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp)
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}

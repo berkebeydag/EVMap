@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Speedometer sweep with a needle. Drawn inside the 72dp adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- outer gauge arc -->
+    <path
+        android:strokeColor="#4CC9F0"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M30,70 A24,24 0 1,1 78,70" />
+
+    <!-- needle -->
+    <path
+        android:strokeColor="#F72585"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,62 L68,42" />
+
+    <!-- hub -->
+    <path
+        android:fillColor="#E8F1FF"
+        android:pathData="M54,58 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+</vector>
