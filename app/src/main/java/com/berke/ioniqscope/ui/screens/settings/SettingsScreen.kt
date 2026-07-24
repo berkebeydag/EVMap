@@ -14,6 +14,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -50,6 +51,8 @@ class SettingsViewModel(services: ServiceLocator) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
 
     fun setUnit(unit: SpeedUnit) = viewModelScope.launch { repo.setSpeedUnit(unit) }
+    fun setAutoConnect(enabled: Boolean) = viewModelScope.launch { repo.setAutoConnect(enabled) }
+    fun setAutoLog(enabled: Boolean) = viewModelScope.launch { repo.setAutoLogTrips(enabled) }
     fun setAdapter(type: AdapterType) = viewModelScope.launch { repo.setAdapterType(type) }
     fun setPollInterval(ms: Int) = viewModelScope.launch { repo.setPollInterval(ms) }
 
@@ -92,6 +95,22 @@ fun SettingsScreen(services: ServiceLocator) {
                 onClick = { vm.setAdapter(type) }
             )
         }
+
+        HorizontalDivider()
+        SectionLabel("Automation")
+        SwitchRow(
+            checked = settings.autoConnect,
+            title = "Connect on launch",
+            subtitle = "Reconnect to the last adapter when the app opens.",
+            onChange = vm::setAutoConnect
+        )
+        SwitchRow(
+            checked = settings.autoLogTrips,
+            title = "Log trips automatically",
+            subtitle = "Start recording once the car is moving, stop after three minutes " +
+                "stationary. No need to remember the button.",
+            onChange = vm::setAutoLog
+        )
 
         HorizontalDivider()
         SectionLabel("Dashboard PIDs")
@@ -179,6 +198,32 @@ fun SettingsScreen(services: ServiceLocator) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 24.dp)
         )
+    }
+}
+
+@Composable
+private fun SwitchRow(
+    checked: Boolean,
+    title: String,
+    subtitle: String,
+    onChange: (Boolean) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onChange(!checked) }
+            .padding(vertical = 4.dp)
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
 

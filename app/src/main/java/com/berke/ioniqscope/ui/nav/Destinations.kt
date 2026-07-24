@@ -2,6 +2,7 @@ package com.berke.ioniqscope.ui.nav
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Settings
@@ -27,7 +28,11 @@ enum class Destination(
     Settings("settings", R.string.nav_settings, Icons.Filled.Settings),
 
     // Pushed from Diagnostics.
-    RawConsole("console", R.string.nav_console, Icons.Filled.Terminal);
+    RawConsole("console", R.string.nav_console, Icons.Filled.Terminal),
+    AuxBattery("aux_battery", R.string.nav_aux_battery, Icons.Filled.BatteryAlert),
+
+    // Pushed from the trip list. Takes a tripId argument.
+    TripDetail("trip/{tripId}", R.string.nav_trip_detail, Icons.Filled.Route);
 
     companion object {
         /**
@@ -39,7 +44,9 @@ enum class Destination(
         val bottomBar = listOf(Dashboard, Performance, Diagnostics, Trips)
 
         /** Pushed detail screens — these get a back arrow rather than a tab. */
-        val detail = listOf(Connect, Settings, RawConsole)
+        val detail = listOf(Connect, Settings, RawConsole, AuxBattery, TripDetail)
+
+        fun tripDetailRoute(tripId: Long) = "trip/$tripId"
 
         fun fromRoute(route: String?): Destination? = entries.firstOrNull { it.route == route }
     }

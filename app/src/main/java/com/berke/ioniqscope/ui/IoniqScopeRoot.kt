@@ -42,20 +42,24 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.berke.ioniqscope.R
 import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.connection.ConnectionState
 import com.berke.ioniqscope.ui.nav.Destination
+import com.berke.ioniqscope.ui.screens.battery.AuxBatteryScreen
 import com.berke.ioniqscope.ui.screens.connect.ConnectScreen
 import com.berke.ioniqscope.ui.screens.console.RawConsoleScreen
 import com.berke.ioniqscope.ui.screens.dashboard.DashboardScreen
 import com.berke.ioniqscope.ui.screens.diagnostics.DiagnosticsScreen
 import com.berke.ioniqscope.ui.screens.performance.PerformanceScreen
 import com.berke.ioniqscope.ui.screens.settings.SettingsScreen
+import com.berke.ioniqscope.ui.screens.trips.TripDetailScreen
 import com.berke.ioniqscope.ui.screens.trips.TripLogScreen
 import com.berke.ioniqscope.ui.theme.StatusAmber
 import com.berke.ioniqscope.ui.theme.StatusGreen
@@ -137,13 +141,32 @@ fun IoniqScopeRoot(services: ServiceLocator) {
                 DiagnosticsScreen(
                     services = services,
                     onConnect = toConnect,
-                    onOpenConsole = { navController.navigateTo(Destination.RawConsole) }
+                    onOpenConsole = { navController.navigateTo(Destination.RawConsole) },
+                    onOpenAuxBattery = { navController.navigateTo(Destination.AuxBattery) }
                 )
             }
-            composable(Destination.Trips.route) { TripLogScreen(services, toConnect) }
+            composable(Destination.Trips.route) {
+                TripLogScreen(
+                    services = services,
+                    onConnect = toConnect,
+                    onOpenTrip = { tripId ->
+                        navController.navigate(Destination.tripDetailRoute(tripId))
+                    }
+                )
+            }
             composable(Destination.Connect.route) { ConnectScreen(services) }
             composable(Destination.Settings.route) { SettingsScreen(services) }
             composable(Destination.RawConsole.route) { RawConsoleScreen(services) }
+            composable(Destination.AuxBattery.route) { AuxBatteryScreen(services) }
+            composable(
+                route = Destination.TripDetail.route,
+                arguments = listOf(navArgument("tripId") { type = NavType.LongType })
+            ) { entry ->
+                TripDetailScreen(
+                    services = services,
+                    tripId = entry.arguments?.getLong("tripId") ?: 0L
+                )
+            }
         }
     }
 }

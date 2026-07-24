@@ -4,9 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
 import com.berke.ioniqscope.service.TripLoggingService
 import com.berke.ioniqscope.ui.IoniqScopeRoot
+import com.berke.ioniqscope.ui.screens.connect.BluetoothPermissions
 import com.berke.ioniqscope.ui.theme.IoniqScopeTheme
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -21,6 +25,31 @@ class MainActivity : ComponentActivity() {
             IoniqScopeTheme {
                 IoniqScopeRoot(services)
             }
+        }
+
+        maybeAutoConnect()
+    }
+
+    /**
+     * Reconnects to the last adapter on launch when the user has opted in.
+     *
+     * Guarded on permissions and on not already being connected — this also runs on
+     * an activity recreation (rotation, theme change), where a second connect would
+     * tear down a working link.
+     */
+    private fun maybeAutoConnect() {
+        lifecycleScope.launch {
+            val settings = services.settings.settings.first()
+            val address = settings.lastDeviceAddress ?: return@launch
+            if (!settings.autoConnect) return@launch
+            if (services.connectionManager.isConnected) return@launch
+            if (!BluetoothPermissions.allGranted(this@MainActivity)) return@launch
+
+            services.connectionManager.connect(
+                address = address,
+                name = settings.lastDeviceName,
+                type = settings.adapterType
+            )
         }
     }
 

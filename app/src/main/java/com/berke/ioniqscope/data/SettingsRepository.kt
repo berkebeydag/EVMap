@@ -3,6 +3,7 @@ package com.berke.ioniqscope.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -30,7 +31,11 @@ data class AppSettings(
     val dashboardPidKeys: Set<String> = PidCatalog.defaultKeys,
     val pollIntervalMs: Int = 250,
     val lastDeviceAddress: String? = null,
-    val lastDeviceName: String? = null
+    val lastDeviceName: String? = null,
+    /** Reconnect to the last adapter when the app opens. */
+    val autoConnect: Boolean = false,
+    /** Start and stop trip logging from vehicle speed rather than a button. */
+    val autoLogTrips: Boolean = false
 )
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -45,6 +50,8 @@ class SettingsRepository(private val context: Context) {
         val pollInterval = intPreferencesKey("poll_interval_ms")
         val lastAddress = stringPreferencesKey("last_device_address")
         val lastName = stringPreferencesKey("last_device_name")
+        val autoConnect = booleanPreferencesKey("auto_connect")
+        val autoLogTrips = booleanPreferencesKey("auto_log_trips")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -57,7 +64,9 @@ class SettingsRepository(private val context: Context) {
                 ?: PidCatalog.defaultKeys,
             pollIntervalMs = p[Keys.pollInterval] ?: 250,
             lastDeviceAddress = p[Keys.lastAddress],
-            lastDeviceName = p[Keys.lastName]
+            lastDeviceName = p[Keys.lastName],
+            autoConnect = p[Keys.autoConnect] ?: false,
+            autoLogTrips = p[Keys.autoLogTrips] ?: false
         )
     }
 
@@ -72,6 +81,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setPollInterval(ms: Int) =
         edit { it[Keys.pollInterval] = ms.coerceIn(POLL_MIN_MS, POLL_MAX_MS) }
+
+    suspend fun setAutoConnect(enabled: Boolean) = edit { it[Keys.autoConnect] = enabled }
+
+    suspend fun setAutoLogTrips(enabled: Boolean) = edit { it[Keys.autoLogTrips] = enabled }
 
     suspend fun setLastDevice(address: String, name: String?) = edit {
         it[Keys.lastAddress] = address

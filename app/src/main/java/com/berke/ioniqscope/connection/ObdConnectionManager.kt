@@ -10,6 +10,8 @@ import com.berke.ioniqscope.obd.DtcReader
 import com.berke.ioniqscope.obd.Elm327
 import com.berke.ioniqscope.obd.ObdEngine
 import com.berke.ioniqscope.obd.Pid
+import com.berke.ioniqscope.obd.ReadinessReader
+import com.berke.ioniqscope.obd.ReadinessReport
 import com.berke.ioniqscope.obd.Transport
 import com.berke.ioniqscope.obd.VehicleState
 import com.berke.ioniqscope.performance.PerfState
@@ -282,6 +284,10 @@ class ObdConnectionManager(
 
     suspend fun readDtcs(): Result<List<String>> =
         exclusive { dtcReader?.readCodes() ?: throw IllegalStateException("Not connected") }
+
+    /** Emissions readiness plus pending codes — the "is it ready for inspection" question. */
+    suspend fun readReadiness(): Result<ReadinessReport> =
+        exclusive { elm -> ReadinessReader(elm).read() }
 
     /**
      * Irreversible. The UI must confirm with the user before calling this.

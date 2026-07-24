@@ -26,6 +26,30 @@ interface PerfRunDao {
 }
 
 @Dao
+interface AuxVoltageDao {
+
+    @Insert
+    suspend fun insert(sample: AuxVoltageEntity)
+
+    @Query("SELECT * FROM aux_voltage ORDER BY at ASC")
+    fun observeAll(): Flow<List<AuxVoltageEntity>>
+
+    /**
+     * Session-start readings only. These are taken before the car has been driven,
+     * so they are the closest thing to a rested voltage and the only ones worth
+     * comparing across days.
+     */
+    @Query("SELECT * FROM aux_voltage WHERE at_session_start = 1 ORDER BY at ASC")
+    fun observeSessionStarts(): Flow<List<AuxVoltageEntity>>
+
+    @Query("SELECT * FROM aux_voltage ORDER BY at DESC LIMIT 1")
+    fun observeLatest(): Flow<AuxVoltageEntity?>
+
+    @Query("DELETE FROM aux_voltage")
+    suspend fun deleteAll()
+}
+
+@Dao
 interface TripDao {
 
     @Insert
@@ -65,7 +89,34 @@ interface TripDao {
 
     @Query("DELETE FROM trips WHERE id = :id")
     suspend fun deleteTrip(id: Long)
+
+    // --- trip detail ---
+
+    /** One PID's series across a trip, for plotting. */
+    @Query(
+        "SELECT at AS atEpochMs, value AS value FROM trip_samples " +
+            "WHERE trip_id = :tripId AND pid_key = :pidKey ORDER BY at ASC"
+    )
+    suspend fun series(tripId: Long, pidKey: String): List<SeriesPoint>
+
+    @Query(
+        "SELECT MIN(value) AS minValue, MAX(value) AS maxValue, AVG(value) AS avgValue, " +
+            "COUNT(*) AS sampleCount FROM trip_samples WHERE trip_id = :tripId AND pid_key = :pidKey"
+    )
+    suspend fun stats(tripId: Long, pidKey: String): PidStats?
 }
+
+data class SeriesPoint(
+    @androidx.room.ColumnInfo(name = "atEpochMs") val atEpochMs: Long,
+    @androidx.room.ColumnInfo(name = "value") val value: Double
+)
+
+data class PidStats(
+    @androidx.room.ColumnInfo(name = "minValue") val minValue: Double?,
+    @androidx.room.ColumnInfo(name = "maxValue") val maxValue: Double?,
+    @androidx.room.ColumnInfo(name = "avgValue") val avgValue: Double?,
+    @androidx.room.ColumnInfo(name = "sampleCount") val sampleCount: Int
+)
 
 /** Projection used to build CSV headers. */
 data class PidColumn(

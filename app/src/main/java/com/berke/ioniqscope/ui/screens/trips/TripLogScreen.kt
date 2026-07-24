@@ -99,7 +99,11 @@ class TripLogViewModel(private val services: ServiceLocator) : ViewModel() {
 }
 
 @Composable
-fun TripLogScreen(services: ServiceLocator, onConnect: () -> Unit) {
+fun TripLogScreen(
+    services: ServiceLocator,
+    onConnect: () -> Unit,
+    onOpenTrip: (Long) -> Unit
+) {
     val vm = serviceViewModel(services) { TripLogViewModel(it) }
     val context = LocalContext.current
 
@@ -199,6 +203,7 @@ fun TripLogScreen(services: ServiceLocator, onConnect: () -> Unit) {
                     TripRow(
                         trip = trip,
                         isActive = trip.id == activeTripId,
+                        onOpen = { onOpenTrip(trip.id) },
                         onExport = {
                             vm.dismissExportResult()
                             vm.beginExport(trip)
@@ -216,6 +221,7 @@ fun TripLogScreen(services: ServiceLocator, onConnect: () -> Unit) {
 private fun TripRow(
     trip: TripEntity,
     isActive: Boolean,
+    onOpen: () -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -223,7 +229,10 @@ private fun TripRow(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+        ),
+        // Tapping a finished trip opens its detail view; an in-progress one has
+        // nothing settled to show yet.
+        onClick = { if (!isActive) onOpen() }
     ) {
         Row(
             Modifier.fillMaxWidth().padding(14.dp),

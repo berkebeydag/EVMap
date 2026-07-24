@@ -27,6 +27,22 @@ data class PerfRunEntity(
     @ColumnInfo(name = "duration_ms") val durationMs: Long
 )
 
+/**
+ * A 12V auxiliary battery reading, kept as its own long-lived series.
+ *
+ * Separate from trip samples because trips get deleted and this trend needs to
+ * outlive them: the point is to notice a battery degrading over weeks. The
+ * Ioniq 5/6 12V/ICCU failure mode is the reason this table exists.
+ */
+@Entity(tableName = "aux_voltage", indices = [Index("at")])
+data class AuxVoltageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "at") val atEpochMs: Long,
+    @ColumnInfo(name = "volts") val volts: Double,
+    /** True for the first reading of a session — the closest thing to a rested value. */
+    @ColumnInfo(name = "at_session_start") val atSessionStart: Boolean
+)
+
 /** A logging session. [endedAtEpochMs] is null while it is still running. */
 @Entity(tableName = "trips")
 data class TripEntity(

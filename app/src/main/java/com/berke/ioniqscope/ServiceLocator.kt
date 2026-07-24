@@ -1,6 +1,8 @@
 package com.berke.ioniqscope
 
 import android.content.Context
+import com.berke.ioniqscope.connection.AuxBatteryMonitor
+import com.berke.ioniqscope.connection.DriveDetector
 import com.berke.ioniqscope.connection.ObdConnectionManager
 import com.berke.ioniqscope.connection.PerfRunRecorder
 import com.berke.ioniqscope.data.AppDatabase
@@ -36,8 +38,18 @@ class ServiceLocator private constructor(context: Context) {
         PerfRunRecorder(connectionManager, database.perfRunDao(), appScope)
     }
 
+    private val auxBatteryMonitor: AuxBatteryMonitor by lazy {
+        AuxBatteryMonitor(connectionManager, database.auxVoltageDao(), appScope)
+    }
+
+    private val driveDetector: DriveDetector by lazy {
+        DriveDetector(appContext, connectionManager, settings, appScope)
+    }
+
     fun warmUp() {
         perfRunRecorder.start()
+        auxBatteryMonitor.start()
+        driveDetector.start()
     }
 
     companion object {
