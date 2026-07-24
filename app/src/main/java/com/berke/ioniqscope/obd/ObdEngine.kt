@@ -50,7 +50,9 @@ class ClassicBtTransport(private val device: BluetoothDevice) : Transport {
         socket = null; input = null; output = null
     }
 
-    override suspend fun write(bytes: ByteArray) = withContext(Dispatchers.IO) {
+    // Explicit `: Unit` — without it the block's value is `output?.flush()`, i.e.
+    // `Unit?`, which does not satisfy Transport.write's `Unit` return type.
+    override suspend fun write(bytes: ByteArray): Unit = withContext(Dispatchers.IO) {
         output?.write(bytes); output?.flush()
     }
 

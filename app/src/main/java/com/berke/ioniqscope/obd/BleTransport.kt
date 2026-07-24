@@ -210,7 +210,7 @@ class BleTransport(
     override suspend fun connect() {
         try {
             withTimeout(connectTimeoutMs) {
-                suspendCancellableCoroutine { cont ->
+                suspendCancellableCoroutine<Unit> { cont ->
                     setupCont = cont
                     onLog("Connecting to ${device.address}…")
                     gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
@@ -271,7 +271,7 @@ class BleTransport(
             // A write-with-response must be acked before the next one is issued.
             if (!noResponse) {
                 withTimeout(responseTimeoutMs) {
-                    suspendCancellableCoroutine { cont -> writeAck = cont }
+                    suspendCancellableCoroutine<Unit> { cont -> writeAck = cont }
                 }
             }
         }

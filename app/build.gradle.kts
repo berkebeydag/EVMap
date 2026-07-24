@@ -8,12 +8,15 @@ plugins {
 
 android {
     namespace = "com.berke.ioniqscope"
-    compileSdk = 36
+    // Latest stable platform is android-37.1; recent AndroidX artifacts require
+    // compiling against 37 or later.
+    compileSdk = 37
+    compileSdkMinor = 1
 
     defaultConfig {
         applicationId = "com.berke.ioniqscope"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
     }
