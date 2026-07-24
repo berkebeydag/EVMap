@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -39,7 +41,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -58,10 +62,9 @@ import org.osmdroid.events.DelayedMapListener
 import org.osmdroid.events.MapListener
 import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -83,6 +86,7 @@ fun ChargerMapScreen(services: ServiceLocator) {
 
     var showList by remember { mutableStateOf(false) }
     var showSourceMenu by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf<ChargingStationEntity?>(null) }
 
     val locationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -240,9 +244,63 @@ fun ChargerMapScreen(services: ServiceLocator) {
             ChargerMap(
                 visible = visible,
                 onBoundsChanged = vm::loadForBounds,
+                onSelect = { selected = it },
+                darkTiles = isSystemInDarkTheme(),
                 context = context
             )
             Column(Modifier.fillMaxWidth().align(Alignment.TopStart)) { controls() }
+
+            selected?.let { station ->
+                SelectedStationCard(
+                    station = station,
+                    onNavigate = { openInMaps(context, station) },
+                    onDismiss = { selected = null },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(12.dp)
+                )
+            }
+
+            Text(
+                CARTO_ATTRIBUTION,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(6.dp)
+            )
+        }
+    }
+}
+
+/** Details for the tapped station, over the map rather than on a new screen. */
+@Composable
+private fun SelectedStationCard(
+    station: ChargingStationEntity,
+    onNavigate: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                station.name ?: station.operator ?: "Charging station",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                describe(station),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onNavigate) { Text("Navigate") }
+                TextButton(onClick = onDismiss) { Text("Close") }
+            }
         }
     }
 }
@@ -251,10 +309,27 @@ fun ChargerMapScreen(services: ServiceLocator) {
 private fun ChargerMap(
     visible: List<ChargerListItem>,
     onBoundsChanged: (BoundingBox) -> Unit,
+    onSelect: (ChargingStationEntity) -> Unit,
+    darkTiles: Boolean,
     context: Context
 ) {
-    // Recomposition trigger for the marker rule below.
-    var zoom by remember { mutableStateOf(6.0) }
+    val scheme = MaterialTheme.colorScheme
+    val density = LocalDensity.current.density
+
+    val overlay = remember {
+        ChargerOverlay(
+            colors = ChargerOverlay.Colors(
+                dc = scheme.primary.toArgb(),
+                ac = scheme.tertiary.toArgb(),
+                unknown = scheme.outline.toArgb(),
+                cluster = scheme.primaryContainer.toArgb(),
+                clusterText = scheme.onPrimaryContainer.toArgb(),
+                outline = scheme.surface.toArgb()
+            ),
+            density = density,
+            onTap = onSelect
+        )
+    }
 
     val mapView = remember {
         // osmdroid needs its cache configured and a real User-Agent before any
@@ -269,11 +344,23 @@ private fun ChargerMap(
             osmdroidTileCache = context.cacheDir.resolve("osmdroid")
         }
         MapView(context).apply {
-            setTileSource(TileSourceFactory.MAPNIK)
+            setTileSource(if (darkTiles) CARTO_DARK else CARTO_LIGHT)
             setMultiTouchControls(true)
-            controller.setZoom(6.0)
+            // Without this the raster tiles are blitted 1:1 onto a ~3x density
+            // screen, which is why the map read as a low-resolution image pasted in.
+            isTilesScaledToDpi = true
+            zoomController.setVisibility(
+                org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER
+            )
+            controller.setZoom(6.2)
             controller.setCenter(TURKEY_CENTRE)
+            overlays.add(overlay)
         }
+    }
+
+    LaunchedEffect(darkTiles) {
+        mapView.setTileSource(if (darkTiles) CARTO_DARK else CARTO_LIGHT)
+        mapView.invalidate()
     }
 
     DisposableEffect(Unit) {
@@ -281,50 +368,18 @@ private fun ChargerMap(
         onDispose { mapView.onPause() }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { mapView },
-            modifier = Modifier.fillMaxSize(),
-            update = { map ->
-                map.overlays.removeAll { it is Marker }
-                // Below this zoom a whole country's worth of pins overlap into an
-                // unreadable smear, and any cap on the count would cut by database
-                // order rather than by geography — leaving a cluster in whichever
-                // region happened to be inserted first.
-                if (zoom >= MIN_MARKER_ZOOM) {
-                    visible.take(MAX_MARKERS).forEach { item ->
-                        map.overlays.add(
-                            Marker(map).apply {
-                                position = GeoPoint(item.station.lat, item.station.lon)
-                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                title = item.station.name
-                                    ?: item.station.operator
-                                    ?: "Charging station"
-                                snippet = describe(item.station)
-                            }
-                        )
-                    }
-                }
-                map.invalidate()
-            }
-        )
-
-        if (zoom < MIN_MARKER_ZOOM) {
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
-            ) {
-                Text(
-                    "Zoom in to see stations, or use the list",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                )
-            }
+    AndroidView(
+        factory = { mapView },
+        modifier = Modifier.fillMaxSize(),
+        update = { map ->
+            // Stations are clustered in the overlay, so every one of them stays
+            // represented at any zoom — no threshold below which the map silently
+            // looks empty, and no cap that would cut by database order rather than
+            // by geography.
+            overlay.items = visible
+            map.invalidate()
         }
-    }
+    )
 
     LaunchedEffect(mapView) {
         // Debounced so a pan does not fire a query per frame.
@@ -332,11 +387,9 @@ private fun ChargerMap(
             DelayedMapListener(
                 object : MapListener {
                     override fun onScroll(event: ScrollEvent?): Boolean {
-                        zoom = mapView.zoomLevelDouble
                         emitBounds(mapView, onBoundsChanged); return true
                     }
                     override fun onZoom(event: ZoomEvent?): Boolean {
-                        zoom = mapView.zoomLevelDouble
                         emitBounds(mapView, onBoundsChanged); return true
                     }
                 },
@@ -439,10 +492,36 @@ private fun openInMaps(context: Context, station: ChargingStationEntity) {
 
 private fun String.toUri(): Uri = Uri.parse(this)
 
-private const val MAX_MARKERS = 600
+/**
+ * CARTO basemaps, in both a dark and a light style.
+ *
+ * Standard OSM tiles come in one bright style only, and filtering them into
+ * something dark does not work: inverting flips the map's own colour logic (sea
+ * turns brown, roads turn black), while merely dimming leaves a washed-out grey
+ * with no contrast. A basemap actually designed dark is the only version that
+ * reads properly next to a dark UI.
+ *
+ * The `@2x` variants are 512px retina tiles, which is the other half of why the
+ * map used to look like a low-resolution image.
+ *
+ * Free to use with attribution, which is rendered on the map. No API key and no
+ * account, keeping the project buildable by anyone who clones it.
+ */
+private const val CARTO_ATTRIBUTION = "© OpenStreetMap contributors © CARTO"
 
-/** Roughly city level — the point at which individual pins stop overlapping. */
-private const val MIN_MARKER_ZOOM = 9.0
+private fun cartoSource(style: String) = XYTileSource(
+    "carto-$style",
+    0, 20, 512, "@2x.png",
+    arrayOf(
+        "https://a.basemaps.cartocdn.com/$style/",
+        "https://b.basemaps.cartocdn.com/$style/",
+        "https://c.basemaps.cartocdn.com/$style/"
+    ),
+    CARTO_ATTRIBUTION
+)
+
+private val CARTO_DARK = cartoSource("dark_all")
+private val CARTO_LIGHT = cartoSource("light_all")
 
 private val syncFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMM, HH:mm").withZone(ZoneId.systemDefault())
