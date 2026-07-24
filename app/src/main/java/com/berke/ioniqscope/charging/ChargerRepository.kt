@@ -1,0 +1,94 @@
+package com.berke.ioniqscope.charging
+
+import com.berke.ioniqscope.data.ChargingStationDao
+import com.berke.ioniqscope.data.ChargingStationEntity
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.cos
+import kotlin.math.PI
+
+sealed interface SyncState {
+    data object Idle : SyncState
+    data class Running(val sourceName: String) : SyncState
+    data class Done(val added: Int, val sourceName: String) : SyncState
+    data class Failed(val message: String) : SyncState
+}
+
+/**
+ * Owns the local charging-station cache.
+ *
+ * The map always reads from Room, never from the network. A refresh writes to
+ * Room and the map follows — so the map keeps working with no signal, which is
+ * precisely the situation in which you need to find a charger.
+ */
+class ChargerRepository(
+    private val dao: ChargingStationDao,
+    private val sources: List<ChargerSource>
+) {
+
+    private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
+    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+
+    val stationCount: Flow<Int> = dao.observeCount()
+    val lastSync: Flow<Long?> = dao.observeLastSync()
+
+    fun availableSources(): List<ChargerSource> = sources.filter { it.isAvailable() }
+
+    /**
+     * Refreshes from [source] over [box].
+     *
+     * Rows are replaced by `source_id`, so re-syncing updates in place rather than
+     * duplicating, and running two sources leaves both sets present.
+     */
+    suspend fun sync(source: ChargerSource, box: BoundingBox = BoundingBox.TURKEY) {
+        _syncState.value = SyncState.Running(source.displayName)
+        try {
+            val stations = source.fetch(box)
+            if (stations.isEmpty()) {
+                _syncState.value = SyncState.Failed(
+                    "${source.displayName} returned no stations for this area."
+                )
+                return
+            }
+            dao.upsertAll(stations)
+            _syncState.value = SyncState.Done(stations.size, source.displayName)
+        } catch (e: Exception) {
+            _syncState.value = SyncState.Failed(e.message ?: "Refresh failed.")
+        }
+    }
+
+    fun clearSyncState() { _syncState.value = SyncState.Idle }
+
+    suspend fun inBounds(box: BoundingBox, limit: Int = 2000): List<ChargingStationEntity> =
+        dao.inBounds(box.minLat, box.maxLat, box.minLon, box.maxLon, limit)
+
+    /**
+     * Nearest stations to a point.
+     *
+     * Longitude degrees are narrower than latitude degrees away from the equator,
+     * so they are scaled by cos(lat) before distances are compared — without it,
+     * at Turkish latitudes an east-west offset would look about 25% closer than it is.
+     */
+    suspend fun nearest(lat: Double, lon: Double, limit: Int = 100): List<ChargingStationEntity> =
+        dao.nearest(lat, lon, cos(lat * PI / 180.0), limit)
+
+    suspend fun clearAll() = dao.deleteAll()
+
+    companion object {
+        /** Great-circle distance in metres. */
+        fun distanceMetres(
+            lat1: Double, lon1: Double,
+            lat2: Double, lon2: Double
+        ): Double {
+            val r = 6_371_000.0
+            val dLat = (lat2 - lat1) * PI / 180.0
+            val dLon = (lon2 - lon1) * PI / 180.0
+            val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+                cos(lat1 * PI / 180.0) * cos(lat2 * PI / 180.0) *
+                kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+            return 2 * r * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
+        }
+    }
+}

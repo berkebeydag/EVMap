@@ -43,6 +43,42 @@ data class AuxVoltageEntity(
     @ColumnInfo(name = "at_session_start") val atSessionStart: Boolean
 )
 
+/**
+ * A public charging station, cached locally.
+ *
+ * The whole point of caching is that the map works with no signal — which is
+ * exactly when you need to find a charger. Network is only ever used to refresh
+ * this table.
+ *
+ * [sourceId] is namespaced by [source] ("osm:123456", "ocm:78910") so the same
+ * station arriving from two providers does not become two rows.
+ */
+@Entity(
+    tableName = "charging_stations",
+    indices = [Index(value = ["source_id"], unique = true), Index("lat"), Index("lon")]
+)
+data class ChargingStationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "source_id") val sourceId: String,
+    @ColumnInfo(name = "source") val source: String,
+    @ColumnInfo(name = "name") val name: String?,
+    @ColumnInfo(name = "operator") val operator: String?,
+    @ColumnInfo(name = "lat") val lat: Double,
+    @ColumnInfo(name = "lon") val lon: Double,
+    /** Comma-separated connector names as reported; null when the source is silent. */
+    @ColumnInfo(name = "connectors") val connectors: String?,
+    /** Highest advertised power at this location, kW. Null means unknown, not zero. */
+    @ColumnInfo(name = "max_power_kw") val maxPowerKw: Double?,
+    /**
+     * True only when the source positively indicates DC. Unknown stays null rather
+     * than false — filtering "DC only" must not silently hide untagged stations
+     * without the UI saying so.
+     */
+    @ColumnInfo(name = "is_dc") val isDc: Boolean?,
+    @ColumnInfo(name = "address") val address: String?,
+    @ColumnInfo(name = "fetched_at") val fetchedAtEpochMs: Long
+)
+
 /** A logging session. [endedAtEpochMs] is null while it is still running. */
 @Entity(tableName = "trips")
 data class TripEntity(

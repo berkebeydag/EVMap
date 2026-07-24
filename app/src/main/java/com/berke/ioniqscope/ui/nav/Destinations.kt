@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.EvStation
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
@@ -19,6 +20,7 @@ enum class Destination(
     val icon: ImageVector
 ) {
     Dashboard("dashboard", R.string.nav_dashboard, Icons.Filled.Speed),
+    Chargers("chargers", R.string.nav_chargers, Icons.Filled.EvStation),
     Performance("performance", R.string.nav_performance, Icons.Filled.Timer),
     Diagnostics("diagnostics", R.string.nav_diagnostics, Icons.Filled.Warning),
     Trips("trips", R.string.nav_trips, Icons.Filled.Route),
@@ -41,7 +43,7 @@ enum class Destination(
          * not a destination you return to, and six items crowd the labels off a
          * phone-width NavigationBar.
          */
-        val bottomBar = listOf(Dashboard, Performance, Diagnostics, Trips)
+        val bottomBar = listOf(Dashboard, Chargers, Performance, Diagnostics, Trips)
 
         /** Pushed detail screens — these get a back arrow rather than a tab. */
         val detail = listOf(Connect, Settings, RawConsole, AuxBattery, TripDetail)

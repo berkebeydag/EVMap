@@ -3,9 +3,19 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-      NOTE: android.permission.INTERNET is deliberately ABSENT.
-      IoniqScope makes no network calls of any kind — everything stays on-device.
+      Network is used for EXACTLY TWO things, both map-related:
+        1. downloading map tiles for the charger map
+        2. refreshing the charging-station dataset on demand
+      No vehicle data, no trip logs, no runs and no diagnostics ever leave the
+      device, and there is still no analytics, crash reporting or account of any
+      kind. See README for the full statement.
     -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Coarse only: the map needs to know roughly where you are to sort chargers
+         by distance. Fine location is never requested. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Bluetooth, API 31+ -->
     <uses-permission
@@ -21,10 +31,15 @@
     <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
-    <!-- BLE scanning on API < 31 requires location access. -->
+    <!-- BLE scanning on API < 31 requires fine location; never used for positioning. -->
     <uses-permission
         android:name="android.permission.ACCESS_FINE_LOCATION"
         android:maxSdkVersion="30" />
+
+    <!-- osmdroid writes its tile cache to external storage on old API levels. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 
     <!-- Trip logging foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

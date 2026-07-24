@@ -1,6 +1,10 @@
 package com.berke.ioniqscope
 
 import android.content.Context
+import com.berke.ioniqscope.charging.ChargerRepository
+import com.berke.ioniqscope.charging.ChargerSource
+import com.berke.ioniqscope.charging.OcmChargerSource
+import com.berke.ioniqscope.charging.OsmChargerSource
 import com.berke.ioniqscope.connection.AuxBatteryMonitor
 import com.berke.ioniqscope.connection.DriveDetector
 import com.berke.ioniqscope.connection.ObdConnectionManager
@@ -11,6 +15,7 @@ import com.berke.ioniqscope.data.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Hand-rolled DI. A single-user hobby app does not need Hilt, and this keeps the
@@ -34,6 +39,30 @@ class ServiceLocator private constructor(context: Context) {
         CsvExporter(appContext, database.tripDao())
     }
 
+    /**
+     * Charger sources, best-data-first. OSM needs nothing and is always available;
+     * OCM turns itself on once the user has pasted their own free key.
+     */
+    val chargerSources: List<ChargerSource> by lazy {
+        listOf(
+            OsmChargerSource(),
+            OcmChargerSource(apiKeyProvider = { cachedOcmKey })
+        )
+    }
+
+    val chargerRepository: ChargerRepository by lazy {
+        ChargerRepository(database.chargingStationDao(), chargerSources)
+    }
+
+    /**
+     * Mirror of the stored OCM key.
+     *
+     * ChargerSource.isAvailable() is called from composition and menu building,
+     * where suspending to read DataStore is not an option, so the value is kept
+     * here and refreshed by the collector below.
+     */
+    @Volatile private var cachedOcmKey: String? = null
+
     private val perfRunRecorder: PerfRunRecorder by lazy {
         PerfRunRecorder(connectionManager, database.perfRunDao(), appScope)
     }
@@ -50,6 +79,9 @@ class ServiceLocator private constructor(context: Context) {
         perfRunRecorder.start()
         auxBatteryMonitor.start()
         driveDetector.start()
+        appScope.launch {
+            settings.settings.collect { cachedOcmKey = it.ocmApiKey.takeIf { k -> k.isNotBlank() } }
+        }
     }
 
     companion object {

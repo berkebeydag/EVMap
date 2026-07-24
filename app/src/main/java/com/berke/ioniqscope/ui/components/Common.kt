@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -79,11 +80,13 @@ fun Banner(
     onAction: (() -> Unit)? = null
 ) {
     val scheme = MaterialTheme.colorScheme
+    // Composited over the surface rather than left translucent: a banner drawn on
+    // top of the map would otherwise be unreadable against the tiles behind it.
     val container = when (tone) {
         BannerTone.Info -> scheme.surfaceContainerHigh
-        BannerTone.Warning -> scheme.tertiary.copy(alpha = 0.16f)
-        BannerTone.Error -> scheme.error.copy(alpha = 0.16f)
-        BannerTone.Success -> scheme.primary.copy(alpha = 0.14f)
+        BannerTone.Warning -> scheme.tertiary.copy(alpha = 0.16f).compositeOver(scheme.surface)
+        BannerTone.Error -> scheme.error.copy(alpha = 0.16f).compositeOver(scheme.surface)
+        BannerTone.Success -> scheme.primary.copy(alpha = 0.14f).compositeOver(scheme.surface)
     }
     val accent = when (tone) {
         BannerTone.Info -> scheme.onSurfaceVariant

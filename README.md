@@ -1,8 +1,16 @@
 # IoniqScope
 
 Personal Android OBD-II app for a **Hyundai Ioniq 6** via a **Vgate iCar Pro BLE 4.0**
-adapter. Hobby project — no ads, no analytics, no accounts, no cloud, and no
-`INTERNET` permission in the manifest at all.
+adapter, plus an offline charging-station map for Türkiye. Hobby project — no ads,
+no analytics, no accounts, no cloud.
+
+> **Network policy changed when the charger map was added.** The app now holds the
+> `INTERNET` permission and uses it for exactly two things: downloading map tiles,
+> and refreshing the charging-station list on demand. **No vehicle data ever leaves
+> the device** — no trip logs, no runs, no diagnostics, no 12V history, no
+> telemetry, no analytics, no crash reporting. The map reads from a local cache, so
+> once the station list has been downloaded it works with no signal at all.
+> Location is requested as **coarse only**, and only to sort chargers by distance.
 
 ## Build
 
@@ -107,8 +115,37 @@ byte; `BleTransport.kt` was completed there (UUID discovery, MTU negotiation,
 timeouts, disconnect callback). `core/` is outside the Gradle source set so it does
 not compile — it can be deleted once you are happy with the integrated copies.
 
+## Charging stations — and an honest word about the data
+
+The map caches stations locally; network is only touched to refresh that cache.
+
+Two sources are wired behind a `ChargerSource` interface:
+
+- **OpenStreetMap** (default, no key, no account) — queried through Overpass,
+  constrained to the Türkiye boundary relation rather than a bounding box, because
+  a box around Türkiye also catches Greece, Bulgaria, Cyprus and slices of the
+  Caucasus and Levant; measured, that was about half of everything returned.
+- **Open Charge Map** — EV-specific and much better on connectors and power, but
+  needs a free key you register yourself and paste into Settings.
+
+**Measured OSM coverage for Türkiye (July 2026): 654 stations.** By operator:
+SHARZ 131, ZES 83, Astor 34, Tesla 33, Eşarj 33, Voltrun 29, Togg 15, Trugo 12,
+and 171 with no operator recorded at all. Only **59** are tagged as DC and only
+**54** record their power.
+
+That is not a complete picture of Türkiye — ZES alone runs far more than 83
+locations. It is a usable base layer, and the UI says so rather than presenting it
+as authoritative. An Open Charge Map key improves it considerably.
+
+EPDK publishes the authoritative national list (every licensed operator must
+report; it is what the official Şarj@TR app shows) and a REST web service is
+referenced in İBB's open-data portal, but no publicly documented endpoint was
+found. If one surfaces it drops in as a third `ChargerSource` with nothing else
+changing — see the `TODO(epdk)` in that file.
+
 ## Privacy
 
-No `INTERNET` permission. No analytics, ads, crash reporting, or account. Trips,
-runs and settings live only on the device, and backup/data-extraction rules exclude
-them from cloud backup and device transfer.
+No analytics, ads, crash reporting, or account. Vehicle data — trips, runs,
+diagnostics, 12V history — never leaves the device, and backup/data-extraction
+rules exclude it from cloud backup and device transfer. Network use is limited to
+map tiles and the charging-station refresh; see the note at the top.

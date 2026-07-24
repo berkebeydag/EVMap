@@ -12,13 +12,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,6 +56,9 @@ class SettingsViewModel(services: ServiceLocator) : ViewModel() {
     fun setUnit(unit: SpeedUnit) = viewModelScope.launch { repo.setSpeedUnit(unit) }
     fun setAutoConnect(enabled: Boolean) = viewModelScope.launch { repo.setAutoConnect(enabled) }
     fun setAutoLog(enabled: Boolean) = viewModelScope.launch { repo.setAutoLogTrips(enabled) }
+    fun setOcmKey(key: String) = viewModelScope.launch { repo.setOcmApiKey(key) }
+    fun setDcOnly(enabled: Boolean) = viewModelScope.launch { repo.setChargersDcOnly(enabled) }
+    fun setMinPower(kw: Int) = viewModelScope.launch { repo.setChargersMinPower(kw) }
     fun setAdapter(type: AdapterType) = viewModelScope.launch { repo.setAdapterType(type) }
     fun setPollInterval(ms: Int) = viewModelScope.launch { repo.setPollInterval(ms) }
 
@@ -110,6 +116,63 @@ fun SettingsScreen(services: ServiceLocator) {
             subtitle = "Start recording once the car is moving, stop after three minutes " +
                 "stationary. No need to remember the button.",
             onChange = vm::setAutoLog
+        )
+
+        HorizontalDivider()
+        SectionLabel("Chargers")
+        SwitchRow(
+            checked = settings.chargersDcOnly,
+            title = "DC only",
+            subtitle = "Hides stations recorded as AC. Stations with no current type " +
+                "recorded stay visible — most OSM entries in Türkiye never say, so " +
+                "excluding them would hide real fast chargers.",
+            onChange = vm::setDcOnly
+        )
+
+        var minPower by remember(settings.chargersMinPowerKw) {
+            mutableFloatStateOf(settings.chargersMinPowerKw.toFloat())
+        }
+        Text(
+            if (minPower < 1) "No minimum power" else "At least ${minPower.toInt()} kW",
+            style = MaterialTheme.typography.bodyLarge,
+            fontFamily = FontFamily.Monospace
+        )
+        Slider(
+            value = minPower,
+            onValueChange = { minPower = it },
+            onValueChangeFinished = { vm.setMinPower(minPower.toInt()) },
+            valueRange = 0f..350f
+        )
+        Text(
+            "Only 54 of the 654 Turkish OpenStreetMap entries record their power, so a " +
+                "minimum here hides everything that never said. Useful with Open Charge " +
+                "Map data, blunt with OSM data.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.tertiary
+        )
+
+        var ocmKey by remember(settings.ocmApiKey) { mutableStateOf(settings.ocmApiKey) }
+        OutlinedTextField(
+            value = ocmKey,
+            onValueChange = { ocmKey = it },
+            label = { Text("Open Charge Map API key") },
+            placeholder = { Text("paste your own free key") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { vm.setOcmKey(ocmKey) }) { Text("Save key") }
+            if (settings.ocmApiKey.isNotBlank()) {
+                TextButton(onClick = { ocmKey = ""; vm.setOcmKey("") }) { Text("Clear") }
+            }
+        }
+        Text(
+            "Optional. Open Charge Map is EV-specific, so its connector and power data " +
+                "is far better than raw OpenStreetMap. The key is free but you have to " +
+                "register it yourself at openchargemap.org — the app will not create an " +
+                "account for you. It is stored only on this phone.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         HorizontalDivider()

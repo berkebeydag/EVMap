@@ -12,9 +12,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PerfRunEntity::class,
         TripEntity::class,
         TripSampleEntity::class,
-        AuxVoltageEntity::class
+        AuxVoltageEntity::class,
+        ChargingStationEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun perfRunDao(): PerfRunDao
     abstract fun tripDao(): TripDao
     abstract fun auxVoltageDao(): AuxVoltageDao
+    abstract fun chargingStationDao(): ChargingStationDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -49,6 +51,36 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v2 -> v3: adds the locally cached charging-station table. */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `charging_stations` (
+                        `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        `source_id` TEXT NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `name` TEXT,
+                        `operator` TEXT,
+                        `lat` REAL NOT NULL,
+                        `lon` REAL NOT NULL,
+                        `connectors` TEXT,
+                        `max_power_kw` REAL,
+                        `is_dc` INTEGER,
+                        `address` TEXT,
+                        `fetched_at` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_charging_stations_source_id` " +
+                        "ON `charging_stations` (`source_id`)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_charging_stations_lat` ON `charging_stations` (`lat`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_charging_stations_lon` ON `charging_stations` (`lon`)")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -56,7 +88,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ioniqscope.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

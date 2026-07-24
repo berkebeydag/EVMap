@@ -2,6 +2,7 @@ package com.berke.ioniqscope.data
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
@@ -22,6 +23,61 @@ interface PerfRunDao {
     suspend fun delete(id: Long)
 
     @Query("DELETE FROM perf_runs")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface ChargingStationDao {
+
+    /** Re-syncing the same area must update rows, not duplicate them. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(stations: List<ChargingStationEntity>)
+
+    @Query("SELECT COUNT(*) FROM charging_stations")
+    fun observeCount(): Flow<Int>
+
+    @Query("SELECT MAX(fetched_at) FROM charging_stations")
+    fun observeLastSync(): Flow<Long?>
+
+    /**
+     * Everything inside a bounding box. Cheap enough for a map viewport and it
+     * keeps the "which markers are visible" decision in SQL rather than in memory.
+     */
+    @Query(
+        "SELECT * FROM charging_stations " +
+            "WHERE lat BETWEEN :minLat AND :maxLat AND lon BETWEEN :minLon AND :maxLon " +
+            "LIMIT :limit"
+    )
+    suspend fun inBounds(
+        minLat: Double,
+        maxLat: Double,
+        minLon: Double,
+        maxLon: Double,
+        limit: Int = 2000
+    ): List<ChargingStationEntity>
+
+    /**
+     * Nearest stations to a point, ordered by squared planar distance.
+     *
+     * Planar rather than great-circle: over the tens of kilometres this is used
+     * for, the error is far smaller than the position uncertainty, and it keeps
+     * the ordering doable in SQLite. The longitude term is scaled by cos(lat) so
+     * a degree of longitude is not treated as a degree of latitude.
+     */
+    @Query(
+        "SELECT * FROM charging_stations ORDER BY " +
+            "((lat - :lat) * (lat - :lat)) + " +
+            "((lon - :lon) * (lon - :lon) * :lonScale * :lonScale) " +
+            "LIMIT :limit"
+    )
+    suspend fun nearest(
+        lat: Double,
+        lon: Double,
+        lonScale: Double,
+        limit: Int = 100
+    ): List<ChargingStationEntity>
+
+    @Query("DELETE FROM charging_stations")
     suspend fun deleteAll()
 }
 

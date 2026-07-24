@@ -53,6 +53,7 @@ import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.connection.ConnectionState
 import com.berke.ioniqscope.ui.nav.Destination
 import com.berke.ioniqscope.ui.screens.battery.AuxBatteryScreen
+import com.berke.ioniqscope.ui.screens.chargers.ChargerMapScreen
 import com.berke.ioniqscope.ui.screens.connect.ConnectScreen
 import com.berke.ioniqscope.ui.screens.console.RawConsoleScreen
 import com.berke.ioniqscope.ui.screens.dashboard.DashboardScreen
@@ -136,6 +137,7 @@ fun IoniqScopeRoot(services: ServiceLocator) {
             val toConnect: () -> Unit = { navController.navigateTo(Destination.Connect) }
 
             composable(Destination.Dashboard.route) { DashboardScreen(services, toConnect) }
+            composable(Destination.Chargers.route) { ChargerMapScreen(services) }
             composable(Destination.Performance.route) { PerformanceScreen(services, toConnect) }
             composable(Destination.Diagnostics.route) {
                 DiagnosticsScreen(

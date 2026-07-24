@@ -35,7 +35,13 @@ data class AppSettings(
     /** Reconnect to the last adapter when the app opens. */
     val autoConnect: Boolean = false,
     /** Start and stop trip logging from vehicle speed rather than a button. */
-    val autoLogTrips: Boolean = false
+    val autoLogTrips: Boolean = false,
+    /** User's own Open Charge Map key. Empty means that source stays off. */
+    val ocmApiKey: String = "",
+    /** Hide stations not positively marked as DC. */
+    val chargersDcOnly: Boolean = false,
+    /** Hide stations below this advertised power. 0 disables the filter. */
+    val chargersMinPowerKw: Int = 0
 )
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -52,6 +58,9 @@ class SettingsRepository(private val context: Context) {
         val lastName = stringPreferencesKey("last_device_name")
         val autoConnect = booleanPreferencesKey("auto_connect")
         val autoLogTrips = booleanPreferencesKey("auto_log_trips")
+        val ocmApiKey = stringPreferencesKey("ocm_api_key")
+        val chargersDcOnly = booleanPreferencesKey("chargers_dc_only")
+        val chargersMinPowerKw = intPreferencesKey("chargers_min_power_kw")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -66,7 +75,10 @@ class SettingsRepository(private val context: Context) {
             lastDeviceAddress = p[Keys.lastAddress],
             lastDeviceName = p[Keys.lastName],
             autoConnect = p[Keys.autoConnect] ?: false,
-            autoLogTrips = p[Keys.autoLogTrips] ?: false
+            autoLogTrips = p[Keys.autoLogTrips] ?: false,
+            ocmApiKey = p[Keys.ocmApiKey].orEmpty(),
+            chargersDcOnly = p[Keys.chargersDcOnly] ?: false,
+            chargersMinPowerKw = p[Keys.chargersMinPowerKw] ?: 0
         )
     }
 
@@ -85,6 +97,14 @@ class SettingsRepository(private val context: Context) {
     suspend fun setAutoConnect(enabled: Boolean) = edit { it[Keys.autoConnect] = enabled }
 
     suspend fun setAutoLogTrips(enabled: Boolean) = edit { it[Keys.autoLogTrips] = enabled }
+
+    suspend fun setOcmApiKey(key: String) = edit { it[Keys.ocmApiKey] = key.trim() }
+
+    suspend fun setChargersDcOnly(enabled: Boolean) = edit { it[Keys.chargersDcOnly] = enabled }
+
+    suspend fun setChargersMinPower(kw: Int) = edit {
+        it[Keys.chargersMinPowerKw] = kw.coerceIn(0, 400)
+    }
 
     suspend fun setLastDevice(address: String, name: String?) = edit {
         it[Keys.lastAddress] = address
