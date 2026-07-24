@@ -51,6 +51,7 @@ import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.connection.ConnectionState
 import com.berke.ioniqscope.ui.nav.Destination
 import com.berke.ioniqscope.ui.screens.connect.ConnectScreen
+import com.berke.ioniqscope.ui.screens.console.RawConsoleScreen
 import com.berke.ioniqscope.ui.screens.dashboard.DashboardScreen
 import com.berke.ioniqscope.ui.screens.diagnostics.DiagnosticsScreen
 import com.berke.ioniqscope.ui.screens.performance.PerformanceScreen
@@ -132,10 +133,17 @@ fun IoniqScopeRoot(services: ServiceLocator) {
 
             composable(Destination.Dashboard.route) { DashboardScreen(services, toConnect) }
             composable(Destination.Performance.route) { PerformanceScreen(services, toConnect) }
-            composable(Destination.Diagnostics.route) { DiagnosticsScreen(services, toConnect) }
+            composable(Destination.Diagnostics.route) {
+                DiagnosticsScreen(
+                    services = services,
+                    onConnect = toConnect,
+                    onOpenConsole = { navController.navigateTo(Destination.RawConsole) }
+                )
+            }
             composable(Destination.Trips.route) { TripLogScreen(services, toConnect) }
             composable(Destination.Connect.route) { ConnectScreen(services) }
             composable(Destination.Settings.route) { SettingsScreen(services) }
+            composable(Destination.RawConsole.route) { RawConsoleScreen(services) }
         }
     }
 }

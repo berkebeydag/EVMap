@@ -289,6 +289,23 @@ class ObdConnectionManager(
     suspend fun clearDtcs(): Result<Boolean> =
         exclusive { dtcReader?.clearCodes() ?: throw IllegalStateException("Not connected") }
 
+    /**
+     * Sends one command verbatim and returns the response with no interpretation.
+     *
+     * This exists so manufacturer-specific frames can be *verified* against the real
+     * car before anything is written into [com.berke.ioniqscope.obd.EgmpPids].
+     * It deliberately does not parse: showing raw bytes is the whole point, because
+     * a wrong parse looks exactly like a right one.
+     *
+     * Note that `ATSH` persists on the adapter. The console screen parks polling
+     * while it is open and restores the broadcast header on the way out.
+     */
+    suspend fun sendRaw(command: String): Result<String> =
+        exclusive { elm -> elm.command(command.trim().uppercase()) }
+
+    /** Puts the adapter back on the functional broadcast address (normal PID polling). */
+    suspend fun restoreDefaultHeader(): Result<String> = sendRaw("ATSH 7DF")
+
     // -------------------------------------------------------------------- misc
 
     fun bleScanner(): BleScanner = scanner

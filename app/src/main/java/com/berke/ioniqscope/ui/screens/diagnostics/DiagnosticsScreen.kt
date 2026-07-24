@@ -106,7 +106,11 @@ class DiagnosticsViewModel(services: ServiceLocator) : ViewModel() {
 }
 
 @Composable
-fun DiagnosticsScreen(services: ServiceLocator, onConnect: () -> Unit) {
+fun DiagnosticsScreen(
+    services: ServiceLocator,
+    onConnect: () -> Unit,
+    onOpenConsole: () -> Unit
+) {
     val vm = serviceViewModel(services) { DiagnosticsViewModel(it) }
     val connection by vm.connectionState.collectAsStateWithLifecycle()
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -151,6 +155,12 @@ fun DiagnosticsScreen(services: ServiceLocator, onConnect: () -> Unit) {
 
         ui.error?.let { Banner(title = "Error", text = it, tone = BannerTone.Error) }
         ui.message?.let { Banner(text = it, tone = BannerTone.Success) }
+
+        // Power-user escape hatch, deliberately understated. Reachable even when
+        // disconnected — the console explains itself and gates its own input.
+        TextButton(onClick = onOpenConsole) {
+            Text("Raw command console")
+        }
 
         SectionLabel("Stored codes")
 

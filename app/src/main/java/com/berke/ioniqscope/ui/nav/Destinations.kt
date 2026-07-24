@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -23,7 +24,10 @@ enum class Destination(
 
     // Reached from the top bar, not the bottom bar.
     Connect("connect", R.string.nav_connect, Icons.Filled.Bluetooth),
-    Settings("settings", R.string.nav_settings, Icons.Filled.Settings);
+    Settings("settings", R.string.nav_settings, Icons.Filled.Settings),
+
+    // Pushed from Diagnostics.
+    RawConsole("console", R.string.nav_console, Icons.Filled.Terminal);
 
     companion object {
         /**
@@ -35,7 +39,7 @@ enum class Destination(
         val bottomBar = listOf(Dashboard, Performance, Diagnostics, Trips)
 
         /** Pushed detail screens — these get a back arrow rather than a tab. */
-        val detail = listOf(Connect, Settings)
+        val detail = listOf(Connect, Settings, RawConsole)
 
         fun fromRoute(route: String?): Destination? = entries.firstOrNull { it.route == route }
     }
