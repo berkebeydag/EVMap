@@ -106,7 +106,7 @@ class DiagnosticsViewModel(services: ServiceLocator) : ViewModel() {
 }
 
 @Composable
-fun DiagnosticsScreen(services: ServiceLocator) {
+fun DiagnosticsScreen(services: ServiceLocator, onConnect: () -> Unit) {
     val vm = serviceViewModel(services) { DiagnosticsViewModel(it) }
     val connection by vm.connectionState.collectAsStateWithLifecycle()
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -123,7 +123,9 @@ fun DiagnosticsScreen(services: ServiceLocator) {
                 title = "Not connected",
                 text = "Connect to your adapter to read trouble codes.",
                 tone = BannerTone.Warning,
-                modifier = Modifier.padding(top = 12.dp)
+                modifier = Modifier.padding(top = 12.dp),
+                actionLabel = "Connect",
+                onAction = onConnect
             )
         }
 

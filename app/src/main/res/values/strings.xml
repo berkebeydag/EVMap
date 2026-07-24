@@ -8,6 +8,14 @@
     <string name="nav_diagnostics">Diagnostics</string>
     <string name="nav_trips">Trips</string>
     <string name="nav_settings">Settings</string>
+    <string name="back">Back</string>
+
+    <!-- Connection status, announced from the top-bar icon -->
+    <string name="status_connected">Connected to %1$s</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_failed">Connection failed — tap to retry</string>
+    <string name="status_disconnected">Not connected — tap to connect</string>
+    <string name="action_connect">Connect</string>
 
     <!-- Permissions -->
     <string name="perm_title">Bluetooth permission needed</string>

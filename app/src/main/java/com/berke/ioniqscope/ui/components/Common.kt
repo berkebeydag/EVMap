@@ -2,6 +2,7 @@ package com.berke.ioniqscope.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,6 +10,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,7 +74,9 @@ fun Banner(
     text: String,
     modifier: Modifier = Modifier,
     tone: BannerTone = BannerTone.Info,
-    title: String? = null
+    title: String? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
 ) {
     val scheme = MaterialTheme.colorScheme
     val container = when (tone) {
@@ -105,6 +109,14 @@ fun Banner(
                 style = MaterialTheme.typography.bodyMedium,
                 color = scheme.onSurface
             )
+            if (actionLabel != null && onAction != null) {
+                TextButton(
+                    onClick = onAction,
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)
+                ) {
+                    Text(actionLabel, color = accent)
+                }
+            }
         }
     }
 }

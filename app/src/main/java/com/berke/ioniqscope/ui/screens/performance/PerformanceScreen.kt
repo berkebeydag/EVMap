@@ -82,7 +82,7 @@ class PerformanceViewModel(services: ServiceLocator) : ViewModel() {
 }
 
 @Composable
-fun PerformanceScreen(services: ServiceLocator) {
+fun PerformanceScreen(services: ServiceLocator, onConnect: () -> Unit) {
     val vm = serviceViewModel(services) { PerformanceViewModel(it) }
     val connection by vm.connectionState.collectAsStateWithLifecycle()
     val perf by vm.perfState.collectAsStateWithLifecycle()
@@ -114,7 +114,9 @@ fun PerformanceScreen(services: ServiceLocator) {
                 Banner(
                     title = "Not connected",
                     text = "Connect to your adapter to arm the timer.",
-                    tone = BannerTone.Error
+                    tone = BannerTone.Error,
+                    actionLabel = "Connect",
+                    onAction = onConnect
                 )
             }
         }

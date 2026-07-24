@@ -1,19 +1,33 @@
 package com.berke.ioniqscope.ui.screens.dashboard
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,7 +71,7 @@ class DashboardViewModel(services: ServiceLocator) : ViewModel() {
 }
 
 @Composable
-fun DashboardScreen(services: ServiceLocator) {
+fun DashboardScreen(services: ServiceLocator, onConnect: () -> Unit) {
     val vm = serviceViewModel(services) { DashboardViewModel(it) }
     val connection by vm.connectionState.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -69,65 +83,150 @@ fun DashboardScreen(services: ServiceLocator) {
         if (connected) vm.claimPolling(settings)
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    val selected = PidCatalog.resolve(settings.dashboardPidKeys)
+    if (selected.isEmpty()) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
+        ) {
+            NotConnectedBanner(connected, onConnect)
+            EmptyState("No PIDs selected. Pick some in Settings.")
+        }
+        return
+    }
+
+    // Speed gets its own hero card — it is the one value you read at a glance while
+    // moving, so it should never be one tile among equals.
+    val speed = selected.firstOrNull { it.key == PidCatalog.speed.key }
+    val rest = selected.filter { it.key != PidCatalog.speed.key }
+
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 150.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(16.dp),
+        modifier = Modifier.fillMaxSize()
     ) {
         if (!connected) {
-            Banner(
-                title = "Not connected",
-                text = "Connect to your adapter on the Connect tab to see live data.",
-                tone = BannerTone.Warning,
-                modifier = Modifier.padding(top = 12.dp)
-            )
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                NotConnectedBanner(connected = false, onConnect = onConnect)
+            }
         }
 
-        val selected = PidCatalog.resolve(settings.dashboardPidKeys)
-        if (selected.isEmpty()) {
-            EmptyState("No PIDs selected. Pick some in Settings.")
-            return@Column
-        }
-
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 160.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-        ) {
-            items(selected, key = { it.key }) { pid ->
-                val reading: Reading? = state[pid.key]
-                GaugeCard(
-                    label = pid.label,
-                    value = reading?.let { formatDisplayValue(pid.key, it, settings) } ?: "—",
-                    // Unit comes from the PID and the user's preference, never from the
-                    // reading — otherwise a disconnected speed card falls back to the raw
-                    // km/h label while the app is set to mph.
-                    unit = displayUnit(pid, settings),
-                    stale = reading == null
+        if (speed != null) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SpeedHeroCard(
+                    reading = state[speed.key],
+                    settings = settings
                 )
             }
         }
 
-        // Any PID the vehicle simply does not answer shows as "—" above; call it out
-        // rather than letting it look like a bug.
+        items(rest, key = { it.key }) { pid ->
+            val reading: Reading? = state[pid.key]
+            GaugeCard(
+                label = pid.label,
+                value = reading?.let { formatReading(it.value) } ?: "—",
+                // Unit comes from the PID and the user's preference, never from the
+                // reading — otherwise a disconnected card falls back to the raw unit
+                // while the app is set to something else.
+                unit = displayUnit(pid, settings),
+                stale = reading == null
+            )
+        }
+
         val silent = selected.filter { state[it.key] == null }
         if (connected && silent.isNotEmpty() && state.isNotEmpty()) {
-            Text(
-                "No response for: ${silent.joinToString { it.label }}. " +
-                    "Not every standard PID is supported on an EV.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    "No response for: ${silent.joinToString { it.label }}. " +
+                        "Not every standard PID is supported on an EV.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
 
-private fun formatDisplayValue(key: String, reading: Reading, settings: AppSettings): String =
-    if (key == PidCatalog.speed.key) {
-        formatReading(settings.speedUnit.fromKmh(reading.value))
-    } else {
-        formatReading(reading.value)
+@Composable
+private fun NotConnectedBanner(connected: Boolean, onConnect: () -> Unit) {
+    if (connected) return
+    Banner(
+        title = "Not connected",
+        text = "Connect to your adapter to see live data.",
+        tone = BannerTone.Warning,
+        actionLabel = "Connect",
+        onAction = onConnect
+    )
+}
+
+/** Full-width speed readout: large, monospaced, legible in a moving car. */
+@Composable
+private fun SpeedHeroCard(reading: Reading?, settings: AppSettings) {
+    val scheme = MaterialTheme.colorScheme
+    val kmh = reading?.value ?: 0.0
+    val shown = settings.speedUnit.fromKmh(kmh)
+
+    // Fills as speed rises. Purely a glanceable cue — the number is the real content.
+    val fraction by animateFloatAsState(
+        targetValue = (kmh / 200.0).coerceIn(0.0, 1.0).toFloat(),
+        label = "speedFill"
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainer)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            listOf(
+                                scheme.primary.copy(alpha = 0.16f),
+                                scheme.primary.copy(alpha = 0.02f)
+                            )
+                        ),
+                        size = Size(size.width * fraction, size.height),
+                        topLeft = Offset.Zero
+                    )
+                }
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = PidCatalog.speed.label.uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                color = scheme.onSurfaceVariant
+            )
+            if (reading == null) {
+                // A 72sp em-dash reads as a stray rule across the card, so the
+                // waiting state gets its own, quieter treatment.
+                Text(
+                    text = "waiting for data",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = scheme.outline,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 18.dp)
+                )
+            } else {
+                Text(
+                    text = formatReading(shown),
+                    style = MaterialTheme.typography.displayLarge,
+                    fontFamily = FontFamily.Monospace,
+                    color = scheme.primary,
+                    textAlign = TextAlign.Center
+                )
+            }
+            Text(
+                text = settings.speedUnit.suffix,
+                style = MaterialTheme.typography.titleMedium,
+                color = scheme.onSurfaceVariant
+            )
+        }
     }
+}
 
 private fun displayUnit(pid: Pid, settings: AppSettings): String =
     if (pid.key == PidCatalog.speed.key) settings.speedUnit.suffix else pid.unit

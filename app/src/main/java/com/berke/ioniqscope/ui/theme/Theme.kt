@@ -29,6 +29,10 @@ private val OnSurface = Color(0xFFE8F1FF)
 private val OnSurfaceMuted = Color(0xFF9AAAC4)
 private val Danger = Color(0xFFFF6B6B)
 
+/** Connection-status dot colours. Kept outside the scheme — these mean one thing only. */
+val StatusGreen = Color(0xFF34D399)
+val StatusAmber = Color(0xFFFFB74D)
+
 private val DarkColors = darkColorScheme(
     primary = Cyan,
     onPrimary = Color(0xFF00232F),

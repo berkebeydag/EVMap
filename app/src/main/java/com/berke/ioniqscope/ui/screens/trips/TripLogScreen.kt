@@ -99,7 +99,7 @@ class TripLogViewModel(private val services: ServiceLocator) : ViewModel() {
 }
 
 @Composable
-fun TripLogScreen(services: ServiceLocator) {
+fun TripLogScreen(services: ServiceLocator, onConnect: () -> Unit) {
     val vm = serviceViewModel(services) { TripLogViewModel(it) }
     val context = LocalContext.current
 
@@ -131,7 +131,9 @@ fun TripLogScreen(services: ServiceLocator) {
                 title = "Not connected",
                 text = "Connect to your adapter before starting a trip log.",
                 tone = BannerTone.Warning,
-                modifier = Modifier.padding(top = 12.dp)
+                modifier = Modifier.padding(top = 12.dp),
+                actionLabel = "Connect",
+                onAction = onConnect
             )
         }
 

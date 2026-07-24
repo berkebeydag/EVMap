@@ -16,19 +16,26 @@ enum class Destination(
     @param:StringRes val labelRes: Int,
     val icon: ImageVector
 ) {
-    Connect("connect", R.string.nav_connect, Icons.Filled.Bluetooth),
     Dashboard("dashboard", R.string.nav_dashboard, Icons.Filled.Speed),
     Performance("performance", R.string.nav_performance, Icons.Filled.Timer),
     Diagnostics("diagnostics", R.string.nav_diagnostics, Icons.Filled.Warning),
     Trips("trips", R.string.nav_trips, Icons.Filled.Route),
+
+    // Reached from the top bar, not the bottom bar.
+    Connect("connect", R.string.nav_connect, Icons.Filled.Bluetooth),
     Settings("settings", R.string.nav_settings, Icons.Filled.Settings);
 
     companion object {
         /**
-         * Settings is deliberately not in the bottom bar — six items crowd the labels
-         * off a phone-width NavigationBar. It is reachable from the gear in the top bar.
+         * The four places you actually spend time. Connect and Settings live in the
+         * top bar instead: Connect is something you do once at the start of a drive,
+         * not a destination you return to, and six items crowd the labels off a
+         * phone-width NavigationBar.
          */
-        val bottomBar = listOf(Connect, Dashboard, Performance, Diagnostics, Trips)
+        val bottomBar = listOf(Dashboard, Performance, Diagnostics, Trips)
+
+        /** Pushed detail screens — these get a back arrow rather than a tab. */
+        val detail = listOf(Connect, Settings)
 
         fun fromRoute(route: String?): Destination? = entries.firstOrNull { it.route == route }
     }
