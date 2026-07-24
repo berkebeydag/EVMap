@@ -22,6 +22,7 @@ import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.connection.ConnectionState
 import com.berke.ioniqscope.data.AppSettings
 import com.berke.ioniqscope.data.PidCatalog
+import com.berke.ioniqscope.obd.Pid
 import com.berke.ioniqscope.obd.Reading
 import com.berke.ioniqscope.obd.VehicleState
 import com.berke.ioniqscope.ui.components.Banner
@@ -98,7 +99,10 @@ fun DashboardScreen(services: ServiceLocator) {
                 GaugeCard(
                     label = pid.label,
                     value = reading?.let { formatDisplayValue(pid.key, it, settings) } ?: "—",
-                    unit = reading?.let { displayUnit(pid.key, it, settings) } ?: pid.unit,
+                    // Unit comes from the PID and the user's preference, never from the
+                    // reading — otherwise a disconnected speed card falls back to the raw
+                    // km/h label while the app is set to mph.
+                    unit = displayUnit(pid, settings),
                     stale = reading == null
                 )
             }
@@ -125,5 +129,5 @@ private fun formatDisplayValue(key: String, reading: Reading, settings: AppSetti
         formatReading(reading.value)
     }
 
-private fun displayUnit(key: String, reading: Reading, settings: AppSettings): String =
-    if (key == PidCatalog.speed.key) settings.speedUnit.suffix else reading.unit
+private fun displayUnit(pid: Pid, settings: AppSettings): String =
+    if (pid.key == PidCatalog.speed.key) settings.speedUnit.suffix else pid.unit
