@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
 import android.os.Build
 import kotlinx.coroutines.CancellableContinuation
@@ -178,7 +179,9 @@ class BleTransport(
             }
         }
 
-        @Suppress("DEPRECATION")
+        // Pre-API-33 callback. Deprecated upstream, but it is the only one the
+        // platform invokes below Tiramisu, and minSdk here is 26.
+        @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
         override fun onCharacteristicChanged(g: BluetoothGatt, ch: BluetoothGattCharacteristic) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                 ch.value?.let { rxChannel.trySend(it.toString(Charsets.US_ASCII)) }
@@ -207,6 +210,10 @@ class BleTransport(
 
     // ---------------------------------------------------------------- Transport
 
+    // connectGatt(Context, Boolean, Callback, transport) is deprecated in favour of
+    // the BluetoothGattConnectionSettings overload, which only exists from API 37.
+    // minSdk is 26, so this remains the portable call.
+    @Suppress("DEPRECATION")
     override suspend fun connect() {
         try {
             withTimeout(connectTimeoutMs) {
@@ -255,7 +262,7 @@ class BleTransport(
         for (chunk in bytes.chunked(mtuPayload)) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val rc = g.writeCharacteristic(ch, chunk, type)
-                if (rc != BluetoothGatt.GATT_SUCCESS) {
+                if (rc != BluetoothStatusCodes.SUCCESS) {
                     throw IllegalStateException("writeCharacteristic returned $rc")
                 }
             } else {
@@ -303,7 +310,8 @@ class BleTransport(
     private fun writeCccd(g: BluetoothGatt, cccd: BluetoothGattDescriptor) {
         val value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         val ok = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            g.writeDescriptor(cccd, value) == BluetoothGatt.GATT_SUCCESS
+            // The API 33 overloads return BluetoothStatusCodes, not GATT_* codes.
+            g.writeDescriptor(cccd, value) == BluetoothStatusCodes.SUCCESS
         } else {
             @Suppress("DEPRECATION")
             run { cccd.value = value; g.writeDescriptor(cccd) }

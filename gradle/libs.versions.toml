@@ -2,9 +2,10 @@
 # Toolchain — resolved against the live Google/Maven Central metadata on 2026-07-24.
 agp = "9.3.1"
 # AGP 9 has built-in Kotlin support and bundles KGP itself, so the
-# org.jetbrains.kotlin.android plugin must NOT be applied. This version only pins
-# the Compose compiler plugin, which has to match AGP's bundled KGP (2.2.10).
-kotlin = "2.2.10"
+# org.jetbrains.kotlin.android plugin must NOT be applied. AGP 9.3.1 ships KGP
+# 2.2.10; the root build file overrides that on the buildscript classpath so this
+# version drives both the Kotlin compiler and the Compose compiler plugin.
+kotlin = "2.4.10"
 # KSP2 uses standalone versioning from 2.3.0 onward; the 2.2.10-2.0.2 line still
 # registers generated sources through kotlin.sourceSets, which built-in Kotlin rejects.
 ksp = "2.3.10"

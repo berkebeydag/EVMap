@@ -13,7 +13,7 @@ import com.berke.ioniqscope.R
 
 enum class Destination(
     val route: String,
-    @StringRes val labelRes: Int,
+    @param:StringRes val labelRes: Int,
     val icon: ImageVector
 ) {
     Connect("connect", R.string.nav_connect, Icons.Filled.Bluetooth),

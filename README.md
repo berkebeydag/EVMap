@@ -10,9 +10,12 @@ adapter. Hobby project — no ads, no analytics, no accounts, no cloud, and no
 ./gradlew assembleDebug
 ```
 
-Requires JDK 17+ (built against Temurin 21) and an Android SDK with **API 36**
-installed. Point Gradle at it with `ANDROID_HOME` or a `local.properties`
-containing `sdk.dir=/path/to/Android/Sdk`.
+Requires JDK 17+ (built against Temurin 21) and an Android SDK with
+`platforms;android-37.1` installed. Point Gradle at it with `ANDROID_HOME` or a
+`local.properties` containing `sdk.dir=/path/to/Android/Sdk`.
+
+Verified green from a clean tree: `assembleDebug` produces a ~19 MB
+`app-debug.apk`, with no compiler warnings and no lint issues.
 
 ### Toolchain
 
@@ -20,14 +23,19 @@ containing `sdk.dir=/path/to/Android/Sdk`.
 |---|---|---|
 | Gradle | 9.6.1 | wrapper checked in, distribution SHA-256 pinned |
 | AGP | 9.3.1 | uses **built-in Kotlin** — see below |
-| Kotlin | 2.2.10 | bundled by AGP; only pinned here for the Compose compiler plugin |
+| Kotlin | 2.4.10 | overrides AGP's bundled 2.2.10 via the buildscript classpath |
 | KSP | 2.3.10 | KSP2 standalone versioning |
-| compileSdk / targetSdk | 36 | minSdk 26 |
+| compileSdk / targetSdk | 37 (`compileSdkMinor = 1`) | minSdk 26 |
 
-> **AGP 9 note:** the `org.jetbrains.kotlin.android` plugin is *deliberately absent*.
-> AGP 9 compiles Kotlin itself and rejects the standalone plugin. Likewise the older
-> `2.2.10-2.0.2` KSP line is unusable here because it registers generated sources via
-> `kotlin.sourceSets`, which built-in Kotlin disallows.
+Three build-file details that are load-bearing, not incidental:
+
+- The `org.jetbrains.kotlin.android` plugin is **deliberately absent**. AGP 9
+  compiles Kotlin itself and hard-errors if the standalone plugin is applied.
+- KSP must be on the **2.3.x standalone line**. The older `2.2.10-2.0.2` line
+  registers its generated sources through `kotlin.sourceSets`, which built-in
+  Kotlin rejects outright.
+- `compileSdk` cannot be lowered to 36: `androidx.core:1.19.0` and
+  `androidx.lifecycle:2.11.0` both refuse to be consumed below API 37.
 
 ## Architecture
 

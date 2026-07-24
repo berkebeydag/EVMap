@@ -36,7 +36,7 @@ fun GaugeCard(
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(
-                text = label.uppercase(Locale.getDefault()),
+                text = label.uppercase(textLocale()),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
@@ -109,10 +109,18 @@ fun Banner(
     }
 }
 
+/**
+ * The active locale, read through Compose so a language change recomposes.
+ * Matters here because Turkish uppercasing is not the same as root uppercasing.
+ */
+@Composable
+private fun textLocale(): Locale =
+    Locale.forLanguageTag(androidx.compose.ui.text.intl.Locale.current.toLanguageTag())
+
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
-        text = text.uppercase(Locale.getDefault()),
+        text = text.uppercase(textLocale()),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier

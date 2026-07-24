@@ -89,6 +89,5 @@ class ConnectViewModel(private val services: ServiceLocator) : ViewModel() {
 
     override fun onCleared() {
         stopScan()
-        super.onCleared()
     }
 }
