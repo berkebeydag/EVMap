@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AuxVoltageEntity::class,
         ChargingStationEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -81,6 +81,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v3 -> v4: how many charge points a station has.
+         *
+         * Nullable on purpose. The sources are inconsistent about this — Open Charge
+         * Map states it, OSM usually does not — and a station whose socket count was
+         * never published has to stay silent rather than be shown as "1".
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `charging_stations` ADD COLUMN `charge_points` INTEGER")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -88,7 +101,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ioniqscope.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

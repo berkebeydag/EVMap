@@ -76,7 +76,16 @@ data class ChargingStationEntity(
      */
     @ColumnInfo(name = "is_dc") val isDc: Boolean?,
     @ColumnInfo(name = "address") val address: String?,
-    @ColumnInfo(name = "fetched_at") val fetchedAtEpochMs: Long
+    @ColumnInfo(name = "fetched_at") val fetchedAtEpochMs: Long,
+    /**
+     * How many individual charge points this record covers. Null when the source
+     * never said — most OSM entries — rather than an assumed 1, because a site with
+     * six sockets and one with an unstated count must not read the same.
+     *
+     * Declared last to match the physical column order an `ALTER TABLE ADD COLUMN`
+     * produces, so an upgraded database and a freshly created one are identical.
+     */
+    @ColumnInfo(name = "charge_points") val chargePoints: Int? = null
 )
 
 /** A logging session. [endedAtEpochMs] is null while it is still running. */

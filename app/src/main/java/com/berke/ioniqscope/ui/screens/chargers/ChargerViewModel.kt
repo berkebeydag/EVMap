@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -41,6 +42,17 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     private val _visible = MutableStateFlow<List<ChargerListItem>>(emptyList())
     val visible: StateFlow<List<ChargerListItem>> = _visible.asStateFlow()
+
+    /**
+     * The same records collapsed to one entry per physical place.
+     *
+     * Both the map and the list use this rather than the raw rows: the sources
+     * publish a separate record per socket, so a single car park would otherwise
+     * appear as five map markers and five identical list entries.
+     */
+    val sites: StateFlow<List<ChargerSite>> = _visible
+        .map { items -> groupIntoSites(items).sortedBy { it.distanceMetres ?: Double.MAX_VALUE } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _location = MutableStateFlow<LocationState>(LocationState.Unknown)
     val location: StateFlow<LocationState> = _location.asStateFlow()

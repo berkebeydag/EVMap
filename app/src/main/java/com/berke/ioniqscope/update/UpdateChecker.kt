@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
-import java.util.Base64
+import java.net.URI
 
 /** What the update source says the newest build is. */
 data class AvailableUpdate(
@@ -29,20 +29,27 @@ sealed interface UpdateState {
 }
 
 /**
- * Checks a shared folder for a newer build.
+ * Checks a plain URL for a newer build.
  *
  * Android will not let a sideloaded app install an update silently — the system
  * installer always asks — so the most this can do is notice and offer. That is
  * still the difference between hunting for a file and tapping "install".
  *
- * The source is a OneDrive share link rather than anything bespoke: it is already
- * syncing, so a new build appears there without a separate publish step. The
- * anonymous shares API turns a share link into a folder listing without a login,
- * which is why no account or token is needed on the phone.
+ * The source is deliberately just an address returning JSON, not any provider's
+ * API. The first attempt used OneDrive's anonymous shares API and that turned out
+ * to be closed: accounts migrated to SharePoint answer 401 to the API and 403 to
+ * the share link itself. A static file works anywhere — GitHub raw, a release
+ * asset, any web host — and cannot be withdrawn by one vendor's policy change.
+ *
+ * Expected shape, with `url` absolute or relative to the manifest:
+ * ```
+ * {"versionCode": 15, "versionName": "0.1.15", "url": "IoniqScope.apk",
+ *  "sizeBytes": 21207175, "notes": "…"}
+ * ```
  */
 class UpdateChecker(
     private val appContext: Context,
-    private val shareLinkProvider: () -> String?
+    private val manifestUrlProvider: () -> String?
 ) {
 
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
@@ -51,35 +58,28 @@ class UpdateChecker(
     fun reset() { _state.value = UpdateState.Idle }
 
     suspend fun check(silent: Boolean = false) {
-        val link = shareLinkProvider()?.takeIf { it.isNotBlank() } ?: run {
+        val manifestUrl = manifestUrlProvider()?.takeIf { it.isNotBlank() } ?: run {
             if (!silent) _state.value = UpdateState.Failed("No update source set.")
             return
         }
 
         if (!silent) _state.value = UpdateState.Checking
         try {
-            val children = listShare(link)
-            val manifest = children[MANIFEST_NAME]
-                ?: throw IllegalStateException("$MANIFEST_NAME not found in the shared folder")
-
-            val json = JSONObject(Http.get(manifest.downloadUrl))
+            val json = JSONObject(Http.get(manifestUrl))
             val versionCode = json.optInt("versionCode", -1)
             if (versionCode <= BuildConfig.VERSION_CODE) {
                 _state.value = if (silent) UpdateState.Idle else UpdateState.UpToDate
                 return
             }
 
-            val apkName = json.optString("apk", DEFAULT_APK_NAME)
-            val apk = children[apkName]
-                ?: throw IllegalStateException("$apkName not found in the shared folder")
-
+            val raw = json.optString("url").ifBlank { "IoniqScope.apk" }
             _state.value = UpdateState.Available(
                 AvailableUpdate(
                     versionCode = versionCode,
                     versionName = json.optString("versionName", "?"),
                     notes = json.optString("notes").ifBlank { null },
-                    downloadUrl = apk.downloadUrl,
-                    sizeBytes = apk.size
+                    downloadUrl = resolve(manifestUrl, raw),
+                    sizeBytes = json.optLong("sizeBytes")
                 )
             )
         } catch (e: Exception) {
@@ -101,34 +101,7 @@ class UpdateChecker(
         }
     }
 
-    private data class ShareItem(val downloadUrl: String, val size: Long)
-
-    /**
-     * Lists an anonymously shared folder.
-     *
-     * The link is encoded the way the shares API expects: base64url of the URL,
-     * unpadded, prefixed with `u!`.
-     */
-    private suspend fun listShare(link: String): Map<String, ShareItem> {
-        val encoded = "u!" + Base64.getUrlEncoder()
-            .withoutPadding()
-            .encodeToString(link.trim().toByteArray(Charsets.UTF_8))
-
-        val body = Http.get("https://api.onedrive.com/v1.0/shares/$encoded/root/children")
-        val items = JSONObject(body).optJSONArray("value") ?: return emptyMap()
-
-        val out = mutableMapOf<String, ShareItem>()
-        for (i in 0 until items.length()) {
-            val item = items.optJSONObject(i) ?: continue
-            val name = item.optString("name").ifBlank { continue }
-            val url = item.optString("@content.downloadUrl").ifBlank { continue }
-            out[name] = ShareItem(url, item.optLong("size"))
-        }
-        return out
-    }
-
-    private companion object {
-        const val MANIFEST_NAME = "latest.json"
-        const val DEFAULT_APK_NAME = "IoniqScope.apk"
-    }
+    /** Lets the manifest name the APK relative to itself, so moving hosts is a one-line change. */
+    private fun resolve(manifestUrl: String, target: String): String =
+        runCatching { URI(manifestUrl).resolve(target).toString() }.getOrDefault(target)
 }

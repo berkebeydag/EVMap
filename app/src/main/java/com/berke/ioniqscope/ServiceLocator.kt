@@ -57,11 +57,11 @@ class ServiceLocator private constructor(context: Context) {
     }
 
     private val chargerSeeder: ChargerSeeder by lazy {
-        ChargerSeeder(appContext, database.chargingStationDao(), osmChargerSource, appScope)
+        ChargerSeeder(appContext, database.chargingStationDao(), appScope)
     }
 
     val updateChecker: UpdateChecker by lazy {
-        UpdateChecker(appContext, shareLinkProvider = { cachedUpdateLink })
+        UpdateChecker(appContext, manifestUrlProvider = { cachedUpdateLink })
     }
 
     val apkDownloader: ApkDownloader by lazy { ApkDownloader(appContext) }

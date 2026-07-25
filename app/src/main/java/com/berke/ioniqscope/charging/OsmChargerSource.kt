@@ -70,15 +70,6 @@ class OsmChargerSource(
         return FetchResult(dedupe(stations.values, points.values), complete = failedStrips == 0)
     }
 
-    /** Parses a bundled Overpass response, so the shipped seed and a live refresh
-     *  go through exactly the same code and cannot drift apart. */
-    fun parseBundled(json: String): List<ChargingStationEntity> {
-        val stations = LinkedHashMap<String, ChargingStationEntity>()
-        val points = LinkedHashMap<String, ChargingStationEntity>()
-        parse(json, stations, points)
-        return dedupe(stations.values, points.values)
-    }
-
     /**
      * Constrained to the Türkiye boundary relation, not just a bounding box.
      *
@@ -167,6 +158,11 @@ class OsmChargerSource(
                 maxPowerKw = powerOf(tags),
                 isDc = dcOf(tags),
                 address = addressOf(tags),
+                // `capacity` is OSM's socket count, where a mapper filled it in.
+                // Implausible values are dropped: measured, the large ones are
+                // charger power in kW entered in the wrong field.
+                chargePoints = tags.optInt("capacity", 0)
+                    .takeIf { it in 1..PLAUSIBLE_MAX_CHARGE_POINTS },
                 fetchedAtEpochMs = timestamp
             )
         }

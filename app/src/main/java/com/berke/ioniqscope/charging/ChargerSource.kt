@@ -64,3 +64,13 @@ interface ChargerSource {
      */
     suspend fun fetch(box: BoundingBox): FetchResult
 }
+
+/**
+ * Above this, a published socket count is not believable and is treated as unstated.
+ *
+ * The largest genuine public site in Türkiye measures 28 charge points across the
+ * Open Charge Map and EPDK registers together. Figures of 150, 180 and 300 appear
+ * in the raw data instead — charger power in kW entered in the socket-count field —
+ * and one such record next to a real station was enough to poison its count.
+ */
+const val PLAUSIBLE_MAX_CHARGE_POINTS = 50

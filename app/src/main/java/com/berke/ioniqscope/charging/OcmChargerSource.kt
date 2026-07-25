@@ -24,15 +24,24 @@ class OcmChargerSource(
     override val displayName = "Open Charge Map (needs a free key)"
     override fun isAvailable() = !apiKeyProvider().isNullOrBlank()
 
+    @Suppress("UNUSED_PARAMETER")
     override suspend fun fetch(box: BoundingBox): FetchResult {
         val key = apiKeyProvider()?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("No Open Charge Map API key set")
 
-        val url = buildString {
-            append("https://api.openchargemap.io/v3/poi/?output=json&compact=true&verbose=false")
-            append("&maxresults=$MAX_RESULTS")
-            append("&boundingbox=(${box.maxLat},${box.minLon}),(${box.minLat},${box.maxLon})")
-        }
+        // Asked for by country rather than by the viewport box.
+        //
+        // A box around Türkiye also returns Greece, Bulgaria, Cyprus and part of the
+        // Caucasus, and asking per-viewport means the dataset is only ever as complete
+        // as the places the user happened to pan over. One country request, measured
+        // at about 2,100 stations, is both cheaper and complete.
+        //
+        // `compact`/`verbose=false` are deliberately not set: they replace the nested
+        // ConnectionType, CurrentType and OperatorInfo objects with bare reference
+        // ids, which the parser below reads as "not stated". That silently emptied
+        // the operator and connector fields on every station.
+        val url = "https://api.openchargemap.io/v3/poi/?output=json&countrycode=TR" +
+            "&maxresults=$MAX_RESULTS"
 
         val body = Http.get(url, mapOf("X-API-Key" to key))
         val stations = parse(JSONArray(body))
@@ -56,6 +65,7 @@ class OcmChargerSource(
             val connectorNames = mutableSetOf<String>()
             var maxKw: Double? = null
             var sawDc: Boolean? = null
+            var sockets = 0
 
             if (connections != null) {
                 for (c in 0 until connections.length()) {
@@ -80,6 +90,9 @@ class OcmChargerSource(
                         currentTypeId == OCM_CURRENT_TYPE_DC -> sawDc = true
                         currentTypeId > 0 && sawDc == null -> sawDc = false
                     }
+
+                    // Quantity is how many identical sockets this entry stands for.
+                    sockets += connection.optInt("Quantity", 1).coerceAtLeast(1)
                 }
             }
 
@@ -101,6 +114,7 @@ class OcmChargerSource(
                     address.optString("Town").ifBlank { null },
                     address.optString("StateOrProvince").ifBlank { null }
                 ).takeIf { it.isNotEmpty() }?.joinToString(" "),
+                chargePoints = sockets.takeIf { it in 1..PLAUSIBLE_MAX_CHARGE_POINTS },
                 fetchedAtEpochMs = timestamp
             )
         }

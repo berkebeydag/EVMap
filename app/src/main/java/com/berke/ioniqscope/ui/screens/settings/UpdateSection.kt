@@ -112,8 +112,8 @@ fun UpdateSection(
     OutlinedTextField(
         value = link,
         onValueChange = { link = it },
-        label = { Text("Update folder share link") },
-        placeholder = { Text("https://1drv.ms/f/…") },
+        label = { Text("latest.json address") },
+        placeholder = { Text("https://…/latest.json") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
@@ -133,8 +133,10 @@ fun UpdateSection(
     )
 
     Text(
-        "Point this at a shared folder holding IoniqScope.apk and latest.json. " +
-            "Nothing is uploaded — the app only reads that folder.",
+        "Point this at a latest.json served over plain HTTP — a GitHub raw file, a " +
+            "release asset, any web host. A OneDrive share link will not work: those " +
+            "need a browser session, not a direct fetch. Nothing is uploaded; the app " +
+            "only reads that address.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )

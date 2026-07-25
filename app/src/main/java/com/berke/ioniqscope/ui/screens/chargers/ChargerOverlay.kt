@@ -4,28 +4,33 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Point
 import android.view.MotionEvent
-import com.berke.ioniqscope.data.ChargingStationEntity
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.Projection
 import org.osmdroid.views.overlay.Overlay
+import kotlin.math.PI
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.tan
 
 /**
- * Draws every station in one overlay instead of one [org.osmdroid.views.overlay.Marker]
- * per station.
+ * Draws every site in one overlay instead of one [org.osmdroid.views.overlay.Marker]
+ * per site.
  *
- * Six hundred Marker objects is six hundred overlays for osmdroid to iterate,
- * hit-test and lay out on every frame; this is a single pass over an array with
- * one projection call each, which is what makes panning stay smooth at country zoom.
+ * Several thousand Marker objects is several thousand overlays for osmdroid to
+ * iterate, hit-test and lay out on every frame; this is a single pass over an array
+ * with one projection call each, which is what makes panning stay smooth at country
+ * zoom.
  *
- * Points that land within [cellPx] of each other on screen are merged into a
- * numbered cluster. Clustering in *screen* space rather than by geography means it
- * declusters naturally as you zoom in, with no per-zoom-level tuning.
+ * Sites within [cellPx] of each other are merged into a numbered bubble. The number
+ * is how many *places* are in there — the sockets at a single place were already
+ * folded together by [groupIntoSites], so a bubble reading 12 means twelve car parks,
+ * not twelve plugs.
  */
 class ChargerOverlay(
     private val colors: Colors,
     private val density: Float,
-    private val onTap: (ChargingStationEntity) -> Unit
+    private val onSelect: (ChargerSite) -> Unit
 ) : Overlay() {
 
     /** Theme colours, passed in so the overlay does not reach into Compose. */
@@ -40,20 +45,22 @@ class ChargerOverlay(
         val userRing: Int
     )
 
-    var items: List<ChargerListItem> = emptyList()
+    var sites: List<ChargerSite> = emptyList()
         set(value) {
             field = value
-            hitTargets = emptyList()
+            singles = emptyList()
+            clusters = emptyList()
         }
 
     /** Where the user is, drawn distinctly from the stations. */
     var userLocation: Pair<Double, Double>? = null
 
     /** Screen positions from the last draw, reused for hit-testing. */
-    private var hitTargets: List<Pair<Point, ChargingStationEntity>> = emptyList()
+    private var singles: List<Pair<Point, ChargerSite>> = emptyList()
+    private var clusters: List<Point> = emptyList()
 
     private val cellPx = 56f * density
-    private val dotRadius = 5f * density
+    private val dotRadius = 5.5f * density
     private val clusterRadius = 15f * density
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
@@ -71,35 +78,35 @@ class ChargerOverlay(
 
     override fun draw(canvas: Canvas, projection: Projection) {
         drawUser(canvas, projection)
-        if (items.isEmpty()) return
+        if (sites.isEmpty()) return
 
-        // Bucket by screen cell. Off-screen points are dropped before any drawing,
-        // so a country-wide dataset costs one projection each and nothing more.
         val width = canvas.width
         val height = canvas.height
-        val margin = clusterRadius * 2
+        // One whole cell of slack: a bubble sitting on the edge of the screen has
+        // members just past it, and dropping those was what made the number on an
+        // edge bubble change — or the bubble vanish — as the map was dragged.
+        val margin = cellPx + clusterRadius * 2f
 
-        val buckets = HashMap<Long, MutableList<Pair<Point, ChargingStationEntity>>>()
+        val pixelsPerDegree = pixelsPerDegree(projection, width)
+        val buckets = HashMap<Long, MutableList<Pair<Point, ChargerSite>>>()
 
-        for (item in items) {
-            val station = item.station
-            projection.toPixels(GeoPoint(station.lat, station.lon), reusablePoint)
+        for (site in sites) {
+            projection.toPixels(GeoPoint(site.lat, site.lon), reusablePoint)
             val x = reusablePoint.x
             val y = reusablePoint.y
             if (x < -margin || y < -margin || x > width + margin || y > height + margin) continue
 
-            val key = (x / cellPx).toInt().toLong() shl 32 or
-                ((y / cellPx).toInt().toLong() and 0xFFFFFFFFL)
-            buckets.getOrPut(key) { mutableListOf() }
-                .add(Point(x, y) to station)
+            buckets.getOrPut(cellKey(site, pixelsPerDegree, x, y)) { mutableListOf() }
+                .add(Point(x, y) to site)
         }
 
-        val targets = mutableListOf<Pair<Point, ChargingStationEntity>>()
+        val singleTargets = mutableListOf<Pair<Point, ChargerSite>>()
+        val clusterTargets = mutableListOf<Point>()
 
         for (bucket in buckets.values) {
             if (bucket.size == 1) {
-                val (point, station) = bucket.first()
-                fill.color = when (station.isDc) {
+                val (point, site) = bucket.first()
+                fill.color = when (site.isDc) {
                     true -> colors.dc
                     false -> colors.ac
                     null -> colors.unknown
@@ -107,12 +114,12 @@ class ChargerOverlay(
                 canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), dotRadius, fill)
                 stroke.color = colors.outline
                 canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), dotRadius, stroke)
-                targets += point to station
+                singleTargets += point to site
             } else {
                 // Centroid keeps the bubble over the group rather than on one member.
                 val cx = bucket.sumOf { it.first.x } / bucket.size
                 val cy = bucket.sumOf { it.first.y } / bucket.size
-                // Grows a little with size so a cluster of 200 reads bigger than one of 3.
+                // Grows a little with size so a bubble of 200 reads bigger than one of 3.
                 val radius = clusterRadius *
                     (1f + (bucket.size.coerceAtMost(200) / 200f) * 0.6f)
 
@@ -129,17 +136,66 @@ class ChargerOverlay(
                     cy + label.textSize / 3f,
                     label
                 )
-                // A cluster resolves to its nearest member when tapped.
-                targets += bucket.minByOrNull {
-                    val dx = it.first.x - cx
-                    val dy = it.first.y - cy
-                    dx * dx + dy * dy
-                }!!
+                clusterTargets += Point(cx, cy)
             }
         }
 
-        hitTargets = targets
+        singles = singleTargets
+        clusters = clusterTargets
     }
+
+    /**
+     * Which cluster cell a site belongs to.
+     *
+     * Deliberately computed from the site's position *on the map* rather than on the
+     * screen. Bucketing by screen pixel re-cuts the grid every time the map is
+     * dragged, so the same two sites fall in one cell at one scroll offset and two
+     * cells a few pixels later: bubbles merged, split, jumped and swapped numbers
+     * while the map moved. Map coordinates do not change when you pan, so a bubble
+     * now stays exactly where it was and only re-forms on zoom, which is when it
+     * should.
+     *
+     * Web Mercator is used for the vertical axis because it is what the tiles are
+     * drawn in, and it is linear in pixels — plain latitude is not, so a grid built
+     * on it would be coarser in the north than in the south.
+     */
+    private fun cellKey(site: ChargerSite, pixelsPerDegree: Double, x: Int, y: Int): Long {
+        if (pixelsPerDegree <= 0.0 || !pixelsPerDegree.isFinite()) {
+            // Fall back to the screen grid rather than dropping the site.
+            return pack((x / cellPx).toInt(), (y / cellPx).toInt())
+        }
+        val worldX = site.lon * pixelsPerDegree
+        val worldY = mercatorDegrees(site.lat) * pixelsPerDegree
+        return pack(
+            floor(worldX / cellPx).toInt(),
+            floor(worldY / cellPx).toInt()
+        )
+    }
+
+    /**
+     * Screen pixels per degree of longitude at the current zoom.
+     *
+     * Read off the projection rather than assumed from the tile size, so it stays
+     * right whatever tile source is in use. The value depends only on zoom — the
+     * span of longitude across the screen does not change as you pan — which is
+     * what makes the grid above stable.
+     */
+    private fun pixelsPerDegree(projection: Projection, width: Int): Double {
+        if (width <= 0) return 0.0
+        val left = projection.fromPixels(0, 0)
+        val right = projection.fromPixels(width, 0)
+        var span = right.longitude - left.longitude
+        if (span <= 0) span += 360.0          // viewport crossing the antimeridian
+        if (span <= 0) return 0.0
+        return width / span
+    }
+
+    private fun mercatorDegrees(latitude: Double): Double {
+        val clamped = latitude.coerceIn(-85.05, 85.05)
+        return Math.toDegrees(ln(tan(PI / 4 + Math.toRadians(clamped) / 2)))
+    }
+
+    private fun pack(x: Int, y: Int): Long = (x.toLong() shl 32) or (y.toLong() and 0xFFFFFFFFL)
 
     /**
      * The "you are here" dot.
@@ -164,19 +220,51 @@ class ChargerOverlay(
         canvas.drawCircle(x, y, 5.5f * density, fill)
     }
 
+    /**
+     * A single site opens its details; a bubble zooms into it.
+     *
+     * Tapping a bubble used to open whichever member happened to be nearest its
+     * centre, which is an arbitrary pick out of a group the user cannot see inside.
+     * Zooming is the answer to "what is in there".
+     */
     override fun onSingleTapConfirmed(e: MotionEvent, mapView: MapView): Boolean {
         val threshold = 24f * density
-        val nearest = hitTargets.minByOrNull { (point, _) ->
-            val dx = point.x - e.x
-            val dy = point.y - e.y
+
+        val site = singles.nearestWithin(e.x, e.y, threshold) { it.first }
+        if (site != null) {
+            onSelect(site.second)
+            return true
+        }
+
+        val cluster = clusters.nearestWithin(e.x, e.y, clusterRadius * 1.6f) { it }
+        if (cluster != null) {
+            mapView.controller.animateTo(
+                mapView.projection.fromPixels(cluster.x, cluster.y) as GeoPoint,
+                mapView.zoomLevelDouble + 2.0,
+                CLUSTER_ZOOM_MS
+            )
+            return true
+        }
+        return false
+    }
+
+    private fun <T> List<T>.nearestWithin(
+        x: Float,
+        y: Float,
+        threshold: Float,
+        point: (T) -> Point
+    ): T? {
+        val nearest = minByOrNull {
+            val dx = point(it).x - x
+            val dy = point(it).y - y
             dx * dx + dy * dy
-        } ?: return false
+        } ?: return null
+        val dx = point(nearest).x - x
+        val dy = point(nearest).y - y
+        return if (dx * dx + dy * dy <= threshold * threshold) nearest else null
+    }
 
-        val dx = nearest.first.x - e.x
-        val dy = nearest.first.y - e.y
-        if (dx * dx + dy * dy > threshold * threshold) return false
-
-        onTap(nearest.second)
-        return true
+    private companion object {
+        const val CLUSTER_ZOOM_MS = 350L
     }
 }

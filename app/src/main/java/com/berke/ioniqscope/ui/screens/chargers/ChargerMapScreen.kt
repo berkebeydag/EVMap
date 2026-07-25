@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,8 +41,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
@@ -54,7 +51,6 @@ import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.charging.BoundingBox
 import com.berke.ioniqscope.charging.Http
 import com.berke.ioniqscope.charging.SyncState
-import com.berke.ioniqscope.data.ChargingStationEntity
 import com.berke.ioniqscope.ui.components.Banner
 import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.EmptyState
@@ -83,13 +79,13 @@ fun ChargerMapScreen(services: ServiceLocator) {
     val sync by vm.syncState.collectAsStateWithLifecycle()
     val count by vm.stationCount.collectAsStateWithLifecycle()
     val lastSync by vm.lastSync.collectAsStateWithLifecycle()
-    val visible by vm.visible.collectAsStateWithLifecycle()
+    val sites by vm.sites.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val location by vm.location.collectAsStateWithLifecycle()
 
     var showList by remember { mutableStateOf(false) }
     var showSourceMenu by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf<ChargingStationEntity?>(null) }
+    var selected by remember { mutableStateOf<ChargerSite?>(null) }
 
     val locationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -239,8 +235,11 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
             ) {
                 Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    // "Charge points", not "stations": the sources publish a record
+                    // per socket, and the map groups them, so this number is always
+                    // larger than the number of places you can drive to.
                     Text(
-                        "$count stations cached",
+                        "$count charge points cached",
                         style = MaterialTheme.typography.bodySmall
                     )
                     lastSync?.let {
@@ -289,24 +288,23 @@ fun ChargerMapScreen(services: ServiceLocator) {
     if (showList) {
         Column(Modifier.fillMaxSize()) {
             controls()
-            ChargerList(visible)
+            ChargerList(sites)
         }
     } else {
         Box(Modifier.fillMaxSize()) {
             ChargerMap(
-                visible = visible,
+                sites = sites,
                 onBoundsChanged = vm::loadForBounds,
                 onSelect = { selected = it },
-                darkTiles = isSystemInDarkTheme(),
                 userLocation = (location as? LocationState.Known)?.let { it.lat to it.lon },
                 context = context
             )
             Column(Modifier.fillMaxWidth().align(Alignment.TopStart)) { controls() }
 
-            selected?.let { station ->
-                SelectedStationCard(
-                    station = station,
-                    onNavigate = { openInMaps(context, station) },
+            selected?.let { site ->
+                SelectedSiteCard(
+                    site = site,
+                    onNavigate = { openInMaps(context, site) },
                     onDismiss = { selected = null },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -326,10 +324,10 @@ fun ChargerMapScreen(services: ServiceLocator) {
     }
 }
 
-/** Details for the tapped station, over the map rather than on a new screen. */
+/** Details for the tapped site, over the map rather than on a new screen. */
 @Composable
-private fun SelectedStationCard(
-    station: ChargingStationEntity,
+private fun SelectedSiteCard(
+    site: ChargerSite,
     onNavigate: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -342,11 +340,20 @@ private fun SelectedStationCard(
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(
-                station.name ?: station.operator ?: "Charging station",
+                site.name ?: site.operator ?: "Charging station",
                 style = MaterialTheme.typography.titleMedium
             )
+            // The socket count belongs here, not on the map: the map answers "where
+            // can I charge", this answers "what will I find when I get there".
+            chargePointSummary(site)?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             Text(
-                describe(station),
+                describe(site),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -358,33 +365,31 @@ private fun SelectedStationCard(
     }
 }
 
+/**
+ * How many sockets are here, phrased as what the data actually supports.
+ *
+ * Says "listed" because this is what the sources published, not a live count of
+ * what is free. Where nobody published a figure it returns null and the card says
+ * nothing at all, rather than showing a made-up "1".
+ */
+private fun chargePointSummary(site: ChargerSite): String? = when (site.chargePoints) {
+    null -> null
+    1 -> "1 charge point listed"
+    else -> "${site.chargePoints} charge points listed"
+}
+
 @Composable
 private fun ChargerMap(
-    visible: List<ChargerListItem>,
+    sites: List<ChargerSite>,
     onBoundsChanged: (BoundingBox) -> Unit,
-    onSelect: (ChargingStationEntity) -> Unit,
-    darkTiles: Boolean,
+    onSelect: (ChargerSite) -> Unit,
     userLocation: Pair<Double, Double>?,
     context: Context
 ) {
-    val scheme = MaterialTheme.colorScheme
     val density = LocalDensity.current.density
 
     val overlay = remember {
-        ChargerOverlay(
-            colors = ChargerOverlay.Colors(
-                dc = scheme.primary.toArgb(),
-                ac = scheme.tertiary.toArgb(),
-                unknown = scheme.outline.toArgb(),
-                cluster = scheme.primaryContainer.toArgb(),
-                clusterText = scheme.onPrimaryContainer.toArgb(),
-                outline = scheme.surface.toArgb(),
-                user = scheme.secondary.toArgb(),
-                userRing = Color.White.toArgb()
-            ),
-            density = density,
-            onTap = onSelect
-        )
+        ChargerOverlay(colors = MAP_MARKERS, density = density, onSelect = onSelect)
     }
 
     val mapView = remember {
@@ -400,7 +405,7 @@ private fun ChargerMap(
             osmdroidTileCache = context.cacheDir.resolve("osmdroid")
         }
         MapView(context).apply {
-            setTileSource(if (darkTiles) CARTO_DARK else CARTO_LIGHT)
+            setTileSource(CARTO_VOYAGER)
             setMultiTouchControls(true)
             // Without this the raster tiles are blitted 1:1 onto a ~3x density
             // screen, which is why the map read as a low-resolution image pasted in.
@@ -412,11 +417,6 @@ private fun ChargerMap(
             controller.setCenter(TURKEY_CENTRE)
             overlays.add(overlay)
         }
-    }
-
-    LaunchedEffect(darkTiles) {
-        mapView.setTileSource(if (darkTiles) CARTO_DARK else CARTO_LIGHT)
-        mapView.invalidate()
     }
 
     // Finding a position used to change nothing on screen except the tint of the
@@ -441,11 +441,11 @@ private fun ChargerMap(
         factory = { mapView },
         modifier = Modifier.fillMaxSize(),
         update = { map ->
-            // Stations are clustered in the overlay, so every one of them stays
+            // Sites are clustered in the overlay, so every one of them stays
             // represented at any zoom — no threshold below which the map silently
             // looks empty, and no cap that would cut by database order rather than
             // by geography.
-            overlay.items = visible
+            overlay.sites = sites
             map.invalidate()
         }
     )
@@ -482,8 +482,8 @@ private fun emitBounds(map: MapView, onBoundsChanged: (BoundingBox) -> Unit) {
 }
 
 @Composable
-private fun ChargerList(items: List<ChargerListItem>) {
-    if (items.isEmpty()) {
+private fun ChargerList(sites: List<ChargerSite>) {
+    if (sites.isEmpty()) {
         EmptyState("No stations here. Pan the map, refresh the list, or relax the filters.")
         return
     }
@@ -493,15 +493,14 @@ private fun ChargerList(items: List<ChargerListItem>) {
         contentPadding = PaddingValues(bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(items, key = { it.station.id }) { item ->
-            ChargerRow(item) { openInMaps(context, item.station) }
+        items(sites, key = { it.id }) { site ->
+            ChargerRow(site) { openInMaps(context, site) }
         }
     }
 }
 
 @Composable
-private fun ChargerRow(item: ChargerListItem, onNavigate: () -> Unit) {
-    val station = item.station
+private fun ChargerRow(site: ChargerSite, onNavigate: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -511,38 +510,47 @@ private fun ChargerRow(item: ChargerListItem, onNavigate: () -> Unit) {
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(
-                station.name ?: station.operator ?: "Charging station",
+                site.name ?: site.operator ?: "Charging station",
                 style = MaterialTheme.typography.titleSmall
             )
             Text(
-                describe(station),
+                describe(site),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            item.distanceMetres?.let {
-                Text(
-                    formatDistance(it),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.primary
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                site.distanceMetres?.let {
+                    Text(
+                        formatDistance(it),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                site.chargePoints?.takeIf { it > 1 }?.let {
+                    Text(
+                        "$it charge points",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
 }
 
 /** Honest about gaps: "unknown" is shown as unknown, never as a plausible default. */
-private fun describe(station: ChargingStationEntity): String = buildString {
-    append(station.operator ?: "operator unknown")
+private fun describe(site: ChargerSite): String = buildString {
+    append(site.operator ?: "operator unknown")
     append(" · ")
-    append(station.maxPowerKw?.let { String.format(Locale.US, "%.0f kW", it) } ?: "power unknown")
-    when (station.isDc) {
+    append(site.maxPowerKw?.let { String.format(Locale.US, "%.0f kW", it) } ?: "power unknown")
+    when (site.isDc) {
         true -> append(" · DC")
         false -> append(" · AC")
         null -> append(" · type unknown")
     }
-    station.connectors?.let { append("\n$it") }
-    station.address?.let { append("\n$it") }
+    site.connectors?.let { append("\n$it") }
+    site.address?.let { append("\n$it") }
 }
 
 private fun formatDistance(metres: Double): String =
@@ -550,11 +558,11 @@ private fun formatDistance(metres: Double): String =
     else String.format(Locale.US, "%.1f km", metres / 1000)
 
 /** Hands off to whatever navigation app the user actually uses. */
-private fun openInMaps(context: Context, station: ChargingStationEntity) {
-    val label = Uri.encode(station.name ?: station.operator ?: "Charging station")
+private fun openInMaps(context: Context, site: ChargerSite) {
+    val label = Uri.encode(site.name ?: site.operator ?: "Charging station")
     val intent = Intent(
         Intent.ACTION_VIEW,
-        "geo:${station.lat},${station.lon}?q=${station.lat},${station.lon}($label)".toUri()
+        "geo:${site.lat},${site.lon}?q=${site.lat},${site.lon}($label)".toUri()
     )
     runCatching { context.startActivity(intent) }
 }
@@ -562,35 +570,57 @@ private fun openInMaps(context: Context, station: ChargingStationEntity) {
 private fun String.toUri(): Uri = Uri.parse(this)
 
 /**
- * CARTO basemaps, in both a dark and a light style.
+ * CARTO Voyager, used whichever theme the app itself is in.
  *
- * Standard OSM tiles come in one bright style only, and filtering them into
- * something dark does not work: inverting flips the map's own colour logic (sea
- * turns brown, roads turn black), while merely dimming leaves a washed-out grey
- * with no contrast. A basemap actually designed dark is the only version that
- * reads properly next to a dark UI.
+ * The map used to follow the app's dark theme, and CARTO's dark basemap is built
+ * for maps that are mostly empty: the road network is drawn in near-black on
+ * black, so at anything above city zoom the roads simply were not legible. Voyager
+ * keeps a light base with a properly graded road hierarchy — motorways, trunk
+ * roads and streets are all separable — which is what you actually need when the
+ * question is "how do I drive to that charger".
  *
- * The `@2x` variants are 512px retina tiles, which is the other half of why the
- * map used to look like a low-resolution image.
+ * A bright map under a dark UI is a deliberate trade: legibility of the thing you
+ * are reading beats matching the chrome around it. The markers below are given
+ * fixed, map-tuned colours so they do not depend on the app theme either.
+ *
+ * The `@2x` variant is 512px retina tiles, which is why the map no longer looks
+ * like a low-resolution image pasted in.
  *
  * Free to use with attribution, which is rendered on the map. No API key and no
  * account, keeping the project buildable by anyone who clones it.
  */
 private const val CARTO_ATTRIBUTION = "© OpenStreetMap contributors © CARTO"
 
-private fun cartoSource(style: String) = XYTileSource(
-    "carto-$style",
+private val CARTO_VOYAGER = XYTileSource(
+    "carto-voyager",
     0, 20, 512, "@2x.png",
     arrayOf(
-        "https://a.basemaps.cartocdn.com/$style/",
-        "https://b.basemaps.cartocdn.com/$style/",
-        "https://c.basemaps.cartocdn.com/$style/"
+        "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
+        "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
+        "https://c.basemaps.cartocdn.com/rastertiles/voyager/"
     ),
     CARTO_ATTRIBUTION
 )
 
-private val CARTO_DARK = cartoSource("dark_all")
-private val CARTO_LIGHT = cartoSource("light_all")
+/**
+ * Marker colours, fixed rather than taken from the Material scheme.
+ *
+ * The scheme's colours are chosen to sit on the app's own surfaces; on a light
+ * basemap the dark theme's pastel primary all but disappears. These are picked
+ * against the tiles instead, with a white ring on every marker — the standard map
+ * treatment, and the reason a pin stays visible over both a grey motorway and a
+ * green park.
+ */
+private val MAP_MARKERS = ChargerOverlay.Colors(
+    dc = 0xFF1B8E3C.toInt(),          // green: fast charging
+    ac = 0xFF2563EB.toInt(),          // blue: AC only
+    unknown = 0xFF64748B.toInt(),     // slate: the source never said
+    cluster = 0xFF0F766E.toInt(),
+    clusterText = 0xFFFFFFFF.toInt(),
+    outline = 0xFFFFFFFF.toInt(),
+    user = 0xFF1A73E8.toInt(),
+    userRing = 0xFFFFFFFF.toInt()
+)
 
 /** Close enough to see the streets around you, without losing nearby towns. */
 private const val USER_ZOOM = 12.0
