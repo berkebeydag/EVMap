@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -297,6 +298,7 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 onBoundsChanged = vm::loadForBounds,
                 onSelect = { selected = it },
                 darkTiles = isSystemInDarkTheme(),
+                userLocation = (location as? LocationState.Known)?.let { it.lat to it.lon },
                 context = context
             )
             Column(Modifier.fillMaxWidth().align(Alignment.TopStart)) { controls() }
@@ -362,6 +364,7 @@ private fun ChargerMap(
     onBoundsChanged: (BoundingBox) -> Unit,
     onSelect: (ChargingStationEntity) -> Unit,
     darkTiles: Boolean,
+    userLocation: Pair<Double, Double>?,
     context: Context
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -375,7 +378,9 @@ private fun ChargerMap(
                 unknown = scheme.outline.toArgb(),
                 cluster = scheme.primaryContainer.toArgb(),
                 clusterText = scheme.onPrimaryContainer.toArgb(),
-                outline = scheme.surface.toArgb()
+                outline = scheme.surface.toArgb(),
+                user = scheme.secondary.toArgb(),
+                userRing = Color.White.toArgb()
             ),
             density = density,
             onTap = onSelect
@@ -411,6 +416,19 @@ private fun ChargerMap(
 
     LaunchedEffect(darkTiles) {
         mapView.setTileSource(if (darkTiles) CARTO_DARK else CARTO_LIGHT)
+        mapView.invalidate()
+    }
+
+    // Finding a position used to change nothing on screen except the tint of the
+    // button, which made a working location look broken. Now the map goes there.
+    LaunchedEffect(userLocation) {
+        val (lat, lon) = userLocation ?: return@LaunchedEffect
+        overlay.userLocation = lat to lon
+        mapView.controller.animateTo(
+            GeoPoint(lat, lon),
+            maxOf(mapView.zoomLevelDouble, USER_ZOOM),
+            null
+        )
         mapView.invalidate()
     }
 
@@ -573,6 +591,9 @@ private fun cartoSource(style: String) = XYTileSource(
 
 private val CARTO_DARK = cartoSource("dark_all")
 private val CARTO_LIGHT = cartoSource("light_all")
+
+/** Close enough to see the streets around you, without losing nearby towns. */
+private const val USER_ZOOM = 12.0
 
 private val syncFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMM, HH:mm").withZone(ZoneId.systemDefault())

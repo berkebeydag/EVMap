@@ -35,7 +35,9 @@ class ChargerOverlay(
         val unknown: Int,
         val cluster: Int,
         val clusterText: Int,
-        val outline: Int
+        val outline: Int,
+        val user: Int,
+        val userRing: Int
     )
 
     var items: List<ChargerListItem> = emptyList()
@@ -43,6 +45,9 @@ class ChargerOverlay(
             field = value
             hitTargets = emptyList()
         }
+
+    /** Where the user is, drawn distinctly from the stations. */
+    var userLocation: Pair<Double, Double>? = null
 
     /** Screen positions from the last draw, reused for hit-testing. */
     private var hitTargets: List<Pair<Point, ChargingStationEntity>> = emptyList()
@@ -65,6 +70,7 @@ class ChargerOverlay(
     private val reusablePoint = Point()
 
     override fun draw(canvas: Canvas, projection: Projection) {
+        drawUser(canvas, projection)
         if (items.isEmpty()) return
 
         // Bucket by screen cell. Off-screen points are dropped before any drawing,
@@ -133,6 +139,29 @@ class ChargerOverlay(
         }
 
         hitTargets = targets
+    }
+
+    /**
+     * The "you are here" dot.
+     *
+     * Drawn before the stations so a charger you are standing next to is not
+     * hidden underneath it, and given a halo plus a white ring so it stays
+     * distinguishable from a station at any zoom.
+     */
+    private fun drawUser(canvas: Canvas, projection: Projection) {
+        val (lat, lon) = userLocation ?: return
+        projection.toPixels(GeoPoint(lat, lon), reusablePoint)
+        val x = reusablePoint.x.toFloat()
+        val y = reusablePoint.y.toFloat()
+
+        fill.color = colors.user and 0x40FFFFFF.toInt()
+        canvas.drawCircle(x, y, 14f * density, fill)
+
+        fill.color = colors.userRing
+        canvas.drawCircle(x, y, 7.5f * density, fill)
+
+        fill.color = colors.user
+        canvas.drawCircle(x, y, 5.5f * density, fill)
     }
 
     override fun onSingleTapConfirmed(e: MotionEvent, mapView: MapView): Boolean {
