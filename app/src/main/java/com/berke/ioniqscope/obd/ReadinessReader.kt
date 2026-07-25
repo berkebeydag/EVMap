@@ -61,9 +61,9 @@ class ReadinessReader(private val elm: Elm327) {
 
         val monitors = buildList {
             // Continuous monitors, byte B.
-            add(MonitorStatus("Misfire", b and 0x01 != 0, b and 0x10 == 0))
-            add(MonitorStatus("Fuel system", b and 0x02 != 0, b and 0x20 == 0))
-            add(MonitorStatus("Components", b and 0x04 != 0, b and 0x40 == 0))
+            add(MonitorStatus("Tekleme", b and 0x01 != 0, b and 0x10 == 0))
+            add(MonitorStatus("Yakıt sistemi", b and 0x02 != 0, b and 0x20 == 0))
+            add(MonitorStatus("Bileşenler", b and 0x04 != 0, b and 0x40 == 0))
 
             // Non-continuous monitors, bytes C (supported) and D (incomplete).
             NON_CONTINUOUS.forEachIndexed { index, name ->
@@ -103,14 +103,14 @@ class ReadinessReader(private val elm: Elm327) {
 
     private companion object {
         val NON_CONTINUOUS = listOf(
-            "Catalyst",
-            "Heated catalyst",
-            "Evaporative system",
-            "Secondary air system",
-            "A/C refrigerant",
-            "Oxygen sensor",
-            "Oxygen sensor heater",
-            "EGR system"
+            "Katalizör",
+            "Isıtmalı katalizör",
+            "Buharlaşma sistemi",
+            "İkincil hava sistemi",
+            "Klima soğutucusu",
+            "Oksijen sensörü",
+            "Oksijen sensörü ısıtıcısı",
+            "EGR sistemi"
         )
     }
 }

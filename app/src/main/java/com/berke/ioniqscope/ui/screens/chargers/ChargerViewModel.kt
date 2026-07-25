@@ -155,7 +155,7 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     /**
      * `isDc == null` means the source never said. Those are kept even under
-     * "DC only", because with OSM tagging DC on a small minority of Turkish
+     * "Sadece DC", because with OSM tagging DC on a small minority of Turkish
      * entries, excluding unknowns would hide most real fast chargers. The UI
      * states this rather than quietly filtering.
      */

@@ -134,7 +134,7 @@ fun TripDetailScreen(services: ServiceLocator, tripId: Long) {
 
     val trip = detail.trip
     if (trip == null) {
-        EmptyState("This trip no longer exists.")
+        EmptyState("Bu sefer artık mevcut değil.")
         return
     }
 
@@ -155,7 +155,7 @@ fun TripDetailScreen(services: ServiceLocator, tripId: Long) {
         HorizontalDivider()
         SectionLabel("Speed")
         if (detail.speedSeries.size < 2) {
-            EmptyState("No speed data was recorded for this trip.")
+            EmptyState("Bu sefer için hız verisi kaydedilmemiş.")
         } else {
             LineChart(
                 points = detail.speedSeries.map {
@@ -172,7 +172,7 @@ fun TripDetailScreen(services: ServiceLocator, tripId: Long) {
 
         if (detail.voltSeries.size >= 2) {
             HorizontalDivider()
-            SectionLabel("12V during this trip")
+            SectionLabel("Bu seferdeki 12V")
             LineChart(
                 points = detail.voltSeries.map { ChartPoint(it.atEpochMs.toDouble(), it.value) },
                 lineColor = MaterialTheme.colorScheme.tertiary,
@@ -229,7 +229,7 @@ private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
                     settings.speedUnit.suffix
                 )
                 Stat(
-                    "12V range",
+                    "12V aralığı",
                     if (detail.minVolts != null && detail.maxVolts != null) {
                         String.format(Locale.US, "%.1f–%.1f", detail.minVolts, detail.maxVolts)
                     } else "—",

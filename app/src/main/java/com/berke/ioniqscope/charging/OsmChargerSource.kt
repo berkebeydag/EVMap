@@ -23,7 +23,7 @@ class OsmChargerSource(
 ) : ChargerSource {
 
     override val id = "osm"
-    override val displayName = "OpenStreetMap (no key needed)"
+    override val displayName = "OpenStreetMap (anahtar gerekmez)"
     override fun isAvailable() = true
 
     override suspend fun fetch(box: BoundingBox): FetchResult {
@@ -61,7 +61,7 @@ class OsmChargerSource(
         }
 
         if (stations.isEmpty() && points.isEmpty()) {
-            throw lastError ?: IllegalStateException("No stations returned")
+            throw lastError ?: IllegalStateException("Hiç istasyon dönmedi")
         }
 
         // Some strips failing is the difference between "here is the country" and

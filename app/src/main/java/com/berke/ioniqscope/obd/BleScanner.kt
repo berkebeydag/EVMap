@@ -18,7 +18,7 @@ data class DiscoveredDevice(
     val name: String?,
     val rssi: Int
 ) {
-    val displayName: String get() = name?.takeIf { it.isNotBlank() } ?: "(unnamed)"
+    val displayName: String get() = name?.takeIf { it.isNotBlank() } ?: "(isimsiz)"
 
     /** Adapters that advertise a name matching the usual ELM327 clone patterns. */
     val looksLikeObdAdapter: Boolean
@@ -74,7 +74,7 @@ class BleScanner(private val context: Context) {
      */
     fun scan(): Flow<List<DiscoveredDevice>> = callbackFlow {
         val scanner = adapter?.takeIf { it.isEnabled }?.bluetoothLeScanner
-            ?: throw IllegalStateException("Bluetooth is off or unavailable")
+            ?: throw IllegalStateException("Bluetooth kapalı ya da kullanılamıyor")
 
         val found = linkedMapOf<String, DiscoveredDevice>()
 
@@ -94,7 +94,7 @@ class BleScanner(private val context: Context) {
             }
 
             override fun onScanFailed(errorCode: Int) {
-                close(IllegalStateException("BLE scan failed (error $errorCode)"))
+                close(IllegalStateException("BLE taraması başarısız (hata $errorCode)"))
             }
         }
 

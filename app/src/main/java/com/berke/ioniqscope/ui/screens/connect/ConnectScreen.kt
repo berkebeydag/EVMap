@@ -127,7 +127,7 @@ private fun PermissionRationale(
                 text = stringResource(R.string.perm_denied_settings),
                 tone = BannerTone.Warning
             )
-            OutlinedButton(onClick = onOpenSettings) { Text("Open app settings") }
+            OutlinedButton(onClick = onOpenSettings) { Text("Uygulama ayarlarını aç") }
         }
         Button(onClick = onGrant) { Text(stringResource(R.string.perm_grant)) }
     }
@@ -157,13 +157,13 @@ private fun ConnectContent(vm: ConnectViewModel) {
 
         when (availability) {
             BluetoothAvailability.NoAdapter -> Banner(
-                title = "No Bluetooth adapter",
-                text = "This device has no Bluetooth hardware IoniqScope can use.",
+                title = "Bluetooth donanımı yok",
+                text = "Bu cihazda IoniqScope'un kullanabileceği bir Bluetooth donanımı yok.",
                 tone = BannerTone.Error
             )
             BluetoothAvailability.Disabled -> Banner(
-                title = "Bluetooth is off",
-                text = "Turn Bluetooth on to scan for your adapter.",
+                title = "Bluetooth kapalı",
+                text = "Adaptörü taramak için Bluetooth'u aç.",
                 tone = BannerTone.Warning
             )
             BluetoothAvailability.Ready -> Unit
@@ -174,7 +174,7 @@ private fun ConnectContent(vm: ConnectViewModel) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (scan.isScanning) {
-                OutlinedButton(onClick = vm::stopScan) { Text("Stop scan") }
+                OutlinedButton(onClick = vm::stopScan) { Text("Taramayı durdur") }
                 CircularProgressIndicator(modifier = Modifier.padding(start = 4.dp))
             } else {
                 Button(
@@ -183,24 +183,24 @@ private fun ConnectContent(vm: ConnectViewModel) {
                 ) {
                     Text(
                         if (settings.adapterType == com.berke.ioniqscope.data.AdapterType.CLASSIC) {
-                            "List paired adapters"
-                        } else "Scan for adapters"
+                            "Eşleşmiş adaptörleri listele"
+                        } else "Adaptör tara"
                     )
                 }
             }
         }
 
         scan.error?.let {
-            Banner(title = "Scan failed", text = it, tone = BannerTone.Error)
+            Banner(title = "Tarama başarısız", text = it, tone = BannerTone.Error)
         }
 
-        SectionLabel("Adapters found")
+        SectionLabel("Bulunan adaptörler")
 
         Box(Modifier.weight(1f)) {
             if (scan.devices.isEmpty()) {
                 EmptyState(
-                    if (scan.isScanning) "Scanning…"
-                    else "No adapters yet. Start a scan with the adapter powered up and in range."
+                    if (scan.isScanning) "Taranıyor…"
+                    else "Henüz adaptör yok. Adaptör takılı ve menzildeyken taramayı başlat."
                 )
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -258,27 +258,27 @@ private fun ConnectionCard(
                 }
                 is ConnectionState.Failed -> {
                     Text(
-                        "Not connected",
+                        "Bağlı değil",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.error
                     )
                     Text(state.message, style = MaterialTheme.typography.bodyMedium)
                     if (lastDeviceName != null) {
-                        TextButton(onClick = onReconnectLast) { Text("Retry $lastDeviceName") }
+                        TextButton(onClick = onReconnectLast) { Text("$lastDeviceName ile tekrar dene") }
                     }
                 }
                 ConnectionState.Disconnected -> {
-                    Text("Not connected", style = MaterialTheme.typography.titleMedium)
+                    Text("Bağlı değil", style = MaterialTheme.typography.titleMedium)
                     if (lastDeviceName != null) {
                         Text(
-                            "Last used: $lastDeviceName",
+                            "Son kullanılan: $lastDeviceName",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         TextButton(onClick = onReconnectLast) { Text("Reconnect") }
                     } else {
                         Text(
-                            "Scan and pick your OBD-II adapter to get started.",
+                            "Başlamak için tarama yap ve OBD-II adaptörünü seç.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -298,13 +298,13 @@ private fun DeviceRow(device: DiscoveredDevice, onClick: () -> Unit) {
                 buildString {
                     append(device.address)
                     if (device.rssi != 0) append("  ·  ${device.rssi} dBm")
-                    if (device.looksLikeObdAdapter) append("  ·  looks like an OBD adapter")
+                    if (device.looksLikeObdAdapter) append("  ·  OBD adaptörüne benziyor")
                 },
                 fontFamily = FontFamily.Monospace,
                 style = MaterialTheme.typography.bodySmall
             )
         },
-        trailingContent = { TextButton(onClick = onClick) { Text("Connect") } },
+        trailingContent = { TextButton(onClick = onClick) { Text("Bağlan") } },
         modifier = Modifier.fillMaxWidth()
     )
 }
@@ -323,7 +323,7 @@ private fun AdapterLogCard(log: List<String>) {
         )
     ) {
         Column(Modifier.padding(12.dp)) {
-            SectionLabel("Adapter log")
+            SectionLabel("Adaptör kaydı")
             HorizontalDivider(Modifier.padding(vertical = 6.dp))
             LazyColumn(modifier = Modifier.heightIn(max = 160.dp)) {
                 items(log) { line ->

@@ -189,7 +189,7 @@ class TripLoggingService : LifecycleService() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.trip_notification_title))
             .setContentText(
-                if (sampleCount == 0) "Waiting for data…" else "$sampleCount readings recorded"
+                if (sampleCount == 0) "Veri bekleniyor…" else "$sampleCount ölçüm kaydedildi"
             )
             .setSmallIcon(android.R.drawable.ic_menu_save)
             .setOngoing(true)

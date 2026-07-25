@@ -13,16 +13,16 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 enum class SpeedUnit(val label: String, val suffix: String) {
-    KMH("Kilometres per hour", "km/h"),
-    MPH("Miles per hour", "mph");
+    KMH("Saatte kilometre", "km/h"),
+    MPH("Saatte mil", "mph");
 
     /** OBD speed always arrives in km/h; convert only for display. */
     fun fromKmh(kmh: Double): Double = if (this == KMH) kmh else kmh * 0.621371
 }
 
 enum class AdapterType(val label: String, val description: String) {
-    BLE("Bluetooth LE", "Vgate iCar Pro BLE 4.0 and other GATT adapters"),
-    CLASSIC("Classic Bluetooth", "RFCOMM / SPP adapters — must be paired in system settings first")
+    BLE("Bluetooth LE", "Vgate iCar Pro BLE 4.0 ve diğer GATT adaptörleri"),
+    CLASSIC("Klasik Bluetooth", "RFCOMM / SPP adaptörleri — önce sistem ayarlarından eşleştirilmeli")
 }
 
 data class AppSettings(

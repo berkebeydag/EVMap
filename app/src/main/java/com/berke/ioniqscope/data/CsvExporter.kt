@@ -27,11 +27,11 @@ class CsvExporter(
         withContext(Dispatchers.IO) {
             runCatching {
                 val trip = tripDao.trip(tripId)
-                    ?: throw IllegalArgumentException("Trip $tripId no longer exists")
+                    ?: throw IllegalArgumentException("$tripId numaralı sefer artık mevcut değil")
                 val columns = tripDao.pidColumns(tripId)
 
                 val stream = context.contentResolver.openOutputStream(destination, "wt")
-                    ?: throw IllegalStateException("Could not open the selected file for writing")
+                    ?: throw IllegalStateException("Seçilen dosya yazmak için açılamadı")
 
                 stream.bufferedWriter().use { out ->
                     writeHeader(out, columns)

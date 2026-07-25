@@ -2,43 +2,48 @@
     <string name="app_name">IoniqScope</string>
 
     <!-- Navigation -->
-    <string name="nav_connect">Connect</string>
-    <string name="nav_dashboard">Dashboard</string>
-    <string name="nav_performance">Performance</string>
-    <string name="nav_diagnostics">Diagnostics</string>
-    <string name="nav_trips">Trips</string>
-    <string name="nav_chargers">Chargers</string>
-    <string name="nav_settings">Settings</string>
-    <string name="nav_console">Raw console</string>
-    <string name="nav_aux_battery">12V battery</string>
-    <string name="nav_trip_detail">Trip</string>
-    <string name="back">Back</string>
+    <string name="nav_connect">Bağlan</string>
+    <string name="nav_dashboard">Gösterge</string>
+    <string name="nav_performance">Performans</string>
+    <string name="nav_diagnostics">Arıza</string>
+    <string name="nav_trips">Seferler</string>
+    <string name="nav_chargers">Şarj</string>
+    <string name="nav_settings">Ayarlar</string>
+    <string name="nav_console">Komut konsolu</string>
+    <string name="nav_aux_battery">12V akü</string>
+    <string name="nav_trip_detail">Sefer</string>
+    <string name="back">Geri</string>
 
     <!-- Connection status, announced from the top-bar icon -->
-    <string name="status_connected">Connected to %1$s</string>
-    <string name="status_connecting">Connecting…</string>
-    <string name="status_failed">Connection failed — tap to retry</string>
-    <string name="status_disconnected">Not connected — tap to connect</string>
+    <string name="status_connected">%1$s cihazına bağlı</string>
+    <string name="status_connecting">Bağlanıyor…</string>
+    <string name="status_failed">Bağlantı kurulamadı — tekrar denemek için dokun</string>
+    <string name="status_disconnected">Bağlı değil — bağlanmak için dokun</string>
 
     <!-- Permissions -->
-    <string name="perm_title">Bluetooth permission needed</string>
-    <string name="perm_body">IoniqScope needs Bluetooth access to find and talk to your OBD-II adapter. Nothing leaves your phone — the app has no internet permission at all.</string>
-    <string name="perm_location_note">On Android 11 and older, Android requires location permission to scan for Bluetooth LE devices. IoniqScope never uses your location.</string>
-    <string name="perm_grant">Grant permission</string>
-    <string name="perm_denied_settings">Permission was denied. Enable it in system settings to scan for adapters.</string>
+    <string name="perm_title">Bluetooth izni gerekiyor</string>
+    <!--
+      This used to promise the app had no internet permission at all. That stopped
+      being true when the charger map arrived, so the claim is now the narrower one
+      that is actually kept: vehicle data stays on the phone.
+    -->
+    <string name="perm_body">IoniqScope, OBD-II adaptörünü bulup onunla konuşmak için Bluetooth erişimine ihtiyaç duyuyor. Araçtan okunan hiçbir veri telefondan çıkmıyor; internet yalnızca harita ve şarj istasyonları için kullanılıyor.</string>
+    <string name="perm_location_note">Android 11 ve öncesinde, Bluetooth LE cihazlarını taramak için sistem konum izni istiyor. O izin yalnızca tarama için gerekli; konumun haritada seni göstermek ve istasyonları mesafeye göre sıralamak dışında bir yerde kullanılmıyor.</string>
+    <string name="perm_grant">İzin ver</string>
+    <string name="perm_denied_settings">İzin reddedildi. Adaptör taraması için sistem ayarlarından açman gerekiyor.</string>
 
     <!-- Performance safety -->
-    <string name="perf_disclaimer">Closed road or track use only. Never operate this screen while driving — set it running, then keep your eyes on the road.</string>
+    <string name="perf_disclaimer">Yalnızca kapalı yol veya pistte kullan. Bu ekranı araç hareket hâlindeyken kullanma — ölçümü başlat, sonra gözünü yola çevir.</string>
 
     <!-- Trip logging -->
-    <string name="trip_notification_channel">Trip logging</string>
-    <string name="trip_notification_channel_desc">Shown while a trip is being recorded.</string>
-    <string name="trip_notification_title">Recording trip</string>
-    <string name="trip_notification_stop">Stop</string>
+    <string name="trip_notification_channel">Sefer kaydı</string>
+    <string name="trip_notification_channel_desc">Bir sefer kaydedilirken görünür.</string>
+    <string name="trip_notification_title">Sefer kaydediliyor</string>
+    <string name="trip_notification_stop">Durdur</string>
 
     <!-- Diagnostics -->
-    <string name="dtc_clear_title">Clear stored trouble codes?</string>
-    <string name="dtc_clear_body">This erases stored DTCs and freeze-frame data from the vehicle. It cannot be undone, and it also resets readiness monitors. Only do this if you know why the codes are there.</string>
-    <string name="dtc_clear_confirm">Clear codes</string>
-    <string name="cancel">Cancel</string>
+    <string name="dtc_clear_title">Kayıtlı arıza kodları silinsin mi?</string>
+    <string name="dtc_clear_body">Bu işlem araçtaki kayıtlı DTC\'leri ve donmuş kare verisini siler. Geri alınamaz ve hazırlık monitörlerini de sıfırlar. Kodların neden orada olduğunu biliyorsan yap.</string>
+    <string name="dtc_clear_confirm">Kodları sil</string>
+    <string name="cancel">Vazgeç</string>
 </resources>

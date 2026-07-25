@@ -102,7 +102,7 @@ fun PerformanceScreen(services: ServiceLocator, onConnect: () -> Unit) {
     ) {
         item {
             Banner(
-                title = "Track use only",
+                title = "Yalnızca pist",
                 text = stringResource(R.string.perf_disclaimer),
                 tone = BannerTone.Warning,
                 modifier = Modifier.padding(top = 12.dp)
@@ -112,10 +112,10 @@ fun PerformanceScreen(services: ServiceLocator, onConnect: () -> Unit) {
         if (!connected) {
             item {
                 Banner(
-                    title = "Not connected",
-                    text = "Connect to your adapter to arm the timer.",
+                    title = "Bağlı değil",
+                    text = "Kronometreyi kurmak için adaptöre bağlan.",
                     tone = BannerTone.Error,
-                    actionLabel = "Connect",
+                    actionLabel = "Bağlan",
                     onAction = onConnect
                 )
             }
@@ -128,9 +128,9 @@ fun PerformanceScreen(services: ServiceLocator, onConnect: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = vm::resetMeter) { Text("Reset timer") }
+                TextButton(onClick = vm::resetMeter) { Text("Kronometreyi sıfırla") }
                 Text(
-                    "Launch is detected automatically — just come to a stop and go.",
+                    "Kalkış kendiliğinden algılanır — dur ve bas, yeter.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -139,11 +139,11 @@ fun PerformanceScreen(services: ServiceLocator, onConnect: () -> Unit) {
 
         item {
             HorizontalDivider()
-            SectionLabel("Run history", Modifier.padding(top = 8.dp))
+            SectionLabel("Ölçüm geçmişi", Modifier.padding(top = 8.dp))
         }
 
         if (runs.isEmpty()) {
-            item { EmptyState("No runs saved yet. A run is stored once it crosses at least one target.") }
+            item { EmptyState("Henüz kayıtlı ölçüm yok. Bir ölçüm, en az bir hedefi geçtiğinde kaydedilir.") }
         } else {
             items(runs, key = { it.id }) { run ->
                 RunRow(
@@ -197,7 +197,7 @@ private fun LiveRunPanel(perf: PerfState, settings: AppSettings) {
                 textAlign = TextAlign.Center
             )
             Text(
-                if (headline != null) "seconds · 0-100 km/h" else "seconds elapsed",
+                if (headline != null) "saniye · 0-100 km/h" else "geçen saniye",
                 style = MaterialTheme.typography.bodyMedium,
                 color = scheme.onSurfaceVariant
             )
@@ -276,20 +276,20 @@ private fun RunRow(run: PerfRunEntity, isBest: Boolean, onDelete: () -> Unit) {
             ) {
                 Column {
                     Text(
-                        run.zeroTo100Ms?.let { formatSeconds(it) } ?: "did not reach 100",
+                        run.zeroTo100Ms?.let { formatSeconds(it) } ?: "100'e ulaşmadı",
                         style = MaterialTheme.typography.titleLarge,
                         fontFamily = FontFamily.Monospace,
                         color = if (isBest) scheme.primary else scheme.onSurface
                     )
                     Text(
                         timestampFormatter.format(Instant.ofEpochMilli(run.recordedAtEpochMs)) +
-                            if (isBest) "  ·  best" else "",
+                            if (isBest) "  ·  en iyi" else "",
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Delete run")
+                    Icon(Icons.Filled.Delete, contentDescription = "Ölçümü sil")
                 }
             }
 
@@ -298,7 +298,7 @@ private fun RunRow(run: PerfRunEntity, isBest: Boolean, onDelete: () -> Unit) {
                 run.zeroTo120Ms?.let { add("0-120 ${formatSeconds(it)}") }
                 run.zeroTo100mMs?.let { add("100 m ${formatSeconds(it)}") }
                 run.zeroTo402mMs?.let { add("402 m ${formatSeconds(it)}") }
-                add("max ${formatReading(run.maxKmh)} km/h")
+                add("azami ${formatReading(run.maxKmh)} km/h")
             }
             Text(
                 details.joinToString("  ·  "),

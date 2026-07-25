@@ -120,12 +120,12 @@ class ObdConnectionManager(
         val device = scanner.deviceFor(request.address)
         if (device == null) {
             _connectionState.value = ConnectionState.Failed(
-                "Bluetooth is unavailable, or ${request.address} is not a valid address."
+                "Bluetooth kullanılamıyor ya da ${request.address} geçerli bir adres değil."
             )
             return
         }
 
-        _connectionState.value = ConnectionState.Connecting("Opening Bluetooth link…", attempt)
+        _connectionState.value = ConnectionState.Connecting("Bluetooth bağlantısı açılıyor…", attempt)
 
         val newTransport: Transport = when (request.type) {
             AdapterType.BLE -> BleTransport(
@@ -145,18 +145,18 @@ class ObdConnectionManager(
             // Elm327.initialize() opens the transport itself, then runs the AT sequence.
             newElm.initialize()
         } catch (e: Throwable) {
-            appendLog("Initialisation failed: ${e.message}")
+            appendLog("Hazırlama başarısız: ${e.message}")
             tearDown()
-            if (!scheduleReconnect(attempt, e.message ?: e::class.simpleName ?: "unknown error")) {
+            if (!scheduleReconnect(attempt, e.message ?: e::class.simpleName ?: "bilinmeyen hata")) {
                 _connectionState.value = ConnectionState.Failed(
-                    e.message ?: "Could not initialise the adapter."
+                    e.message ?: "Adaptör hazırlanamadı."
                 )
             }
             return
         }
 
-        _connectionState.value = ConnectionState.Connecting("Initialising ELM327…", attempt)
-        appendLog("ELM327 AT sequence completed")
+        _connectionState.value = ConnectionState.Connecting("ELM327 hazırlanıyor…", attempt)
+        appendLog("ELM327 AT dizisi tamamlandı")
 
         dtcReader = DtcReader(newElm)
         engine = ObdEngine(newElm, scope, onSample = ::onSample)
@@ -173,9 +173,9 @@ class ObdConnectionManager(
         if (userInitiatedDisconnect || attempt >= MAX_CONNECT_ATTEMPTS) return false
         val backoffMs = RECONNECT_BACKOFF_MS * (1L shl (attempt - 1))
         _connectionState.value = ConnectionState.Connecting(
-            "Retrying after: $reason", attempt + 1
+            "Şundan sonra yeniden deneniyor: $reason", attempt + 1
         )
-        appendLog("Retrying in ${backoffMs}ms (attempt ${attempt + 1}/$MAX_CONNECT_ATTEMPTS)")
+        appendLog("${backoffMs}ms sonra tekrar (deneme ${attempt + 1}/$MAX_CONNECT_ATTEMPTS)")
         delay(backoffMs)
         attemptConnect(attempt + 1)
         return true
@@ -184,10 +184,10 @@ class ObdConnectionManager(
     private fun onUnexpectedDisconnect() {
         if (userInitiatedDisconnect) return
         scope.launch {
-            appendLog("Link dropped — attempting to reconnect")
+            appendLog("Bağlantı koptu — yeniden bağlanmaya çalışılıyor")
             _vehicleState.value = emptyMap()
-            if (!scheduleReconnect(1, "link dropped")) {
-                _connectionState.value = ConnectionState.Failed("The adapter disconnected.")
+            if (!scheduleReconnect(1, "bağlantı koptu")) {
+                _connectionState.value = ConnectionState.Failed("Adaptör bağlantıyı kesti.")
             }
         }
     }
@@ -264,7 +264,7 @@ class ObdConnectionManager(
      */
     private suspend fun <T> exclusive(block: suspend (Elm327) -> T): Result<T> =
         commandMutex.withLock {
-            val e = elm ?: return Result.failure(IllegalStateException("Not connected"))
+            val e = elm ?: return Result.failure(IllegalStateException("Bağlı değil"))
             val resumeMode = pollMode
             engine?.stop()
             // Let an in-flight command unwind before taking over the link.
@@ -283,7 +283,7 @@ class ObdConnectionManager(
         }
 
     suspend fun readDtcs(): Result<List<String>> =
-        exclusive { dtcReader?.readCodes() ?: throw IllegalStateException("Not connected") }
+        exclusive { dtcReader?.readCodes() ?: throw IllegalStateException("Bağlı değil") }
 
     /** Emissions readiness plus pending codes — the "is it ready for inspection" question. */
     suspend fun readReadiness(): Result<ReadinessReport> =
@@ -293,7 +293,7 @@ class ObdConnectionManager(
      * Irreversible. The UI must confirm with the user before calling this.
      */
     suspend fun clearDtcs(): Result<Boolean> =
-        exclusive { dtcReader?.clearCodes() ?: throw IllegalStateException("Not connected") }
+        exclusive { dtcReader?.clearCodes() ?: throw IllegalStateException("Bağlı değil") }
 
     /**
      * Sends one command verbatim and returns the response with no interpretation.

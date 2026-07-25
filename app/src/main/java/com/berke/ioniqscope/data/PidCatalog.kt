@@ -26,11 +26,11 @@ object PidCatalog {
         Entry(StandardPids.ambientTemp),
         Entry(
             StandardPids.rpm,
-            "An Ioniq 6 has no combustion engine; this PID is usually unsupported."
+            "Ioniq 6'da içten yanmalı motor yok; bu PID genellikle desteklenmez."
         ),
         Entry(
             StandardPids.coolant,
-            "EV thermal loops are behind manufacturer-specific PIDs; this may not respond."
+            "Elektrikli araçta termal döngüler üreticiye özel PID'lerin arkasında; yanıt vermeyebilir."
         )
     )
 

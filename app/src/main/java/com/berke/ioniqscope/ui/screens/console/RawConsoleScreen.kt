@@ -83,7 +83,7 @@ class RawConsoleViewModel(services: ServiceLocator) : ViewModel() {
         _busy.value = true
         viewModelScope.launch {
             manager.sendRaw(command).fold(
-                onSuccess = { append(command, it.ifBlank { "(empty response)" }, false) },
+                onSuccess = { append(command, it.ifBlank { "(boş yanıt)" }, false) },
                 onFailure = { append(command, it.message ?: "failed", true) }
             )
             _busy.value = false
@@ -109,12 +109,12 @@ class RawConsoleViewModel(services: ServiceLocator) : ViewModel() {
  * before the 22-service requests, and restored afterwards.
  */
 private val PRESETS = listOf(
-    "0100" to "Which standard PIDs does the car support?",
+    "0100" to "Araç hangi standart PID'leri destekliyor?",
     "0902" to "VIN",
-    "ATSH 7E4" to "Address the BMS (required before 22…)",
-    "220101" to "BMS main frame — SoC, HV V/A, temps, CED/CEC",
-    "220105" to "SoC display, SOH",
-    "ATSH 7DF" to "Back to broadcast (restores normal polling)"
+    "ATSH 7E4" to "BMS'e yönel (22… öncesi gerekli)",
+    "220101" to "BMS ana çerçevesi — SoC, HV V/A, sıcaklıklar, CED/CEC",
+    "220105" to "SoC göstergesi, SOH",
+    "ATSH 7DF" to "Yayına dön (normal sorgulamayı geri getirir)"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -146,19 +146,18 @@ fun RawConsoleScreen(services: ServiceLocator) {
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Banner(
-            title = "Raw — nothing is interpreted",
-            text = "Responses are shown exactly as the adapter returns them. Use this to " +
-                "check a manufacturer frame against something you can see on the dash " +
-                "before it gets built into the app. Live polling is paused while this " +
-                "screen is open.",
+            title = "Ham — hiçbir şey yorumlanmıyor",
+            text = "Yanıtlar adaptörden geldiği gibi gösteriliyor. Bir üretici çerçevesini " +
+                "uygulamaya gömülmeden önce göstergede görebildiğin bir değerle " +
+                "karşılaştırmak için kullan. Bu ekran açıkken canlı sorgulama duraklatılır.",
             tone = BannerTone.Info,
             modifier = Modifier.padding(top = 12.dp)
         )
 
         if (!connected) {
             Banner(
-                title = "Not connected",
-                text = "Connect to the adapter first.",
+                title = "Bağlı değil",
+                text = "Önce adaptöre bağlan.",
                 tone = BannerTone.Warning
             )
         }
@@ -190,7 +189,7 @@ fun RawConsoleScreen(services: ServiceLocator) {
                 onValueChange = { command = it },
                 modifier = Modifier.weight(1f),
                 label = { Text("Command") },
-                placeholder = { Text("e.g. 220101") },
+                placeholder = { Text("örn. 220101") },
                 singleLine = true,
                 enabled = connected && !busy,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
@@ -227,14 +226,14 @@ fun RawConsoleScreen(services: ServiceLocator) {
                         contentDescription = null,
                         modifier = Modifier.padding(end = 6.dp)
                     )
-                    Text("Copy transcript")
+                    Text("Kaydı kopyala")
                 }
                 TextButton(onClick = vm::clear) { Text("Clear") }
             }
         }
 
         if (log.isEmpty()) {
-            EmptyState("Nothing sent yet. Tap a preset above, or type a command.")
+            EmptyState("Henüz bir şey gönderilmedi. Yukarıdan hazır komut seç ya da kendin yaz.")
         } else {
             LazyColumn(
                 state = listState,
@@ -275,7 +274,7 @@ private fun ConsoleRow(entry: ConsoleEntry, context: Context) {
                 IconButton(onClick = { copyToClipboard(context, entry.response) }) {
                     Icon(
                         Icons.Filled.ContentCopy,
-                        contentDescription = "Copy response",
+                        contentDescription = "Yanıtı kopyala",
                         tint = scheme.onSurfaceVariant
                     )
                 }

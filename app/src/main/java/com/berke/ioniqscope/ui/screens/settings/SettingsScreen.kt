@@ -96,7 +96,7 @@ fun SettingsScreen(services: ServiceLocator) {
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        SectionLabel("Updates", Modifier.padding(top = 16.dp))
+        SectionLabel("Güncellemeler", Modifier.padding(top = 16.dp))
         UpdateSection(
             state = updateState,
             shareLink = settings.updateShareLink,
@@ -110,18 +110,18 @@ fun SettingsScreen(services: ServiceLocator) {
         )
 
         HorizontalDivider()
-        SectionLabel("Units")
+        SectionLabel("Birimler")
         SpeedUnit.entries.forEach { unit ->
             ChoiceRow(
                 selected = settings.speedUnit == unit,
                 title = unit.label,
-                subtitle = "Displayed as ${unit.suffix}",
+                subtitle = "${unit.suffix} olarak gösterilir",
                 onClick = { vm.setUnit(unit) }
             )
         }
 
         HorizontalDivider()
-        SectionLabel("Adapter")
+        SectionLabel("Adaptör")
         AdapterType.entries.forEach { type ->
             ChoiceRow(
                 selected = settings.adapterType == type,
@@ -132,29 +132,29 @@ fun SettingsScreen(services: ServiceLocator) {
         }
 
         HorizontalDivider()
-        SectionLabel("Automation")
+        SectionLabel("Otomasyon")
         SwitchRow(
             checked = settings.autoConnect,
-            title = "Connect on launch",
-            subtitle = "Reconnect to the last adapter when the app opens.",
+            title = "Açılışta bağlan",
+            subtitle = "Uygulama açıldığında son adaptöre yeniden bağlanır.",
             onChange = vm::setAutoConnect
         )
         SwitchRow(
             checked = settings.autoLogTrips,
-            title = "Log trips automatically",
-            subtitle = "Start recording once the car is moving, stop after three minutes " +
-                "stationary. No need to remember the button.",
+            title = "Seferleri otomatik kaydet",
+            subtitle = "Araç hareket edince kaydı başlatır, üç dakika durunca bitirir. " +
+                "Düğmeyi hatırlamana gerek kalmaz.",
             onChange = vm::setAutoLog
         )
 
         HorizontalDivider()
-        SectionLabel("Chargers")
+        SectionLabel("Şarj istasyonları")
         SwitchRow(
             checked = settings.chargersDcOnly,
-            title = "DC only",
-            subtitle = "Hides stations recorded as AC. Stations with no current type " +
-                "recorded stay visible — most OSM entries in Türkiye never say, so " +
-                "excluding them would hide real fast chargers.",
+            title = "Sadece DC",
+            subtitle = "AC olarak kayıtlı istasyonları gizler. Akım tipi belirtilmemiş " +
+                "olanlar görünür kalır — Türkiye'deki OSM kayıtlarının çoğu bunu hiç " +
+                "yazmıyor, dışlamak gerçek hızlı şarjları gizlerdi.",
             onChange = vm::setDcOnly
         )
 
@@ -162,7 +162,7 @@ fun SettingsScreen(services: ServiceLocator) {
             mutableFloatStateOf(settings.chargersMinPowerKw.toFloat())
         }
         Text(
-            if (minPower < 1) "No minimum power" else "At least ${minPower.toInt()} kW",
+            if (minPower < 1) "Alt güç sınırı yok" else "En az ${minPower.toInt()} kW",
             style = MaterialTheme.typography.bodyLarge,
             fontFamily = FontFamily.Monospace
         )
@@ -173,9 +173,9 @@ fun SettingsScreen(services: ServiceLocator) {
             valueRange = 0f..350f
         )
         Text(
-            "Only 54 of the 654 Turkish OpenStreetMap entries record their power, so a " +
-                "minimum here hides everything that never said. Useful with Open Charge " +
-                "Map data, blunt with OSM data.",
+            "Elimizdeki 3.988 yerin yalnızca 1.863'ünde güç bilgisi var, yani buradaki " +
+                "alt sınır belirtilmemiş olanların hepsini gizler. Open Charge Map " +
+                "verisiyle işe yarar, OpenStreetMap verisiyle körlemesine keser.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.tertiary
         )
@@ -184,30 +184,30 @@ fun SettingsScreen(services: ServiceLocator) {
         OutlinedTextField(
             value = ocmKey,
             onValueChange = { ocmKey = it },
-            label = { Text("Open Charge Map API key") },
+            label = { Text("Open Charge Map API anahtarı") },
             placeholder = { Text("paste your own free key") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { vm.setOcmKey(ocmKey) }) { Text("Save key") }
+            TextButton(onClick = { vm.setOcmKey(ocmKey) }) { Text("Anahtarı kaydet") }
             if (settings.ocmApiKey.isNotBlank()) {
                 TextButton(onClick = { ocmKey = ""; vm.setOcmKey("") }) { Text("Clear") }
             }
         }
         Text(
-            "Optional. Open Charge Map is EV-specific, so its connector and power data " +
-                "is far better than raw OpenStreetMap. The key is free but you have to " +
-                "register it yourself at openchargemap.org — the app will not create an " +
-                "account for you. It is stored only on this phone.",
+            "İsteğe bağlı. Open Charge Map elektrikli araca özel olduğu için soket ve güç " +
+                "verisi ham OpenStreetMap'ten çok daha iyi. Anahtar ücretsiz ama " +
+                "openchargemap.org'dan kendin almalısın — uygulama senin adına hesap " +
+                "açmaz. Anahtar yalnızca bu telefonda saklanır.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         HorizontalDivider()
-        SectionLabel("Dashboard PIDs")
+        SectionLabel("Gösterge PID'leri")
         Text(
-            "Which values the Dashboard polls. Fewer PIDs means each one updates faster.",
+            "Göstergenin hangi değerleri sorgulayacağı. Az PID, her birinin daha sık güncellenmesi demek.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -246,13 +246,13 @@ fun SettingsScreen(services: ServiceLocator) {
         }
 
         HorizontalDivider()
-        SectionLabel("Poll interval")
+        SectionLabel("Sorgu aralığı")
 
         var sliderValue by remember(settings.pollIntervalMs) {
             mutableFloatStateOf(settings.pollIntervalMs.toFloat())
         }
         Text(
-            "${sliderValue.toInt()} ms between full poll cycles",
+            "tam sorgu turları arasında ${sliderValue.toInt()} ms",
             style = MaterialTheme.typography.bodyLarge,
             fontFamily = FontFamily.Monospace
         )
@@ -264,28 +264,31 @@ fun SettingsScreen(services: ServiceLocator) {
                 SettingsRepository.POLL_MAX_MS.toFloat()
         )
         Text(
-            "The Performance screen always overrides this with speed-only polling at 50 ms.",
+            "Performans ekranı bunu her zaman geçersiz kılar; 50 ms'de yalnızca hız sorgular.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         HorizontalDivider()
-        SectionLabel("Ioniq 6 battery data")
+        SectionLabel("Ioniq 6 batarya verisi")
         Banner(
-            title = "Not implemented — deliberately",
-            text = "State of charge, HV battery voltage/current, power in kW and cell " +
-                "temperatures are not standard OBD-II PIDs; they need manufacturer-specific " +
-                "UDS requests. None are shipped, because guessing a DID and mis-parsing the " +
-                "response would show you convincing numbers that are wrong. Supply verified " +
-                "values (EVNotify, Car Scanner Ioniq profile) and they drop into EgmpPids.",
+            title = "Bilerek eklenmedi",
+            text = "Şarj durumu, HV batarya voltajı/akımı, kW cinsinden güç ve hücre " +
+                "sıcaklıkları standart OBD-II PID'leri değil; üreticiye özel UDS " +
+                "istekleri gerektiriyorlar. Hiçbiri gömülü gelmiyor, çünkü bir DID " +
+                "tahmin edip yanıtı yanlış çözmek sana inandırıcı ama yanlış sayılar " +
+                "gösterirdi. Doğrulanmış değerleri (EVNotify, Car Scanner Ioniq " +
+                "profili) ver, EgmpPids'e düşsünler.",
             tone = BannerTone.Info
         )
 
         HorizontalDivider()
-        SectionLabel("Privacy")
+        SectionLabel("Gizlilik")
         Text(
-            "IoniqScope holds no INTERNET permission. There is no analytics, no crash " +
-                "reporting and no account. Trips, runs and settings live only on this phone.",
+            "Analitik yok, çökme raporu yok, hesap yok. Seferler, ölçümler ve ayarlar " +
+                "yalnızca bu telefonda duruyor. İnternet üç şey için kullanılıyor: " +
+                "harita karoları, şarj istasyonu listesi ve rota çizimi. Araçtan " +
+                "okunan hiçbir veri telefondan çıkmıyor.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 24.dp)

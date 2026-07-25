@@ -102,20 +102,20 @@ class BleTransport(
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    onLog("GATT connected (status=$status), requesting MTU…")
+                    onLog("GATT bağlandı (durum=$status), MTU isteniyor…")
                     // Bigger MTU => fewer notification fragments per ELM response.
                     if (!g.requestMtu(247)) {
-                        onLog("requestMtu rejected, continuing at default MTU")
+                        onLog("requestMtu reddedildi, varsayılan MTU ile devam ediliyor")
                         g.discoverServices()
                     }
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     val wasConnected = connected
                     connected = false
-                    onLog("GATT disconnected (status=$status)")
-                    failSetup(IllegalStateException("Adapter disconnected (GATT status $status)"))
+                    onLog("GATT bağlantısı kesildi (durum=$status)")
+                    failSetup(IllegalStateException("Adaptör bağlantıyı kesti (GATT durumu $status)"))
                     // Unblock anyone parked in readUntilPrompt.
-                    rxChannel.close(IllegalStateException("Adapter disconnected"))
+                    rxChannel.close(IllegalStateException("Adaptör bağlantıyı kesti"))
                     if (wasConnected) onDisconnected()
                 }
             }
@@ -123,13 +123,13 @@ class BleTransport(
 
         override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
             mtuPayload = (mtu - 3).coerceAtLeast(20)
-            onLog("MTU = $mtu (payload $mtuPayload B)")
+            onLog("MTU = $mtu (yük $mtuPayload B)")
             g.discoverServices()
         }
 
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                failSetup(IllegalStateException("Service discovery failed (status $status)"))
+                failSetup(IllegalStateException("Servis keşfi başarısız (durum $status)"))
                 return
             }
             logDiscoveredProfile(g)
@@ -138,9 +138,9 @@ class BleTransport(
             if (pair == null) {
                 failSetup(
                     IllegalStateException(
-                        "No usable notify+write characteristic pair found on this adapter. " +
-                            "See the adapter log above for what it actually exposes, and pin " +
-                            "those UUIDs in BleTransport.candidates."
+                        "Bu adaptörde kullanılabilir bir bildirim+yazma karakteristik çifti " +
+                            "bulunamadı. Cihazın gerçekte ne sunduğunu yukarıdaki adaptör " +
+                            "kaydından gör ve o UUID'leri BleTransport.candidates içine ekle."
                     )
                 )
                 return
@@ -150,17 +150,17 @@ class BleTransport(
             writeChar = pair.second
             descriptor = "service ${pair.first.service.uuid.short()} · " +
                 "notify ${pair.first.uuid.short()} · write ${pair.second.uuid.short()}"
-            onLog("Using $descriptor")
+            onLog("$descriptor kullanılıyor")
 
             if (!g.setCharacteristicNotification(pair.first, true)) {
-                failSetup(IllegalStateException("Could not enable notifications on ${pair.first.uuid}"))
+                failSetup(IllegalStateException("${pair.first.uuid} üzerinde bildirimler açılamadı"))
                 return
             }
 
             val cccd = pair.first.getDescriptor(cccdUuid)
             if (cccd == null) {
                 // Some clones notify without a CCCD present. Treat as usable.
-                onLog("No CCCD (2902) on notify characteristic — proceeding anyway")
+                onLog("Bildirim karakteristiğinde CCCD (2902) yok — yine de devam ediliyor")
                 connected = true
                 completeSetup()
             } else {
@@ -171,11 +171,11 @@ class BleTransport(
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
             if (d.uuid != cccdUuid) return
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                onLog("Notifications enabled")
+                onLog("Bildirimler açık")
                 connected = true
                 completeSetup()
             } else {
-                failSetup(IllegalStateException("Enabling notifications failed (status $status)"))
+                failSetup(IllegalStateException("Bildirimleri açma başarısız (durum $status)"))
             }
         }
 
@@ -204,7 +204,7 @@ class BleTransport(
             val cont = writeAck ?: return
             writeAck = null
             if (status == BluetoothGatt.GATT_SUCCESS) cont.resume(Unit)
-            else cont.resumeWithException(IllegalStateException("Characteristic write failed ($status)"))
+            else cont.resumeWithException(IllegalStateException("Karakteristik yazma başarısız ($status)"))
         }
     }
 
@@ -219,11 +219,11 @@ class BleTransport(
             withTimeout(connectTimeoutMs) {
                 suspendCancellableCoroutine<Unit> { cont ->
                     setupCont = cont
-                    onLog("Connecting to ${device.address}…")
+                    onLog("${device.address} adresine bağlanılıyor…")
                     gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
                     if (gatt == null) {
                         setupCont = null
-                        cont.resumeWithException(IllegalStateException("connectGatt returned null"))
+                        cont.resumeWithException(IllegalStateException("connectGatt null döndü"))
                     }
                     cont.invokeOnCancellation { disconnect() }
                 }
@@ -231,8 +231,8 @@ class BleTransport(
         } catch (e: TimeoutCancellationException) {
             disconnect()
             throw IllegalStateException(
-                "Timed out after ${connectTimeoutMs / 1000}s connecting to the adapter. " +
-                    "Is it powered and in range?"
+                "Adaptöre bağlanırken ${connectTimeoutMs / 1000} sn sonra zaman aşımı. " +
+                    "Cihaz açık ve menzilde mi?"
             )
         }
     }
@@ -248,8 +248,8 @@ class BleTransport(
     }
 
     override suspend fun write(bytes: ByteArray) = writeMutex.withLock {
-        val g = gatt ?: throw IllegalStateException("Not connected")
-        val ch = writeChar ?: throw IllegalStateException("Not connected")
+        val g = gatt ?: throw IllegalStateException("Bağlı değil")
+        val ch = writeChar ?: throw IllegalStateException("Bağlı değil")
 
         // Anything still buffered predates this command, so it is stale by definition.
         drainRx()
@@ -263,7 +263,7 @@ class BleTransport(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val rc = g.writeCharacteristic(ch, chunk, type)
                 if (rc != BluetoothStatusCodes.SUCCESS) {
-                    throw IllegalStateException("writeCharacteristic returned $rc")
+                    throw IllegalStateException("writeCharacteristic $rc döndü")
                 }
             } else {
                 @Suppress("DEPRECATION")
@@ -271,7 +271,7 @@ class BleTransport(
                     ch.writeType = type
                     ch.value = chunk
                     if (!g.writeCharacteristic(ch)) {
-                        throw IllegalStateException("writeCharacteristic rejected")
+                        throw IllegalStateException("writeCharacteristic reddedildi")
                     }
                 }
             }
@@ -316,7 +316,7 @@ class BleTransport(
             @Suppress("DEPRECATION")
             run { cccd.value = value; g.writeDescriptor(cccd) }
         }
-        if (!ok) failSetup(IllegalStateException("Could not write CCCD to enable notifications"))
+        if (!ok) failSetup(IllegalStateException("Bildirimleri açmak için CCCD yazılamadı"))
     }
 
     /** Dump the full GATT profile so unknown adapters can be identified from the UI log. */
@@ -340,12 +340,12 @@ class BleTransport(
             val notify = service.getCharacteristic(c.notify) ?: continue
             val write = service.getCharacteristic(c.write) ?: continue
             if (notify.canNotify() && write.canWrite()) {
-                onLog("Matched known adapter profile ${c.service.short()}")
+                onLog("Bilinen adaptör profili eşleşti: ${c.service.short()}")
                 return notify to write
             }
         }
 
-        onLog("No known profile matched — falling back to structural discovery")
+        onLog("Bilinen profil eşleşmedi — yapısal keşfe geçiliyor")
         for (service in g.services) {
             val notify = service.characteristics.firstOrNull { it.canNotify() } ?: continue
             val write = service.characteristics.firstOrNull { it.canWrite() } ?: continue

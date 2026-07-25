@@ -49,27 +49,27 @@ fun UpdateSection(
     var link by remember(shareLink) { mutableStateOf(shareLink) }
 
     Text(
-        "Installed: ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+        "Yüklü: ${BuildConfig.VERSION_NAME} (yapı ${BuildConfig.VERSION_CODE})",
         style = MaterialTheme.typography.bodyMedium
     )
 
     when (state) {
         is UpdateState.Available -> Banner(
-            title = "Update available — ${state.update.versionName}",
+            title = "Güncelleme var — ${state.update.versionName}",
             text = buildString {
-                append("Build ${state.update.versionCode}")
+                append("Yapı ${state.update.versionCode}")
                 if (state.update.sizeBytes > 0) {
                     append(String.format(Locale.US, ", %.1f MB", state.update.sizeBytes / 1048576.0))
                 }
                 state.update.notes?.let { append("\n$it") }
             },
             tone = BannerTone.Success,
-            actionLabel = "Download",
+            actionLabel = "İndir",
             onAction = onDownload
         )
 
         is UpdateState.Downloading -> Column(Modifier.fillMaxWidth()) {
-            Text("Downloading… ${state.percent}%", style = MaterialTheme.typography.bodySmall)
+            Text("İndiriliyor… ${state.percent}%", style = MaterialTheme.typography.bodySmall)
             LinearProgressIndicator(
                 progress = { state.percent / 100f },
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
@@ -77,31 +77,31 @@ fun UpdateSection(
         }
 
         is UpdateState.ReadyToInstall -> Banner(
-            title = "Ready to install",
-            text = "Android will ask you to confirm — a sideloaded app cannot install " +
-                "itself silently, and this one does not pretend to.",
+            title = "Kuruluma hazır",
+            text = "Android onayını isteyecek — yandan yüklenen bir uygulama kendini " +
+                "sessizce kuramaz, bu da kurabiliyormuş gibi yapmıyor.",
             tone = BannerTone.Success,
-            actionLabel = "Install",
+            actionLabel = "Kur",
             onAction = { onInstall(File(state.path)) }
         )
 
         is UpdateState.Failed -> Banner(
-            title = "Update check failed",
+            title = "Güncelleme kontrolü başarısız",
             text = state.message,
             tone = BannerTone.Error,
-            actionLabel = "Dismiss",
+            actionLabel = "Kapat",
             onAction = onDismiss
         )
 
         UpdateState.UpToDate -> Banner(
-            text = "This is the newest build.",
+            text = "Bu en güncel sürüm.",
             tone = BannerTone.Info,
-            actionLabel = "Dismiss",
+            actionLabel = "Kapat",
             onAction = onDismiss
         )
 
         UpdateState.Checking -> Text(
-            "Checking…",
+            "Kontrol ediliyor…",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -112,41 +112,41 @@ fun UpdateSection(
     OutlinedTextField(
         value = link,
         onValueChange = { link = it },
-        label = { Text("latest.json address") },
+        label = { Text("latest.json adresi") },
         placeholder = { Text("https://…/latest.json") },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = { onShareLinkChange(link) }) { Text("Save link") }
+        TextButton(onClick = { onShareLinkChange(link) }) { Text("Adresi kaydet") }
         Button(
             onClick = onCheck,
             enabled = link.isNotBlank() && state !is UpdateState.Downloading
-        ) { Text("Check now") }
+        ) { Text("Şimdi kontrol et") }
     }
 
     SettingsSwitchRow(
         checked = autoCheck,
-        title = "Check on launch",
-        subtitle = "Looks for a newer build when the app opens.",
+        title = "Açılışta kontrol et",
+        subtitle = "Uygulama açıldığında yeni sürüm var mı diye bakar.",
         onChange = onAutoCheckChange
     )
 
     Text(
-        "Already pointed at the project's own build feed, so this normally needs no " +
-            "attention. Any address serving a latest.json over plain HTTP works — a " +
-            "GitHub raw file, a release asset, any web host. A OneDrive or Drive share " +
-            "link will not: those need a browser session, not a direct fetch. Clearing " +
-            "the box turns update checks off. Nothing is ever uploaded; the app only " +
-            "reads that address.",
+        "Zaten projenin kendi yayın akışına bakıyor, yani normalde dokunman gerekmez. " +
+            "latest.json'u düz HTTP üzerinden veren her adres çalışır — GitHub raw " +
+            "dosyası, bir release dosyası, herhangi bir web sunucusu. OneDrive ya da " +
+            "Drive paylaşım bağlantısı çalışmaz: onlar doğrudan indirme değil tarayıcı " +
+            "oturumu ister. Kutuyu boşaltmak güncelleme kontrolünü kapatır. Hiçbir şey " +
+            "yüklenmiyor; uygulama yalnızca o adresi okuyor.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 
     if (!com.berke.ioniqscope.update.ApkDownloader(context).canInstallPackages()) {
         Text(
-            "Android has not been given permission to install apps from IoniqScope. " +
-                "It will ask the first time you install an update.",
+            "Android'e IoniqScope'tan uygulama kurma izni verilmemiş. İlk güncellemeyi " +
+                "kurarken kendisi soracak.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.tertiary
         )

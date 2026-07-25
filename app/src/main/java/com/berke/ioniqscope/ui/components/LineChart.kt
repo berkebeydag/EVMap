@@ -43,7 +43,7 @@ fun LineChart(
     valueFormatter: (Double) -> String = { String.format(Locale.US, "%.1f", it) }
 ) {
     if (points.size < 2) {
-        EmptyState("Not enough data to plot yet.", modifier)
+        EmptyState("Grafik için henüz yeterli veri yok.", modifier)
         return
     }
 

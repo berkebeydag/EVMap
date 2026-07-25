@@ -93,7 +93,7 @@ class DiagnosticsViewModel(services: ServiceLocator) : ViewModel() {
                 onFailure = { e ->
                     _ui.value = _ui.value.copy(
                         busy = false,
-                        error = e.message ?: "Could not read trouble codes."
+                        error = e.message ?: "Arıza kodları okunamadı."
                     )
                 }
             )
@@ -110,7 +110,7 @@ class DiagnosticsViewModel(services: ServiceLocator) : ViewModel() {
                 onFailure = { e ->
                     _ui.value = _ui.value.copy(
                         busy = false,
-                        error = e.message ?: "Could not read readiness status."
+                        error = e.message ?: "Hazırlık durumu okunamadı."
                     )
                 }
             )
@@ -127,18 +127,18 @@ class DiagnosticsViewModel(services: ServiceLocator) : ViewModel() {
                         busy = false,
                         codes = if (acknowledged) emptyList() else _ui.value.codes,
                         message = if (acknowledged) {
-                            "Codes cleared. Re-read to confirm nothing has come straight back. " +
-                                "Readiness monitors are also reset, so an inspection check will " +
-                                "report incomplete until the car has been driven again."
+                            "Kodlar silindi. Hemen geri gelen olmadığını doğrulamak için " +
+                                "tekrar oku. Hazırlık monitörleri de sıfırlandı, yani araç " +
+                                "yeniden sürülene kadar muayene kontrolü eksik raporlayacak."
                         } else {
-                            "The ECU did not acknowledge the clear request (no 44 response)."
+                            "ECU silme isteğini onaylamadı (44 yanıtı gelmedi)."
                         }
                     )
                 },
                 onFailure = { e ->
                     _ui.value = _ui.value.copy(
                         busy = false,
-                        error = e.message ?: "Could not clear trouble codes."
+                        error = e.message ?: "Arıza kodları silinemedi."
                     )
                 }
             )
@@ -168,11 +168,11 @@ fun DiagnosticsScreen(
         if (!connected) {
             item {
                 Banner(
-                    title = "Not connected",
-                    text = "Connect to your adapter to read trouble codes.",
+                    title = "Bağlı değil",
+                    text = "Arıza kodlarını okumak için adaptöre bağlan.",
                     tone = BannerTone.Warning,
                     modifier = Modifier.padding(top = 12.dp),
-                    actionLabel = "Connect",
+                    actionLabel = "Bağlan",
                     onAction = onConnect
                 )
             }
@@ -186,7 +186,7 @@ fun DiagnosticsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(onClick = vm::readCodes, enabled = connected && !ui.busy) {
-                    Text("Read codes")
+                    Text("Kodları oku")
                 }
                 OutlinedButton(
                     onClick = { showConfirm = true },
@@ -204,9 +204,9 @@ fun DiagnosticsScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = vm::runInspectionCheck, enabled = connected && !ui.busy) {
-                    Text("Inspection check")
+                    Text("Muayene kontrolü")
                 }
-                TextButton(onClick = onOpenConsole) { Text("Raw console") }
+                TextButton(onClick = onOpenConsole) { Text("Komut konsolu") }
             }
         }
 
@@ -215,17 +215,17 @@ fun DiagnosticsScreen(
 
         ui.readiness?.let { report -> item { ReadinessCard(report) } }
 
-        item { SectionLabel("Stored codes") }
+        item { SectionLabel("Kayıtlı kodlar") }
 
         when (val codes = ui.codes) {
             null -> item {
-                EmptyState("Tap “Read codes” to query the vehicle (OBD mode 03).")
+                EmptyState("Aracı sorgulamak için “Kodları oku”ya dokun (OBD mod 03).")
             }
             else -> if (codes.isEmpty()) {
                 item {
                     Banner(
-                        title = "No stored codes",
-                        text = "The vehicle reported no stored diagnostic trouble codes.",
+                        title = "Kayıtlı kod yok",
+                        text = "Araç, kayıtlı hiçbir arıza kodu bildirmedi.",
                         tone = BannerTone.Success
                     )
                 }
@@ -266,11 +266,11 @@ private fun AuxBatteryCard(health: AuxBatteryHealth, onClick: () -> Unit) {
             leadingContent = {
                 Icon(Icons.Filled.BatteryAlert, contentDescription = null, tint = accent)
             },
-            headlineContent = { Text("12V battery") },
+            headlineContent = { Text("12V akü") },
             supportingContent = {
                 Text(
                     when (health.status) {
-                        AuxBatteryStatus.Unknown -> "No readings yet"
+                        AuxBatteryStatus.Unknown -> "Henüz ölçüm yok"
                         else -> buildString {
                             append(
                                 health.latestVolts?.let {
@@ -281,7 +281,7 @@ private fun AuxBatteryCard(health: AuxBatteryHealth, onClick: () -> Unit) {
                             append(
                                 when (health.status) {
                                     AuxBatteryStatus.Good ->
-                                        if (health.isDeclining) "trending down" else "healthy"
+                                        if (health.isDeclining) "düşüş eğiliminde" else "healthy"
                                     AuxBatteryStatus.Low -> "low"
                                     AuxBatteryStatus.Critical -> "critical"
                                     AuxBatteryStatus.Unknown -> ""
@@ -291,7 +291,7 @@ private fun AuxBatteryCard(health: AuxBatteryHealth, onClick: () -> Unit) {
                     }
                 )
             },
-            trailingContent = { Text("Trend →", color = scheme.primary) }
+            trailingContent = { Text("Eğilim →", color = scheme.primary) }
         )
     }
 }
@@ -312,21 +312,21 @@ private fun ReadinessCard(report: ReadinessReport) {
                     modifier = Modifier.padding(end = 8.dp)
                 )
                 Text(
-                    if (report.looksReady) "Looks ready" else "Not ready",
+                    if (report.looksReady) "Hazır görünüyor" else "Hazır değil",
                     style = MaterialTheme.typography.titleMedium,
                     color = if (report.looksReady) StatusGreen else StatusAmber
                 )
             }
 
             Text(
-                "Warning light: ${if (report.milOn) "ON" else "off"}  ·  " +
-                    "stored codes: ${report.storedDtcCount}",
+                "Arıza lambası: ${if (report.milOn) "YANIK" else "sönük"}  ·  " +
+                    "kayıtlı kod: ${report.storedDtcCount}",
                 style = MaterialTheme.typography.bodyMedium
             )
 
             if (report.pendingCodes.isNotEmpty()) {
                 Text(
-                    "Pending: ${report.pendingCodes.joinToString()}",
+                    "Bekleyen: ${report.pendingCodes.joinToString()}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = StatusAmber
                 )
@@ -334,9 +334,9 @@ private fun ReadinessCard(report: ReadinessReport) {
 
             if (report.supportedMonitors.isEmpty()) {
                 Text(
-                    "This car reports no emissions monitors at all. That is the expected " +
-                        "answer for a battery-electric vehicle — there is no catalyst or " +
-                        "fuel system to test — not a fault.",
+                    "Bu araç hiçbir emisyon monitörü bildirmiyor. Tam elektrikli bir " +
+                        "araçta beklenen cevap bu — test edilecek katalizör ya da yakıt " +
+                        "sistemi yok — bir arıza değil.",
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant
                 )
@@ -386,7 +386,7 @@ private fun DtcRow(code: String) {
             // No description is shown: IoniqScope ships no DTC dictionary, and
             // inventing one would be worse than sending you to look the code up.
             Text(
-                "Look this code up against Hyundai/E-GMP documentation before acting on it.",
+                "Bu koda göre işlem yapmadan önce Hyundai/E-GMP dokümantasyonundan doğrula.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

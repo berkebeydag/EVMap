@@ -21,13 +21,13 @@ class OcmChargerSource(
 ) : ChargerSource {
 
     override val id = "ocm"
-    override val displayName = "Open Charge Map (needs a free key)"
+    override val displayName = "Open Charge Map (ücretsiz anahtar gerekir)"
     override fun isAvailable() = !apiKeyProvider().isNullOrBlank()
 
     @Suppress("UNUSED_PARAMETER")
     override suspend fun fetch(box: BoundingBox): FetchResult {
         val key = apiKeyProvider()?.takeIf { it.isNotBlank() }
-            ?: throw IllegalStateException("No Open Charge Map API key set")
+            ?: throw IllegalStateException("Open Charge Map API anahtarı ayarlanmamış")
 
         // Asked for by country rather than by the viewport box.
         //

@@ -79,45 +79,45 @@ fun AuxBatteryScreen(services: ServiceLocator) {
 
         when (health.status) {
             AuxBatteryStatus.Critical -> Banner(
-                title = "Below 12.0 V at rest",
-                text = "This is the range where a 12V battery starts failing to crank the " +
-                    "car awake. On an Ioniq this is also the signature of the ICCU issue. " +
-                    "Worth getting checked rather than waiting for a no-start.",
+                title = "Dinlenmede 12,0 V altında",
+                text = "Bu, 12V akünün aracı uyandırmakta zorlanmaya başladığı aralık. " +
+                    "Ioniq'te aynı zamanda ICCU sorununun imzası. Marş vermemesini " +
+                    "beklemek yerine kontrol ettirmeye değer.",
                 tone = BannerTone.Error
             )
             AuxBatteryStatus.Low -> Banner(
-                title = "Lower than it should be",
-                text = "A rested 12V battery normally sits near 12.6 V. Persistently below " +
-                    "12.2 V suggests it is not being fully recharged.",
+                title = "Olması gerekenden düşük",
+                text = "Dinlenmiş bir 12V akü normalde 12,6 V civarında durur. Sürekli " +
+                    "12,2 V altında olması tam şarj olmadığına işaret eder.",
                 tone = BannerTone.Warning
             )
             AuxBatteryStatus.Good -> if (health.isDeclining) {
                 Banner(
-                    title = "Level is fine but trending down",
-                    text = "The level is still healthy, but session-start readings have been " +
-                        "falling. Worth keeping an eye on.",
+                    title = "Seviye iyi ama düşüyor",
+                    text = "Seviye hâlâ sağlıklı, ancak oturum başı ölçümleri düşüyor. " +
+                        "Göz ucuyla takip etmeye değer.",
                     tone = BannerTone.Warning
                 )
             }
             AuxBatteryStatus.Unknown -> Banner(
-                text = "No readings yet. Connect to the adapter with “Modül voltajı (12V)” " +
-                    "among the polled PIDs and a reading is recorded automatically.",
+                text = "Henüz ölçüm yok. Sorgulanan PID'ler arasında “Modül voltajı (12V)” " +
+                    "varken adaptöre bağlan, ölçüm kendiliğinden kaydedilir.",
                 tone = BannerTone.Info
             )
         }
 
         HorizontalDivider()
-        SectionLabel("Trend at session start")
+        SectionLabel("Oturum başı eğilimi")
         Text(
-            "Only readings taken as a session begins are plotted. A reading taken while " +
-                "driving shows the DC-DC converter's output, not the battery's own state, " +
-                "so mixing them in would flatten the very trend we are looking for.",
+            "Yalnızca oturum başlarken alınan ölçümler çiziliyor. Sürüş sırasında alınan " +
+                "bir ölçüm akünün kendi durumunu değil DC-DC çeviricinin çıkışını gösterir; " +
+                "ikisini karıştırmak tam da aradığımız eğilimi düzleştirirdi.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         if (starts.size < 2) {
-            EmptyState("Needs at least two sessions before a trend can be drawn.")
+            EmptyState("Eğilim çizilebilmesi için en az iki oturum gerekiyor.")
         } else {
             LineChart(
                 points = starts.map { ChartPoint(it.atEpochMs.toDouble(), it.volts) },
@@ -140,7 +140,7 @@ fun AuxBatteryScreen(services: ServiceLocator) {
                 )
             }
             Text(
-                "Dashed line is ${AuxBatteryHealth.LOW_V} V.",
+                "Kesikli çizgi ${AuxBatteryHealth.LOW_V} V.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -148,14 +148,14 @@ fun AuxBatteryScreen(services: ServiceLocator) {
 
         HorizontalDivider()
         Text(
-            "IoniqScope does not keep the adapter awake to watch a parked car. A dongle " +
-                "left plugged in and connected is itself a drain, which on a car with a " +
-                "known 12V problem would make this app part of the problem.",
+            "IoniqScope, park hâlindeki aracı izlemek için adaptörü uyanık tutmuyor. Takılı " +
+                "ve bağlı bırakılan bir dongle'ın kendisi bir tüketim kaynağıdır; bilinen " +
+                "bir 12V sorunu olan bir araçta bu, uygulamayı sorunun parçası yapardı.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (starts.isNotEmpty()) {
-            TextButton(onClick = vm::clearHistory) { Text("Clear 12V history") }
+            TextButton(onClick = vm::clearHistory) { Text("12V geçmişini sil") }
         }
     }
 }
@@ -177,10 +177,10 @@ private fun StatusCard(health: AuxBatteryHealth) {
         Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 when (health.status) {
-                    AuxBatteryStatus.Good -> "HEALTHY"
-                    AuxBatteryStatus.Low -> "LOW"
-                    AuxBatteryStatus.Critical -> "CRITICAL"
-                    AuxBatteryStatus.Unknown -> "NO DATA"
+                    AuxBatteryStatus.Good -> "SAĞLIKLI"
+                    AuxBatteryStatus.Low -> "DÜŞÜK"
+                    AuxBatteryStatus.Critical -> "KRİTİK"
+                    AuxBatteryStatus.Unknown -> "VERİ YOK"
                 },
                 style = MaterialTheme.typography.labelLarge,
                 color = accent
@@ -189,7 +189,7 @@ private fun StatusCard(health: AuxBatteryHealth) {
             // a stray rule, not as "no value".
             if (health.latestVolts == null) {
                 Text(
-                    "no readings yet",
+                    "henüz ölçüm yok",
                     style = MaterialTheme.typography.headlineSmall,
                     color = scheme.outline,
                     modifier = Modifier.padding(vertical = 18.dp)
@@ -210,7 +210,7 @@ private fun StatusCard(health: AuxBatteryHealth) {
 
             health.latestAtEpochMs?.let {
                 Text(
-                    "last read ${dateTimeFormatter.format(Instant.ofEpochMilli(it))}",
+                    "son okuma ${dateTimeFormatter.format(Instant.ofEpochMilli(it))}",
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)
@@ -218,7 +218,7 @@ private fun StatusCard(health: AuxBatteryHealth) {
             }
             health.trendVoltsPerWeek?.let {
                 Text(
-                    String.format(Locale.US, "%+.3f V per week across %d sessions", it, health.sessionStartCount),
+                    String.format(Locale.US, "%d oturumda haftada %+.3f V", it, health.sessionStartCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (health.isDeclining) StatusAmber else scheme.onSurfaceVariant
                 )

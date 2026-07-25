@@ -132,9 +132,9 @@ fun ChargerMapScreen(services: ServiceLocator) {
                     showList = false
                     vm.setListMode(false)
                 }) {
-                    Icon(Icons.Filled.Map, contentDescription = "Show map")
+                    Icon(Icons.Filled.Map, contentDescription = "Haritayı göster")
                 }
-                Text("$count charge points cached", style = MaterialTheme.typography.bodySmall)
+                Text("$count şarj noktası kayıtlı", style = MaterialTheme.typography.bodySmall)
             }
             ChargerList(sites) { openInMaps(context, it) }
         }
@@ -181,9 +181,9 @@ fun ChargerMapScreen(services: ServiceLocator) {
 
             if (count == 0) {
                 Banner(
-                    title = "No stations",
-                    text = "The station list ships inside the app, so this should never " +
-                        "be empty. Reinstalling the latest build will restore it.",
+                    title = "İstasyon yok",
+                    text = "İstasyon listesi uygulamanın içinde geliyor, yani burası normalde " +
+                        "hiç boş kalmaz. En son sürümü yeniden kurmak listeyi geri getirir.",
                     tone = BannerTone.Warning
                 )
             }
@@ -206,7 +206,7 @@ fun ChargerMapScreen(services: ServiceLocator) {
         ) {
             MapButton(
                 icon = Icons.Filled.Search,
-                description = "Search stations",
+                description = "İstasyon ara",
                 active = searching,
                 onClick = {
                     searching = !searching
@@ -215,14 +215,14 @@ fun ChargerMapScreen(services: ServiceLocator) {
             )
             MapButton(
                 icon = Icons.Filled.MyLocation,
-                description = if (following) "Stop following" else "Follow my location",
+                description = if (following) "Takibi bırak" else "Konumumu takip et",
                 active = following,
                 busy = location is LocationState.Requesting,
                 onClick = requestLocation
             )
             MapButton(
                 icon = Icons.AutoMirrored.Filled.List,
-                description = "Show list",
+                description = "Listeyi göster",
                 onClick = {
                     showList = true
                     vm.setListMode(true)
@@ -310,11 +310,11 @@ private fun SearchPanel(
                     onQuery(it)
                 },
                 singleLine = true,
-                label = { Text("Search stations") },
-                placeholder = { Text("ZES, Trugo, a district…") },
+                label = { Text("İstasyon ara") },
+                placeholder = { Text("ZES, Trugo, bir ilçe…") },
                 trailingIcon = {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close search")
+                        Icon(Icons.Filled.Close, contentDescription = "Aramayı kapat")
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -322,8 +322,8 @@ private fun SearchPanel(
 
             if (query.isNotBlank() && results.isEmpty()) {
                 Text(
-                    "Nothing matching. Searches run over the stations on the device, " +
-                        "not the whole of the map.",
+                    "Eşleşen bir şey yok. Arama, cihazdaki istasyonlar üzerinde çalışıyor; " +
+                        "haritanın tamamında değil.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(8.dp)
@@ -341,7 +341,7 @@ private fun SearchPanel(
                     ) {
                         Column(Modifier.fillMaxWidth()) {
                             Text(
-                                site.name ?: site.operator ?: "Charging station",
+                                site.name ?: site.operator ?: "Şarj istasyonu",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
@@ -390,7 +390,7 @@ private fun RouteLegend(routes: List<SiteRoute>, onNavigate: (ChargerSite) -> Un
                     )
                     Column(Modifier.weight(1f)) {
                         Text(
-                            entry.site.operator ?: entry.site.name ?: "Charging station",
+                            entry.site.operator ?: entry.site.name ?: "Şarj istasyonu",
                             style = MaterialTheme.typography.labelMedium,
                             maxLines = 1
                         )
@@ -404,14 +404,14 @@ private fun RouteLegend(routes: List<SiteRoute>, onNavigate: (ChargerSite) -> Un
                     IconButton(onClick = { onNavigate(entry.site) }) {
                         Icon(
                             Icons.Filled.Navigation,
-                            contentDescription = "Navigate",
+                            contentDescription = "Yol tarifi",
                             modifier = Modifier.size(18.dp)
                         )
                     }
                 }
             }
             Text(
-                "Routes come from an outside service, so your position is sent to it.",
+                "Rotalar dış bir servisten geliyor, yani konumun oraya gönderiliyor.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -435,7 +435,7 @@ private fun SelectedSiteCard(
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(
-                site.name ?: site.operator ?: "Charging station",
+                site.name ?: site.operator ?: "Şarj istasyonu",
                 style = MaterialTheme.typography.titleMedium
             )
             // The socket count belongs here, not on the map: the map answers "where
@@ -460,9 +460,9 @@ private fun SelectedSiteCard(
                 Button(onClick = onNavigate) {
                     Icon(Icons.Filled.Navigation, contentDescription = null,
                         modifier = Modifier.size(18.dp))
-                    Text("Navigate", modifier = Modifier.padding(start = 6.dp))
+                    Text("Yol tarifi", modifier = Modifier.padding(start = 6.dp))
                 }
-                TextButton(onClick = onDismiss) { Text("Close") }
+                TextButton(onClick = onDismiss) { Text("Kapat") }
             }
         }
     }
@@ -477,20 +477,20 @@ private fun SelectedSiteCard(
  */
 private fun chargePointSummary(site: ChargerSite): String? = when (site.chargePoints) {
     null -> null
-    1 -> "1 charge point listed"
-    else -> "${site.chargePoints} charge points listed"
+    1 -> "1 şarj noktası kayıtlı"
+    else -> "${site.chargePoints} şarj noktası kayıtlı"
 }
 
 /** Whatever went wrong with locating, said plainly rather than failing silently. */
 private fun locationNote(location: LocationState, following: Boolean): String? = when {
     location is LocationState.PermissionMissing ->
-        "Location permission not granted, so the map cannot show or follow you."
+        "Konum izni verilmedi, bu yüzden harita seni gösteremiyor ve takip edemiyor."
     location is LocationState.Disabled ->
-        "Location is switched off on this device."
+        "Bu cihazda konum kapalı."
     location is LocationState.TimedOut ->
-        "Could not get a position. Under cover or indoors this can take a while."
+        "Konum alınamadı. Kapalı alanda ya da bina içinde bu uzun sürebilir."
     following && location is LocationState.Known && location.fromCache ->
-        "Following your last known position — waiting for a fresh fix."
+        "Bilinen son konumun takip ediliyor — yeni sinyal bekleniyor."
     else -> null
 }
 
@@ -631,7 +631,7 @@ private fun emitBounds(map: MapView, onBoundsChanged: (BoundingBox) -> Unit) {
 @Composable
 private fun ChargerList(sites: List<ChargerSite>, onNavigate: (ChargerSite) -> Unit) {
     if (sites.isEmpty()) {
-        EmptyState("No stations here. Pan the map, or relax the filters.")
+        EmptyState("Burada istasyon yok. Haritayı kaydır ya da filtreleri gevşet.")
         return
     }
     LazyColumn(
@@ -656,7 +656,7 @@ private fun ChargerRow(site: ChargerSite, onNavigate: () -> Unit) {
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(
-                site.name ?: site.operator ?: "Charging station",
+                site.name ?: site.operator ?: "Şarj istasyonu",
                 style = MaterialTheme.typography.titleSmall
             )
             Text(
@@ -675,7 +675,7 @@ private fun ChargerRow(site: ChargerSite, onNavigate: () -> Unit) {
                 }
                 site.chargePoints?.takeIf { it > 1 }?.let {
                     Text(
-                        "$it charge points",
+                        "$it şarj noktası",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -687,13 +687,13 @@ private fun ChargerRow(site: ChargerSite, onNavigate: () -> Unit) {
 
 /** Honest about gaps: "unknown" is shown as unknown, never as a plausible default. */
 private fun describe(site: ChargerSite): String = buildString {
-    append(site.operator ?: "operator unknown")
+    append(site.operator ?: "işletmeci bilinmiyor")
     append(" · ")
-    append(site.maxPowerKw?.let { String.format(Locale.US, "%.0f kW", it) } ?: "power unknown")
+    append(site.maxPowerKw?.let { String.format(Locale.US, "%.0f kW", it) } ?: "güç bilinmiyor")
     when (site.isDc) {
         true -> append(" · DC")
         false -> append(" · AC")
-        null -> append(" · type unknown")
+        null -> append(" · tip bilinmiyor")
     }
     site.connectors?.let { append("\n$it") }
     site.address?.let { append("\n$it") }
@@ -705,13 +705,13 @@ private fun formatDistance(metres: Double): String =
 
 private fun formatMinutes(seconds: Double): String {
     val minutes = (seconds / 60).toInt()
-    return if (minutes < 60) "$minutes min"
-    else String.format(Locale.US, "%d h %02d min", minutes / 60, minutes % 60)
+    return if (minutes < 60) "$minutes dk"
+    else String.format(Locale.US, "%d sa %02d dk", minutes / 60, minutes % 60)
 }
 
 /** Hands off to whatever navigation app the user actually uses. */
 private fun openInMaps(context: Context, site: ChargerSite) {
-    val label = Uri.encode(site.name ?: site.operator ?: "Charging station")
+    val label = Uri.encode(site.name ?: site.operator ?: "Şarj istasyonu")
     val intent = Intent(
         Intent.ACTION_VIEW,
         Uri.parse("geo:${site.lat},${site.lon}?q=${site.lat},${site.lon}($label)")

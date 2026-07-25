@@ -87,8 +87,8 @@ class TripLogViewModel(private val services: ServiceLocator) : ViewModel() {
 
         viewModelScope.launch {
             services.csvExporter.exportTrip(trip.id, uri).fold(
-                onSuccess = { rows -> _exportResult.value = "Exported $rows rows." },
-                onFailure = { e -> _exportResult.value = "Export failed: ${e.message}" }
+                onSuccess = { rows -> _exportResult.value = "$rows satır dışa aktarıldı." },
+                onFailure = { e -> _exportResult.value = "Dışa aktarma başarısız: ${e.message}" }
             )
         }
     }
@@ -132,11 +132,11 @@ fun TripLogScreen(
     ) {
         if (!connected && !logging) {
             Banner(
-                title = "Not connected",
-                text = "Connect to your adapter before starting a trip log.",
+                title = "Bağlı değil",
+                text = "Sefer kaydına başlamadan önce adaptöre bağlan.",
                 tone = BannerTone.Warning,
                 modifier = Modifier.padding(top = 12.dp),
-                actionLabel = "Connect",
+                actionLabel = "Bağlan",
                 onAction = onConnect
             )
         }
@@ -149,16 +149,16 @@ fun TripLogScreen(
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    if (logging) "Recording" else "Not recording",
+                    if (logging) "Recording" else "Kayıt yok",
                     style = MaterialTheme.typography.titleMedium,
                     color = if (logging) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     if (logging) {
-                        "Logging every reading the Dashboard is polling. Keeps running with the screen off."
+                        "Göstergenin sorguladığı her ölçüm kaydediliyor. Ekran kapalıyken de sürer."
                     } else {
-                        "Records whatever the Dashboard is polling, timestamped, to this phone only."
+                        "Göstergenin sorguladığı ne varsa, zaman damgalı olarak yalnızca bu telefona kaydeder."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -169,7 +169,7 @@ fun TripLogScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error
                         )
-                    ) { Text("Stop logging") }
+                    ) { Text("Kaydı durdur") }
                 } else {
                     Button(
                         onClick = {
@@ -180,7 +180,7 @@ fun TripLogScreen(
                             }
                         },
                         enabled = connected
-                    ) { Text("Start logging") }
+                    ) { Text("Kaydı başlat") }
                 }
             }
         }
@@ -188,15 +188,15 @@ fun TripLogScreen(
         exportResult?.let {
             Banner(
                 text = it,
-                tone = if (it.startsWith("Export failed")) BannerTone.Error else BannerTone.Success
+                tone = if (it.startsWith("Dışa aktarma başarısız")) BannerTone.Error else BannerTone.Success
             )
         }
 
         HorizontalDivider()
-        SectionLabel("Saved trips")
+        SectionLabel("Kayıtlı seferler")
 
         if (trips.isEmpty()) {
-            EmptyState("No trips recorded yet.")
+            EmptyState("Henüz kayıtlı sefer yok.")
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(trips, key = { it.id }) { trip ->
@@ -247,20 +247,20 @@ private fun TripRow(
                 val duration = trip.endedAtEpochMs?.let { it - trip.startedAtEpochMs }
                 Text(
                     buildString {
-                        if (isActive) append("recording…")
+                        if (isActive) append("kaydediliyor…")
                         else if (duration != null) append(formatDuration(duration))
-                        else append("ended unexpectedly")
-                        if (trip.sampleCount > 0) append("  ·  ${trip.sampleCount} readings")
+                        else append("beklenmedik şekilde bitti")
+                        if (trip.sampleCount > 0) append("  ·  ${trip.sampleCount} ölçüm")
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             IconButton(onClick = onExport, enabled = !isActive) {
-                Icon(Icons.Filled.Download, contentDescription = "Export CSV")
+                Icon(Icons.Filled.Download, contentDescription = "CSV olarak dışa aktar")
             }
             IconButton(onClick = onDelete, enabled = !isActive) {
-                Icon(Icons.Filled.Delete, contentDescription = "Delete trip")
+                Icon(Icons.Filled.Delete, contentDescription = "Seferi sil")
             }
         }
     }

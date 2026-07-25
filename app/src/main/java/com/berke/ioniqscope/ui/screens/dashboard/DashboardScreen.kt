@@ -89,7 +89,7 @@ fun DashboardScreen(services: ServiceLocator, onConnect: () -> Unit) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
             NotConnectedBanner(connected, onConnect)
-            EmptyState("No PIDs selected. Pick some in Settings.")
+            EmptyState("Hiç PID seçilmemiş. Ayarlar'dan seç.")
         }
         return
     }
@@ -138,8 +138,8 @@ fun DashboardScreen(services: ServiceLocator, onConnect: () -> Unit) {
         if (connected && silent.isNotEmpty() && state.isNotEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
-                    "No response for: ${silent.joinToString { it.label }}. " +
-                        "Not every standard PID is supported on an EV.",
+                    "Yanıt yok: ${silent.joinToString { it.label }}. " +
+                        "Standart PID'lerin hepsi elektrikli araçta desteklenmiyor.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -152,10 +152,10 @@ fun DashboardScreen(services: ServiceLocator, onConnect: () -> Unit) {
 private fun NotConnectedBanner(connected: Boolean, onConnect: () -> Unit) {
     if (connected) return
     Banner(
-        title = "Not connected",
-        text = "Connect to your adapter to see live data.",
+        title = "Bağlı değil",
+        text = "Canlı veriyi görmek için adaptöre bağlan.",
         tone = BannerTone.Warning,
-        actionLabel = "Connect",
+        actionLabel = "Bağlan",
         onAction = onConnect
     )
 }

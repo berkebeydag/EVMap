@@ -49,7 +49,7 @@ class ChargerRepository(
             val result = source.fetch(box)
             if (result.stations.isEmpty()) {
                 _syncState.value = SyncState.Failed(
-                    "${source.displayName} returned no stations for this area."
+                    "${source.displayName} bu alan için istasyon döndürmedi."
                 )
                 return
             }
@@ -69,7 +69,7 @@ class ChargerRepository(
                 partial = !result.complete
             )
         } catch (e: Exception) {
-            _syncState.value = SyncState.Failed(e.message ?: "Refresh failed.")
+            _syncState.value = SyncState.Failed(e.message ?: "Yenileme başarısız.")
         }
     }
 
