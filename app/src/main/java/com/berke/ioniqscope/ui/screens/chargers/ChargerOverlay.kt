@@ -238,8 +238,12 @@ class ChargerOverlay(
 
         val cluster = clusters.nearestWithin(e.x, e.y, clusterRadius * 1.6f) { it }
         if (cluster != null) {
+            // Rebuilt from the coordinates rather than cast: fromPixels is declared
+            // to return IGeoPoint, and casting it would be a crash on tap the day
+            // osmdroid returns anything else.
+            val centre = mapView.projection.fromPixels(cluster.x, cluster.y)
             mapView.controller.animateTo(
-                mapView.projection.fromPixels(cluster.x, cluster.y) as GeoPoint,
+                GeoPoint(centre.latitude, centre.longitude),
                 mapView.zoomLevelDouble + 2.0,
                 CLUSTER_ZOOM_MS
             )
