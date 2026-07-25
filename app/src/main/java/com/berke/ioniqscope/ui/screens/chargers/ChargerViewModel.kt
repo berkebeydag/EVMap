@@ -1,9 +1,6 @@
 package com.berke.ioniqscope.ui.screens.chargers
 
-import android.annotation.SuppressLint
 import android.content.Context
-import android.location.LocationManager
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.berke.ioniqscope.ServiceLocator
@@ -45,8 +42,14 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     private val _visible = MutableStateFlow<List<ChargerListItem>>(emptyList())
     val visible: StateFlow<List<ChargerListItem>> = _visible.asStateFlow()
 
-    private val _userLocation = MutableStateFlow<Pair<Double, Double>?>(null)
-    val userLocation: StateFlow<Pair<Double, Double>?> = _userLocation.asStateFlow()
+    private val _location = MutableStateFlow<LocationState>(LocationState.Unknown)
+    val location: StateFlow<LocationState> = _location.asStateFlow()
+
+    private val here: Pair<Double, Double>?
+        get() = (_location.value as? LocationState.Known)?.let { it.lat to it.lon }
+
+    /** True while the list should be showing nearest-first rather than the viewport. */
+    private var listMode = false
 
     fun sources(): List<ChargerSource> = services.chargerSources
 
@@ -65,48 +68,54 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
      * empty until the user happened to pan.
      */
     fun reloadVisible() {
-        val box = lastBounds
-        if (box != null) loadForBounds(box) else loadNearest()
+        if (listMode && here != null) loadNearest()
+        else lastBounds?.let { loadForBounds(it) } ?: loadNearest()
+    }
+
+    /**
+     * The list wants "closest to me", which is not the same question as "what is on
+     * screen" — the nearest charger may well be off the current viewport. The map
+     * stays bound to its viewport; the list, once a position is known, does not.
+     */
+    fun setListMode(enabled: Boolean) {
+        listMode = enabled
+        reloadVisible()
     }
 
     /** Reloads the visible set for a viewport, applying the user's filters. */
     fun loadForBounds(box: BoundingBox) {
         lastBounds = box
+        // While the list is showing nearest-first, panning the map underneath must
+        // not quietly replace it with viewport results.
+        if (listMode && here != null) return
         viewModelScope.launch {
             val current = settings.first()
-            val here = _userLocation.value
-            val stations = repo.inBounds(box)
+            val anchor = here
+            _visible.value = repo.inBounds(box)
                 .filter { passesFilters(it, current) }
-                .map { station ->
-                    ChargerListItem(
-                        station = station,
-                        distanceMetres = here?.let { (lat, lon) ->
-                            ChargerRepository.distanceMetres(lat, lon, station.lat, station.lon)
-                        }
-                    )
-                }
+                .map { station -> station.withDistance(anchor) }
                 .sortedBy { it.distanceMetres ?: Double.MAX_VALUE }
-            _visible.value = stations
         }
     }
 
     fun loadNearest() {
-        val here = _userLocation.value ?: return
+        val anchor = here ?: return
         viewModelScope.launch {
             val current = settings.first()
-            _visible.value = repo.nearest(here.first, here.second, limit = 200)
+            _visible.value = repo.nearest(anchor.first, anchor.second, limit = NEAREST_LIMIT)
                 .filter { passesFilters(it, current) }
-                .map {
-                    ChargerListItem(
-                        station = it,
-                        distanceMetres = ChargerRepository.distanceMetres(
-                            here.first, here.second, it.lat, it.lon
-                        )
-                    )
-                }
+                .map { it.withDistance(anchor) }
                 .sortedBy { it.distanceMetres }
         }
     }
+
+    private fun ChargingStationEntity.withDistance(anchor: Pair<Double, Double>?) =
+        ChargerListItem(
+            station = this,
+            distanceMetres = anchor?.let { (lat, lon) ->
+                ChargerRepository.distanceMetres(lat, lon, this.lat, this.lon)
+            }
+        )
 
     /**
      * `isDc == null` means the source never said. Those are kept even under
@@ -124,28 +133,27 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     }
 
     /**
-     * Last known coarse position. Deliberately does not subscribe to updates: the
-     * charger list only needs a rough anchor to sort by, and a continuous fix is
-     * both a battery cost and a privacy cost for no gain.
+     * Asks for one coarse fix. Every outcome — including the failures — lands in
+     * [location] so the UI can say what happened instead of appearing to ignore
+     * the tap.
      */
-    @SuppressLint("MissingPermission")
     fun refreshLocation(context: Context) {
-        if (!hasLocationPermission(context)) return
-        val manager = context.getSystemService(LocationManager::class.java) ?: return
-        val location = runCatching {
-            manager.getProviders(true)
-                .mapNotNull { manager.getLastKnownLocation(it) }
-                .maxByOrNull { it.time }
-        }.getOrNull() ?: return
-        _userLocation.value = location.latitude to location.longitude
-        loadNearest()
+        val finder = LocationFinder(context)
+        if (!finder.hasPermission()) {
+            _location.value = LocationState.PermissionMissing
+            return
+        }
+        _location.value = LocationState.Requesting
+        viewModelScope.launch {
+            _location.value = finder.find()
+            if (_location.value is LocationState.Known) reloadVisible()
+        }
     }
 
     companion object {
+        private const val NEAREST_LIMIT = 300
+
         fun hasLocationPermission(context: Context): Boolean =
-            ContextCompat.checkSelfPermission(
-                context,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            LocationFinder(context).hasPermission()
     }
 }

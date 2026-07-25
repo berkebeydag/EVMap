@@ -28,6 +28,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -83,6 +84,7 @@ fun ChargerMapScreen(services: ServiceLocator) {
     val lastSync by vm.lastSync.collectAsStateWithLifecycle()
     val visible by vm.visible.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val location by vm.location.collectAsStateWithLifecycle()
 
     var showList by remember { mutableStateOf(false) }
     var showSourceMenu by remember { mutableStateOf(false) }
@@ -94,6 +96,22 @@ fun ChargerMapScreen(services: ServiceLocator) {
 
     LaunchedEffect(Unit) {
         if (ChargerViewModel.hasLocationPermission(context)) vm.refreshLocation(context)
+    }
+
+    // Whatever went wrong with locating, say so — the button used to fail silently.
+    val locationMessage = when (location) {
+        LocationState.PermissionMissing ->
+            "Location permission not granted, so the list cannot be sorted by distance."
+        LocationState.Disabled ->
+            "Location is switched off on this device. Turn it on to sort by distance."
+        LocationState.TimedOut ->
+            "Could not get a position. Under cover or indoors this can take a while — " +
+                "try again with a clearer view of the sky."
+        is LocationState.Known ->
+            if ((location as LocationState.Known).fromCache) {
+                "Sorted by your last known position — no fresh fix available here."
+            } else null
+        else -> null
     }
 
     // Markers come from the cache, so a finished download has to nudge the query.
@@ -175,19 +193,36 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 }
             }
 
-            FilledTonalIconButton(onClick = {
-                if (ChargerViewModel.hasLocationPermission(context)) vm.refreshLocation(context)
-                else locationLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
-            }) {
-                Icon(Icons.Filled.MyLocation, contentDescription = "Use my location")
+            FilledTonalIconButton(
+                onClick = {
+                    if (ChargerViewModel.hasLocationPermission(context)) vm.refreshLocation(context)
+                    else locationLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                },
+                enabled = location !is LocationState.Requesting
+            ) {
+                if (location is LocationState.Requesting) {
+                    CircularProgressIndicator(Modifier.padding(4.dp))
+                } else {
+                    Icon(
+                        Icons.Filled.MyLocation,
+                        contentDescription = "Use my location",
+                        tint = if (location is LocationState.Known) {
+                            MaterialTheme.colorScheme.primary
+                        } else LocalContentColor.current
+                    )
+                }
             }
 
-            FilledTonalIconButton(onClick = { showList = !showList }) {
+            FilledTonalIconButton(onClick = {
+                showList = !showList
+                vm.setListMode(showList)
+            }) {
                 Icon(
                     if (showList) Icons.Filled.Map else Icons.AutoMirrored.Filled.List,
                     contentDescription = if (showList) "Show map" else "Show list"
                 )
             }
+
 
             // Readable whichever tile happens to be underneath.
             Surface(
@@ -208,6 +243,14 @@ fun ChargerMapScreen(services: ServiceLocator) {
                     }
                 }
             }
+        }
+
+        locationMessage?.let {
+            Banner(
+                text = it,
+                tone = BannerTone.Warning,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            )
         }
 
         if (settings.chargersDcOnly || settings.chargersMinPowerKw > 0) {

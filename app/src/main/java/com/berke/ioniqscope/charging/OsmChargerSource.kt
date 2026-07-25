@@ -67,7 +67,9 @@ class OsmChargerSource(
     private fun query(box: BoundingBox) =
         "[out:json][timeout:$QUERY_TIMEOUT_S];" +
             "area($TURKEY_AREA_ID)->.country;" +
-            "node[\"amenity\"=\"charging_station\"](area.country)" +
+            // nwr, not node: a couple of dozen Turkish stations are mapped as areas
+            // rather than points, and `out center` gives those a usable coordinate.
+            "nwr[\"amenity\"=\"charging_station\"](area.country)" +
             "(${box.minLat},${box.minLon},${box.maxLat},${box.maxLon});" +
             "out tags center;"
 
@@ -77,12 +79,17 @@ class OsmChargerSource(
 
         for (i in 0 until elements.length()) {
             val element = elements.optJSONObject(i) ?: continue
-            val lat = element.optDouble("lat", Double.NaN)
-            val lon = element.optDouble("lon", Double.NaN)
+
+            // Nodes carry lat/lon directly; ways and relations get theirs from the
+            // `center` block that `out center` adds.
+            val centre = element.optJSONObject("center")
+            val lat = element.optDouble("lat", centre?.optDouble("lat", Double.NaN) ?: Double.NaN)
+            val lon = element.optDouble("lon", centre?.optDouble("lon", Double.NaN) ?: Double.NaN)
             if (lat.isNaN() || lon.isNaN()) continue
 
             val tags = element.optJSONObject("tags") ?: JSONObject()
-            val sourceId = "osm:${element.optLong("id")}"
+            // Ids are only unique per element type, so a way and a node can share one.
+            val sourceId = "osm:${element.optString("type", "node")}:${element.optLong("id")}"
 
             into[sourceId] = ChargingStationEntity(
                 sourceId = sourceId,

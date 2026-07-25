@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -76,6 +77,22 @@ interface ChargingStationDao {
         lonScale: Double,
         limit: Int = 100
     ): List<ChargingStationEntity>
+
+    @Query("DELETE FROM charging_stations WHERE source = :source")
+    suspend fun deleteBySource(source: String)
+
+    /**
+     * Replaces one source's data wholesale.
+     *
+     * Upserting alone is not enough: a station deleted upstream, or one whose
+     * identifier scheme changed on our side, would linger for ever. Transactional
+     * so a failed insert cannot leave the map empty.
+     */
+    @Transaction
+    suspend fun replaceSource(source: String, stations: List<ChargingStationEntity>) {
+        deleteBySource(source)
+        upsertAll(stations)
+    }
 
     @Query("DELETE FROM charging_stations")
     suspend fun deleteAll()

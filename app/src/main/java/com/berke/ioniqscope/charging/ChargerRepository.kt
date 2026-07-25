@@ -39,8 +39,9 @@ class ChargerRepository(
     /**
      * Refreshes from [source] over [box].
      *
-     * Rows are replaced by `source_id`, so re-syncing updates in place rather than
-     * duplicating, and running two sources leaves both sets present.
+     * Replaces that source's rows outright rather than merging into them, so
+     * stations withdrawn upstream disappear. Other sources are untouched, so
+     * running two of them leaves both sets present.
      */
     suspend fun sync(source: ChargerSource, box: BoundingBox = BoundingBox.TURKEY) {
         _syncState.value = SyncState.Running(source.displayName)
@@ -52,7 +53,7 @@ class ChargerRepository(
                 )
                 return
             }
-            dao.upsertAll(stations)
+            dao.replaceSource(source.id, stations)
             _syncState.value = SyncState.Done(stations.size, source.displayName)
         } catch (e: Exception) {
             _syncState.value = SyncState.Failed(e.message ?: "Refresh failed.")
