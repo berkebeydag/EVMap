@@ -2,6 +2,7 @@ package com.berke.ioniqscope
 
 import android.content.Context
 import com.berke.ioniqscope.charging.ChargerRepository
+import com.berke.ioniqscope.charging.ChargerSeeder
 import com.berke.ioniqscope.charging.ChargerSource
 import com.berke.ioniqscope.charging.OcmChargerSource
 import com.berke.ioniqscope.charging.OsmChargerSource
@@ -43,11 +44,17 @@ class ServiceLocator private constructor(context: Context) {
      * Charger sources, best-data-first. OSM needs nothing and is always available;
      * OCM turns itself on once the user has pasted their own free key.
      */
+    private val osmChargerSource by lazy { OsmChargerSource() }
+
     val chargerSources: List<ChargerSource> by lazy {
         listOf(
-            OsmChargerSource(),
+            osmChargerSource,
             OcmChargerSource(apiKeyProvider = { cachedOcmKey })
         )
+    }
+
+    private val chargerSeeder: ChargerSeeder by lazy {
+        ChargerSeeder(appContext, database.chargingStationDao(), osmChargerSource, appScope)
     }
 
     val chargerRepository: ChargerRepository by lazy {
@@ -79,6 +86,7 @@ class ServiceLocator private constructor(context: Context) {
         perfRunRecorder.start()
         auxBatteryMonitor.start()
         driveDetector.start()
+        chargerSeeder.seedIfEmpty()
         appScope.launch {
             settings.settings.collect { cachedOcmKey = it.ocmApiKey.takeIf { k -> k.isNotBlank() } }
         }

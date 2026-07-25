@@ -3,6 +3,8 @@ package com.berke.ioniqscope.charging
 import com.berke.ioniqscope.data.ChargingStationEntity
 import org.json.JSONObject
 import java.net.URLEncoder
+import kotlin.math.cos
+import kotlin.math.hypot
 
 /**
  * Charging stations from OpenStreetMap via the Overpass API.
@@ -26,14 +28,15 @@ class OsmChargerSource(
 
     override suspend fun fetch(box: BoundingBox): FetchResult {
         val stations = LinkedHashMap<String, ChargingStationEntity>()
+        val points = LinkedHashMap<String, ChargingStationEntity>()
         var lastError: Exception? = null
 
         // One country-wide query completes in about twenty seconds once the area
         // filter is in play, so there is no need to split it up.
         for (endpoint in ENDPOINTS) {
             try {
-                parse(Http.postForm(endpoint, "data=" + encode(query(box))), stations)
-                return FetchResult(stations.values.toList(), complete = true)
+                parse(Http.postForm(endpoint, "data=" + encode(query(box))), stations, points)
+                return FetchResult(dedupe(stations.values, points.values), complete = true)
             } catch (e: Exception) {
                 lastError = e
             }
@@ -47,7 +50,7 @@ class OsmChargerSource(
             var fetched = false
             for (endpoint in ENDPOINTS) {
                 try {
-                    parse(Http.postForm(endpoint, "data=" + encode(query(strip))), stations)
+                    parse(Http.postForm(endpoint, "data=" + encode(query(strip))), stations, points)
                     fetched = true
                     break
                 } catch (e: Exception) {
@@ -57,12 +60,23 @@ class OsmChargerSource(
             if (!fetched) failedStrips++
         }
 
-        if (stations.isEmpty()) throw lastError ?: IllegalStateException("No stations returned")
+        if (stations.isEmpty() && points.isEmpty()) {
+            throw lastError ?: IllegalStateException("No stations returned")
+        }
 
         // Some strips failing is the difference between "here is the country" and
         // "here is most of it" — say which, so the caller does not replace good
         // data with a partial set.
-        return FetchResult(stations.values.toList(), complete = failedStrips == 0)
+        return FetchResult(dedupe(stations.values, points.values), complete = failedStrips == 0)
+    }
+
+    /** Parses a bundled Overpass response, so the shipped seed and a live refresh
+     *  go through exactly the same code and cannot drift apart. */
+    fun parseBundled(json: String): List<ChargingStationEntity> {
+        val stations = LinkedHashMap<String, ChargingStationEntity>()
+        val points = LinkedHashMap<String, ChargingStationEntity>()
+        parse(json, stations, points)
+        return dedupe(stations.values, points.values)
     }
 
     /**
@@ -73,16 +87,51 @@ class OsmChargerSource(
      * Addressing the area by relation id is also far cheaper than making Overpass
      * resolve it from an ISO tag, which times out on the public instances.
      */
-    private fun query(box: BoundingBox) =
-        "[out:json][timeout:$QUERY_TIMEOUT_S];" +
+    private fun query(box: BoundingBox): String {
+        val bbox = "(${box.minLat},${box.minLon},${box.maxLat},${box.maxLon})"
+        return "[out:json][timeout:$QUERY_TIMEOUT_S];" +
             "area($TURKEY_AREA_ID)->.country;" +
+            "(" +
             // nwr, not node: a couple of dozen Turkish stations are mapped as areas
             // rather than points, and `out center` gives those a usable coordinate.
-            "nwr[\"amenity\"=\"charging_station\"](area.country)" +
-            "(${box.minLat},${box.minLon},${box.maxLat},${box.maxLon});" +
+            "nwr[\"amenity\"=\"charging_station\"](area.country)$bbox;" +
+            // Individual charge points. Most sit inside a station that is already
+            // mapped and are dropped as duplicates below, but measured against
+            // Türkiye about sixty of them stand alone and would otherwise be missed.
+            "nwr[\"man_made\"=\"charge_point\"](area.country)$bbox;" +
+            ");" +
             "out tags center;"
+    }
 
-    private fun parse(json: String, into: MutableMap<String, ChargingStationEntity>) {
+    /**
+     * Drops charge points that sit on top of a station already in the set.
+     *
+     * `man_made=charge_point` usually marks an individual bay *within* a station
+     * that is separately mapped as `amenity=charging_station`; keeping both would
+     * put two markers on one forecourt and inflate the count without adding a
+     * single place you can actually go.
+     */
+    private fun dedupe(
+        stations: Collection<ChargingStationEntity>,
+        points: Collection<ChargingStationEntity>
+    ): List<ChargingStationEntity> {
+        val standalone = points.filter { point ->
+            stations.none { distanceMetres(point.lat, point.lon, it.lat, it.lon) < DUPLICATE_RADIUS_M }
+        }
+        return stations + standalone
+    }
+
+    private fun distanceMetres(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val dLat = (lat1 - lat2) * 111_320.0
+        val dLon = (lon1 - lon2) * 111_320.0 * cos(Math.toRadians(lat1))
+        return hypot(dLat, dLon)
+    }
+
+    private fun parse(
+        json: String,
+        into: MutableMap<String, ChargingStationEntity>,
+        chargePoints: MutableMap<String, ChargingStationEntity>
+    ) {
         val elements = JSONObject(json).optJSONArray("elements") ?: return
         val timestamp = now()
 
@@ -100,7 +149,10 @@ class OsmChargerSource(
             // Ids are only unique per element type, so a way and a node can share one.
             val sourceId = "osm:${element.optString("type", "node")}:${element.optLong("id")}"
 
-            into[sourceId] = ChargingStationEntity(
+            val isStation = tags.optString("amenity") == "charging_station"
+            val target = if (isStation) into else chargePoints
+
+            target[sourceId] = ChargingStationEntity(
                 sourceId = sourceId,
                 source = id,
                 name = tags.optString("name").ifBlank { null },
@@ -215,6 +267,8 @@ class OsmChargerSource(
         const val STRIP_DEGREES = 4.0
         /** OSM relation 174737 (Türkiye); Overpass area ids are 3600000000 + relation. */
         const val TURKEY_AREA_ID = 3600174737L
+        /** Two markers this close are the same forecourt, not two places to charge. */
+        const val DUPLICATE_RADIUS_M = 60.0
         val POWER_PATTERN = Regex("""\d+(\.\d+)?""")
         val DC_CONNECTORS = listOf("combo", "ccs", "chademo", "tesla_supercharger")
         val AC_CONNECTORS = listOf("type2", "schuko", "type1", "typee")

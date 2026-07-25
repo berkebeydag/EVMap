@@ -127,10 +127,10 @@ fun ChargerMapScreen(services: ServiceLocator) {
     val controls: @Composable () -> Unit = {
         if (count == 0 && sync !is SyncState.Running) {
             Banner(
-                title = "No stations downloaded yet",
-                text = "Tap refresh to download the charging-station list once. After that " +
-                    "the map works offline — which is when you actually need it.",
-                tone = BannerTone.Info,
+                title = "No stations yet",
+                text = "The app ships with the station list, so this should not normally " +
+                    "be empty. Tap refresh to download it.",
+                tone = BannerTone.Warning,
                 modifier = Modifier.padding(12.dp)
             )
         }
