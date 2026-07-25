@@ -24,7 +24,7 @@ class OcmChargerSource(
     override val displayName = "Open Charge Map (needs a free key)"
     override fun isAvailable() = !apiKeyProvider().isNullOrBlank()
 
-    override suspend fun fetch(box: BoundingBox): List<ChargingStationEntity> {
+    override suspend fun fetch(box: BoundingBox): FetchResult {
         val key = apiKeyProvider()?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("No Open Charge Map API key set")
 
@@ -35,7 +35,10 @@ class OcmChargerSource(
         }
 
         val body = Http.get(url, mapOf("X-API-Key" to key))
-        return parse(JSONArray(body))
+        val stations = parse(JSONArray(body))
+        // A single request either returns the area or throws; if it comes back at
+        // the cap, more exist than were served, so this is not the whole picture.
+        return FetchResult(stations, complete = stations.size < MAX_RESULTS)
     }
 
     private fun parse(array: JSONArray): List<ChargingStationEntity> {

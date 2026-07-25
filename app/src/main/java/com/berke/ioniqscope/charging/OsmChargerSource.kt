@@ -24,7 +24,7 @@ class OsmChargerSource(
     override val displayName = "OpenStreetMap (no key needed)"
     override fun isAvailable() = true
 
-    override suspend fun fetch(box: BoundingBox): List<ChargingStationEntity> {
+    override suspend fun fetch(box: BoundingBox): FetchResult {
         val stations = LinkedHashMap<String, ChargingStationEntity>()
         var lastError: Exception? = null
 
@@ -33,7 +33,7 @@ class OsmChargerSource(
         for (endpoint in ENDPOINTS) {
             try {
                 parse(Http.postForm(endpoint, "data=" + encode(query(box))), stations)
-                return stations.values.toList()
+                return FetchResult(stations.values.toList(), complete = true)
             } catch (e: Exception) {
                 lastError = e
             }
@@ -41,19 +41,28 @@ class OsmChargerSource(
 
         // Both mirrors refused the single query; fall back to strips, which are
         // individually small enough that a busy server will usually still serve them.
-        for (strip in splitLongitude(box, STRIP_DEGREES)) {
+        var failedStrips = 0
+        val strips = splitLongitude(box, STRIP_DEGREES)
+        for (strip in strips) {
+            var fetched = false
             for (endpoint in ENDPOINTS) {
                 try {
                     parse(Http.postForm(endpoint, "data=" + encode(query(strip))), stations)
+                    fetched = true
                     break
                 } catch (e: Exception) {
                     lastError = e
                 }
             }
+            if (!fetched) failedStrips++
         }
 
-        if (stations.isEmpty() && lastError != null) throw lastError
-        return stations.values.toList()
+        if (stations.isEmpty()) throw lastError ?: IllegalStateException("No stations returned")
+
+        // Some strips failing is the difference between "here is the country" and
+        // "here is most of it" — say which, so the caller does not replace good
+        // data with a partial set.
+        return FetchResult(stations.values.toList(), complete = failedStrips == 0)
     }
 
     /**

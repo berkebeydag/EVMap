@@ -26,11 +26,17 @@ android {
             isMinifyEnabled = false
         }
         release {
-            // Personal build — no signing config committed. Debug builds are the
-            // intended target (`./gradlew assembleDebug`).
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+
+            // Signed with the local debug key, on purpose. This is a personal app
+            // that is sideloaded, never published, so there is no release keystore
+            // to manage and no secret to keep out of the repository. It makes
+            // `assembleRelease` produce something installable — which matters
+            // because the debug APK is 20 MB of unminified dex and R8 takes it to
+            // a quarter of that.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

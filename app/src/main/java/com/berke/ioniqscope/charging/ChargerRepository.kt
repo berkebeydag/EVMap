@@ -12,7 +12,7 @@ import kotlin.math.PI
 sealed interface SyncState {
     data object Idle : SyncState
     data class Running(val sourceName: String) : SyncState
-    data class Done(val added: Int, val sourceName: String) : SyncState
+    data class Done(val added: Int, val sourceName: String, val partial: Boolean) : SyncState
     data class Failed(val message: String) : SyncState
 }
 
@@ -46,15 +46,28 @@ class ChargerRepository(
     suspend fun sync(source: ChargerSource, box: BoundingBox = BoundingBox.TURKEY) {
         _syncState.value = SyncState.Running(source.displayName)
         try {
-            val stations = source.fetch(box)
-            if (stations.isEmpty()) {
+            val result = source.fetch(box)
+            if (result.stations.isEmpty()) {
                 _syncState.value = SyncState.Failed(
                     "${source.displayName} returned no stations for this area."
                 )
                 return
             }
-            dao.replaceSource(source.id, stations)
-            _syncState.value = SyncState.Done(stations.size, source.displayName)
+
+            // Only a complete fetch may replace what is cached. A partial one is
+            // merged instead — otherwise one slow request during a refresh would
+            // delete stations that are perfectly good and still out there.
+            if (result.complete) {
+                dao.replaceSource(source.id, result.stations)
+            } else {
+                dao.upsertAll(result.stations)
+            }
+
+            _syncState.value = SyncState.Done(
+                added = result.stations.size,
+                sourceName = source.displayName,
+                partial = !result.complete
+            )
         } catch (e: Exception) {
             _syncState.value = SyncState.Failed(e.message ?: "Refresh failed.")
         }

@@ -32,6 +32,19 @@ data class BoundingBox(
  *
  * TODO(epdk): add an EPDK-backed source if a public endpoint becomes available.
  */
+/**
+ * Result of a fetch.
+ *
+ * [complete] distinguishes "this is the whole area" from "this is what came back
+ * before something failed". The difference matters: a complete fetch can replace
+ * the cached set outright, a partial one must only add to it, or a flaky request
+ * would quietly delete good data and leave the map emptier than before.
+ */
+data class FetchResult(
+    val stations: List<ChargingStationEntity>,
+    val complete: Boolean
+)
+
 interface ChargerSource {
 
     /** Stable identifier, also used as the `source` column value. */
@@ -46,8 +59,8 @@ interface ChargerSource {
     /**
      * Fetches stations within [box].
      *
-     * @throws Exception on network or parse failure; callers report it rather than
-     *         silently showing a stale or empty map.
+     * @throws Exception when nothing could be fetched at all; callers report it
+     *         rather than silently showing a stale or empty map.
      */
-    suspend fun fetch(box: BoundingBox): List<ChargingStationEntity>
+    suspend fun fetch(box: BoundingBox): FetchResult
 }

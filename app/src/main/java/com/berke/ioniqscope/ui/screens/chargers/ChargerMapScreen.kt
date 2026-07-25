@@ -149,8 +149,16 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 onAction = vm::dismissSyncMessage
             )
             is SyncState.Done -> Banner(
-                text = "${state.added} stations from ${state.sourceName}.",
-                tone = BannerTone.Success,
+                title = if (state.partial) "Partial refresh" else null,
+                text = if (state.partial) {
+                    "${state.added} stations from ${state.sourceName}, but part of the " +
+                        "country did not answer. What arrived was added to what you " +
+                        "already had rather than replacing it. Try again later for a " +
+                        "full refresh."
+                } else {
+                    "${state.added} stations from ${state.sourceName}."
+                },
+                tone = if (state.partial) BannerTone.Warning else BannerTone.Success,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                 actionLabel = "Dismiss",
                 onAction = vm::dismissSyncMessage
