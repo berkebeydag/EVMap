@@ -37,5 +37,5 @@ cat > "$SHARE_DIR/latest.json" <<EOF
 }
 EOF
 
-printf 'published %s (build %s, %.1f MB)\n  -> %s\n' \
-  "$VERSION_NAME" "$VERSION_CODE" "$(bc -l <<<"$SIZE/1048576")" "$SHARE_DIR"
+printf 'published %s (build %s, %s MB)\n  -> %s\n' \
+  "$VERSION_NAME" "$VERSION_CODE" "$(awk "BEGIN{printf \"%.1f\", $SIZE/1048576}")" "$SHARE_DIR"
