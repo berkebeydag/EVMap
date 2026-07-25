@@ -41,7 +41,11 @@ data class AppSettings(
     /** Hide stations not positively marked as DC. */
     val chargersDcOnly: Boolean = false,
     /** Hide stations below this advertised power. 0 disables the filter. */
-    val chargersMinPowerKw: Int = 0
+    val chargersMinPowerKw: Int = 0,
+    /** Shared folder the app looks in for newer builds. Empty disables updates. */
+    val updateShareLink: String = "",
+    /** Look for a new build when the app opens. */
+    val autoCheckUpdates: Boolean = true
 )
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -61,6 +65,8 @@ class SettingsRepository(private val context: Context) {
         val ocmApiKey = stringPreferencesKey("ocm_api_key")
         val chargersDcOnly = booleanPreferencesKey("chargers_dc_only")
         val chargersMinPowerKw = intPreferencesKey("chargers_min_power_kw")
+        val updateShareLink = stringPreferencesKey("update_share_link")
+        val autoCheckUpdates = booleanPreferencesKey("auto_check_updates")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -78,7 +84,9 @@ class SettingsRepository(private val context: Context) {
             autoLogTrips = p[Keys.autoLogTrips] ?: false,
             ocmApiKey = p[Keys.ocmApiKey].orEmpty(),
             chargersDcOnly = p[Keys.chargersDcOnly] ?: false,
-            chargersMinPowerKw = p[Keys.chargersMinPowerKw] ?: 0
+            chargersMinPowerKw = p[Keys.chargersMinPowerKw] ?: 0,
+            updateShareLink = p[Keys.updateShareLink].orEmpty(),
+            autoCheckUpdates = p[Keys.autoCheckUpdates] ?: true
         )
     }
 
@@ -104,6 +112,14 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setChargersMinPower(kw: Int) = edit {
         it[Keys.chargersMinPowerKw] = kw.coerceIn(0, 400)
+    }
+
+    suspend fun setUpdateShareLink(link: String) = edit {
+        it[Keys.updateShareLink] = link.trim()
+    }
+
+    suspend fun setAutoCheckUpdates(enabled: Boolean) = edit {
+        it[Keys.autoCheckUpdates] = enabled
     }
 
     suspend fun setLastDevice(address: String, name: String?) = edit {

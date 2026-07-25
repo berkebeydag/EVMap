@@ -41,12 +41,13 @@ import com.berke.ioniqscope.ui.components.Banner
 import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.SectionLabel
 import com.berke.ioniqscope.ui.serviceViewModel
+import com.berke.ioniqscope.update.UpdateState
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class SettingsViewModel(services: ServiceLocator) : ViewModel() {
+class SettingsViewModel(private val services: ServiceLocator) : ViewModel() {
 
     private val repo = services.settings
 
@@ -56,7 +57,20 @@ class SettingsViewModel(services: ServiceLocator) : ViewModel() {
     fun setUnit(unit: SpeedUnit) = viewModelScope.launch { repo.setSpeedUnit(unit) }
     fun setAutoConnect(enabled: Boolean) = viewModelScope.launch { repo.setAutoConnect(enabled) }
     fun setAutoLog(enabled: Boolean) = viewModelScope.launch { repo.setAutoLogTrips(enabled) }
+    val updateState: StateFlow<UpdateState> = services.updateChecker.state
+
     fun setOcmKey(key: String) = viewModelScope.launch { repo.setOcmApiKey(key) }
+    fun setUpdateLink(link: String) = viewModelScope.launch { repo.setUpdateShareLink(link) }
+    fun setAutoCheck(enabled: Boolean) = viewModelScope.launch { repo.setAutoCheckUpdates(enabled) }
+
+    fun checkForUpdate() = viewModelScope.launch { services.updateChecker.check() }
+    fun dismissUpdate() = services.updateChecker.reset()
+
+    fun downloadUpdate() = viewModelScope.launch {
+        (updateState.value as? UpdateState.Available)?.let {
+            services.updateChecker.download(it.update)
+        }
+    }
     fun setDcOnly(enabled: Boolean) = viewModelScope.launch { repo.setChargersDcOnly(enabled) }
     fun setMinPower(kw: Int) = viewModelScope.launch { repo.setChargersMinPower(kw) }
     fun setAdapter(type: AdapterType) = viewModelScope.launch { repo.setAdapterType(type) }
@@ -73,6 +87,7 @@ class SettingsViewModel(services: ServiceLocator) : ViewModel() {
 fun SettingsScreen(services: ServiceLocator) {
     val vm = serviceViewModel(services) { SettingsViewModel(it) }
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val updateState by vm.updateState.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -81,7 +96,21 @@ fun SettingsScreen(services: ServiceLocator) {
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        SectionLabel("Units", Modifier.padding(top = 16.dp))
+        SectionLabel("Updates", Modifier.padding(top = 16.dp))
+        UpdateSection(
+            state = updateState,
+            shareLink = settings.updateShareLink,
+            autoCheck = settings.autoCheckUpdates,
+            onShareLinkChange = vm::setUpdateLink,
+            onAutoCheckChange = vm::setAutoCheck,
+            onCheck = vm::checkForUpdate,
+            onDownload = vm::downloadUpdate,
+            onInstall = { services.apkDownloader.install(it) },
+            onDismiss = vm::dismissUpdate
+        )
+
+        HorizontalDivider()
+        SectionLabel("Units")
         SpeedUnit.entries.forEach { unit ->
             ChoiceRow(
                 selected = settings.speedUnit == unit,
@@ -263,6 +292,15 @@ fun SettingsScreen(services: ServiceLocator) {
         )
     }
 }
+
+/** Shared with [UpdateSection] so the two read identically. */
+@Composable
+fun SettingsSwitchRow(
+    checked: Boolean,
+    title: String,
+    subtitle: String,
+    onChange: (Boolean) -> Unit
+) = SwitchRow(checked, title, subtitle, onChange)
 
 @Composable
 private fun SwitchRow(

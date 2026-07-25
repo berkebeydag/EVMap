@@ -13,9 +13,12 @@ import com.berke.ioniqscope.connection.PerfRunRecorder
 import com.berke.ioniqscope.data.AppDatabase
 import com.berke.ioniqscope.data.CsvExporter
 import com.berke.ioniqscope.data.SettingsRepository
+import com.berke.ioniqscope.update.ApkDownloader
+import com.berke.ioniqscope.update.UpdateChecker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -57,6 +60,15 @@ class ServiceLocator private constructor(context: Context) {
         ChargerSeeder(appContext, database.chargingStationDao(), osmChargerSource, appScope)
     }
 
+    val updateChecker: UpdateChecker by lazy {
+        UpdateChecker(appContext, shareLinkProvider = { cachedUpdateLink })
+    }
+
+    val apkDownloader: ApkDownloader by lazy { ApkDownloader(appContext) }
+
+    /** Mirror of the stored link, for the same reason as [cachedOcmKey]. */
+    @Volatile private var cachedUpdateLink: String? = null
+
     val chargerRepository: ChargerRepository by lazy {
         ChargerRepository(database.chargingStationDao(), chargerSources)
     }
@@ -88,7 +100,19 @@ class ServiceLocator private constructor(context: Context) {
         driveDetector.start()
         chargerSeeder.seedIfEmpty()
         appScope.launch {
-            settings.settings.collect { cachedOcmKey = it.ocmApiKey.takeIf { k -> k.isNotBlank() } }
+            settings.settings.collect {
+                cachedOcmKey = it.ocmApiKey.takeIf { k -> k.isNotBlank() }
+                cachedUpdateLink = it.updateShareLink.takeIf { l -> l.isNotBlank() }
+            }
+        }
+
+        // Silent: a failed check on launch says nothing, because nobody asked for one.
+        appScope.launch {
+            val current = settings.settings.first()
+            if (current.autoCheckUpdates && current.updateShareLink.isNotBlank()) {
+                cachedUpdateLink = current.updateShareLink
+                updateChecker.check(silent = true)
+            }
         }
     }
 

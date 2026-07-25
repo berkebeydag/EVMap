@@ -6,6 +6,19 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+/**
+ * Commits on HEAD, or 1 outside a git checkout so the build still works.
+ *
+ * Uses providers.exec rather than ProcessBuilder: the configuration cache refuses
+ * external processes started directly at configuration time.
+ */
+fun gitCommitCount(): Int = runCatching {
+    providers.exec {
+        commandLine("git", "rev-list", "--count", "HEAD")
+        workingDir = rootDir
+    }.standardOutput.asText.get().trim().toInt()
+}.getOrDefault(1)
+
 android {
     namespace = "com.berke.ioniqscope"
     // Latest stable platform is android-37.1; recent AndroidX artifacts require
@@ -17,8 +30,11 @@ android {
         applicationId = "com.berke.ioniqscope"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        // Derived from the commit count so it rises by itself and never goes
+        // backwards. An update system is only as good as its version numbers, and
+        // hand-edited ones get forgotten exactly when it matters.
+        versionCode = gitCommitCount()
+        versionName = "0.1.$versionCode"
     }
 
     buildTypes {
@@ -42,6 +58,8 @@ android {
 
     buildFeatures {
         compose = true
+        // The updater compares the running build against the published one.
+        buildConfig = true
     }
 
     compileOptions {
