@@ -133,10 +133,12 @@ fun UpdateSection(
     )
 
     Text(
-        "Point this at a latest.json served over plain HTTP — a GitHub raw file, a " +
-            "release asset, any web host. A OneDrive share link will not work: those " +
-            "need a browser session, not a direct fetch. Nothing is uploaded; the app " +
-            "only reads that address.",
+        "Already pointed at the project's own build feed, so this normally needs no " +
+            "attention. Any address serving a latest.json over plain HTTP works — a " +
+            "GitHub raw file, a release asset, any web host. A OneDrive or Drive share " +
+            "link will not: those need a browser session, not a direct fetch. Clearing " +
+            "the box turns update checks off. Nothing is ever uploaded; the app only " +
+            "reads that address.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )

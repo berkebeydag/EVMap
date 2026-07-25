@@ -42,11 +42,22 @@ data class AppSettings(
     val chargersDcOnly: Boolean = false,
     /** Hide stations below this advertised power. 0 disables the filter. */
     val chargersMinPowerKw: Int = 0,
-    /** Shared folder the app looks in for newer builds. Empty disables updates. */
-    val updateShareLink: String = "",
+    /** Where the app looks for newer builds. Empty disables updates. */
+    val updateShareLink: String = DEFAULT_UPDATE_MANIFEST,
     /** Look for a new build when the app opens. */
     val autoCheckUpdates: Boolean = true
 )
+
+/**
+ * Where new builds are published.
+ *
+ * The `dist` branch carries only the current APK and this manifest, and is rewritten
+ * on every release; the source lives on `main`. Reading a raw file needs no key, no
+ * account and no API — which is the whole point, since a token shipped inside the
+ * APK could be extracted from it.
+ */
+const val DEFAULT_UPDATE_MANIFEST =
+    "https://raw.githubusercontent.com/berkebeydag/EVMap/dist/latest.json"
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
@@ -85,7 +96,10 @@ class SettingsRepository(private val context: Context) {
             ocmApiKey = p[Keys.ocmApiKey].orEmpty(),
             chargersDcOnly = p[Keys.chargersDcOnly] ?: false,
             chargersMinPowerKw = p[Keys.chargersMinPowerKw] ?: 0,
-            updateShareLink = p[Keys.updateShareLink].orEmpty(),
+            // Falls back to the built-in address rather than to empty, so updates
+            // work on a fresh install without anyone having to paste a URL in.
+            // Setting it to something else still wins; clearing it turns updates off.
+            updateShareLink = p[Keys.updateShareLink] ?: DEFAULT_UPDATE_MANIFEST,
             autoCheckUpdates = p[Keys.autoCheckUpdates] ?: true
         )
     }
