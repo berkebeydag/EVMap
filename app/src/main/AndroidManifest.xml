@@ -13,9 +13,19 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Coarse only: the map needs to know roughly where you are to sort chargers
-         by distance. Fine location is never requested. -->
+    <!--
+      Coarse is enough to sort chargers by distance. Fine is needed for the map to
+      follow you as you drive: a coarse fix is a cell-tower or wifi estimate good to
+      somewhere between a few hundred metres and a couple of kilometres, so a marker
+      based on it jumps between towers instead of moving along the road.
+
+      Android asks for these separately and the user can grant coarse only; the app
+      works either way and follows less precisely when that is all it has. Positions
+      are used to draw the map and to ask the routing service for a route, and are
+      never stored or sent anywhere else.
+    -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!-- Bluetooth, API 31+ -->
     <uses-permission
@@ -30,10 +40,6 @@
         android:maxSdkVersion="30" />
     <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
-    <!-- BLE scanning on API < 31 requires fine location; never used for positioning. -->
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
         android:maxSdkVersion="30" />
 
     <!-- osmdroid writes its tile cache to external storage on old API levels. -->

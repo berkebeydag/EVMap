@@ -2,8 +2,11 @@ package com.berke.ioniqscope.ui.screens.chargers
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Point
+import android.graphics.RectF
 import android.view.MotionEvent
+import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.Projection
@@ -42,7 +45,10 @@ class ChargerOverlay(
         val clusterText: Int,
         val outline: Int,
         val user: Int,
-        val userRing: Int
+        val userRing: Int,
+        val label: Int,
+        val labelHalo: Int,
+        val routeCasing: Int
     )
 
     var sites: List<ChargerSite> = emptyList()
@@ -55,9 +61,31 @@ class ChargerOverlay(
     /** Where the user is, drawn distinctly from the stations. */
     var userLocation: Pair<Double, Double>? = null
 
+    /** Routes to the nearest few sites, each in its own colour. Empty draws nothing. */
+    var routes: List<DrawnRoute> = emptyList()
+
+    class DrawnRoute(val points: List<Pair<Double, Double>>, val color: Int)
+
     /** Screen positions from the last draw, reused for hit-testing. */
     private var singles: List<Pair<Point, ChargerSite>> = emptyList()
-    private var clusters: List<Point> = emptyList()
+    private var clusters: List<Cluster> = emptyList()
+
+    /**
+     * A drawn bubble: where it is on screen, and the ground it covers.
+     *
+     * The bounds are kept because tapping a bubble should open it up to show what is
+     * inside, and the only way to frame that correctly is to zoom to the extent of
+     * its members.
+     */
+    private class Cluster(
+        val centre: Point,
+        val count: Int,
+        val operator: String?,
+        val north: Double,
+        val south: Double,
+        val east: Double,
+        val west: Double
+    )
 
     private val cellPx = 56f * density
     private val dotRadius = 5.5f * density
@@ -74,9 +102,41 @@ class ChargerOverlay(
         isFakeBoldText = true
     }
 
+    /**
+     * Operator names are drawn over map tiles, not over a flat surface, so they get
+     * a halo. Without one a name crossing a road or a park boundary becomes
+     * unreadable exactly where the map is busiest.
+     */
+    private val brand = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = 10f * density
+    }
+    private val brandHalo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = 10f * density
+        style = Paint.Style.STROKE
+        strokeWidth = 3f * density
+    }
+
+    private val routeLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 5f * density
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    private val routeCasing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 8f * density
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+
+    private val path = Path()
     private val reusablePoint = Point()
+    private val takenLabels = ArrayList<RectF>()
 
     override fun draw(canvas: Canvas, projection: Projection) {
+        drawRoutes(canvas, projection)
         drawUser(canvas, projection)
         if (sites.isEmpty()) return
 
@@ -101,7 +161,7 @@ class ChargerOverlay(
         }
 
         val singleTargets = mutableListOf<Pair<Point, ChargerSite>>()
-        val clusterTargets = mutableListOf<Point>()
+        val clusterTargets = mutableListOf<Cluster>()
 
         for (bucket in buckets.values) {
             if (bucket.size == 1) {
@@ -136,12 +196,84 @@ class ChargerOverlay(
                     cy + label.textSize / 3f,
                     label
                 )
-                clusterTargets += Point(cx, cy)
+
+                // Only when every member is the same network. A bubble covering a
+                // ZES, a Trugo and an Eşarj has no single brand, and picking one of
+                // them to print would be inventing information.
+                val operators = bucket.mapNotNull { it.second.operator }.distinct()
+                val unanimous = operators.singleOrNull()
+                    ?.takeIf { bucket.all { site -> site.second.operator != null } }
+
+                clusterTargets += Cluster(
+                    centre = Point(cx, cy),
+                    count = bucket.size,
+                    operator = unanimous,
+                    north = bucket.maxOf { it.second.lat },
+                    south = bucket.minOf { it.second.lat },
+                    east = bucket.maxOf { it.second.lon },
+                    west = bucket.minOf { it.second.lon }
+                )
             }
         }
 
+        drawBrands(canvas, singleTargets, clusterTargets)
+
         singles = singleTargets
         clusters = clusterTargets
+    }
+
+    /**
+     * Operator names, drawn after every marker so a name is never painted over by a
+     * marker drawn later.
+     *
+     * Two limits keep this readable rather than a wall of text: a name is skipped if
+     * it would overlap one already placed, and only so many are drawn at all. Both
+     * mean the labels thin out on their own as you zoom out, with no per-zoom-level
+     * tuning to get wrong.
+     */
+    private fun drawBrands(
+        canvas: Canvas,
+        singleTargets: List<Pair<Point, ChargerSite>>,
+        clusterTargets: List<Cluster>
+    ) {
+        takenLabels.clear()
+        var drawn = 0
+
+        // Bubbles first: they stand for more places, so their name is worth more of
+        // the limited room than any single marker's.
+        for (cluster in clusterTargets) {
+            if (drawn >= MAX_LABELS) return
+            val name = cluster.operator ?: continue
+            val radius = clusterRadius *
+                (1f + (cluster.count.coerceAtMost(200) / 200f) * 0.6f)
+            if (place(canvas, name, cluster.centre.x.toFloat(),
+                    cluster.centre.y + radius + brand.textSize)) drawn++
+        }
+
+        for ((point, site) in singleTargets) {
+            if (drawn >= MAX_LABELS) return
+            val name = site.operator ?: site.name ?: continue
+            if (place(canvas, name, point.x.toFloat(),
+                    point.y + dotRadius + brand.textSize)) drawn++
+        }
+    }
+
+    /** Draws [text] centred at the point if nothing is there already. */
+    private fun place(canvas: Canvas, text: String, x: Float, y: Float): Boolean {
+        val shown = if (text.length > MAX_LABEL_CHARS) {
+            text.take(MAX_LABEL_CHARS - 1).trimEnd() + "…"
+        } else text
+
+        val halfWidth = brand.measureText(shown) / 2f
+        val box = RectF(x - halfWidth, y - brand.textSize, x + halfWidth, y + brand.textSize / 3f)
+        if (takenLabels.any { RectF.intersects(it, box) }) return false
+        takenLabels += box
+
+        brandHalo.color = colors.labelHalo
+        canvas.drawText(shown, x, y, brandHalo)
+        brand.color = colors.label
+        canvas.drawText(shown, x, y, brand)
+        return true
     }
 
     /**
@@ -198,6 +330,52 @@ class ChargerOverlay(
     private fun pack(x: Int, y: Int): Long = (x.toLong() shl 32) or (y.toLong() and 0xFFFFFFFFL)
 
     /**
+     * Routes to the nearest sites, under everything else so a marker is never hidden
+     * by a line running through it.
+     *
+     * Each route is drawn twice: a dark casing, then the colour on top. That is what
+     * every map app does, and the reason is that a plain coloured line disappears
+     * wherever it crosses a road of a similar shade.
+     *
+     * Points that project within a couple of pixels of the previous one are skipped.
+     * A country-scale route is several thousand coordinates and rebuilding the whole
+     * path every frame would cost more than everything else on this overlay put
+     * together, while looking identical.
+     */
+    private fun drawRoutes(canvas: Canvas, projection: Projection) {
+        if (routes.isEmpty()) return
+
+        for (route in routes) {
+            path.rewind()
+            var lastX = Float.NaN
+            var lastY = Float.NaN
+            var started = false
+
+            for ((lat, lon) in route.points) {
+                projection.toPixels(GeoPoint(lat, lon), reusablePoint)
+                val x = reusablePoint.x.toFloat()
+                val y = reusablePoint.y.toFloat()
+
+                if (started &&
+                    kotlin.math.abs(x - lastX) < ROUTE_MIN_STEP_PX &&
+                    kotlin.math.abs(y - lastY) < ROUTE_MIN_STEP_PX
+                ) continue
+
+                if (started) path.lineTo(x, y) else path.moveTo(x, y)
+                started = true
+                lastX = x
+                lastY = y
+            }
+            if (!started) continue
+
+            routeCasing.color = colors.routeCasing
+            canvas.drawPath(path, routeCasing)
+            routeLine.color = route.color
+            canvas.drawPath(path, routeLine)
+        }
+    }
+
+    /**
      * The "you are here" dot.
      *
      * Drawn before the stations so a charger you are standing next to is not
@@ -221,11 +399,13 @@ class ChargerOverlay(
     }
 
     /**
-     * A single site opens its details; a bubble zooms into it.
+     * A single site opens its details; a bubble opens itself up.
      *
-     * Tapping a bubble used to open whichever member happened to be nearest its
-     * centre, which is an arbitrary pick out of a group the user cannot see inside.
-     * Zooming is the answer to "what is in there".
+     * Zooming to the bubble's own extent rather than by a fixed number of levels:
+     * a fixed step overshoots a tight group into empty streets and undershoots a
+     * loose one, so a tap often either went nowhere useful or had to be repeated,
+     * and the combined pan-and-zoom animation osmdroid runs for it visibly snapped.
+     * Framing the members instead lands in one move and always separates them.
      */
     override fun onSingleTapConfirmed(e: MotionEvent, mapView: MapView): Boolean {
         val threshold = 24f * density
@@ -236,20 +416,35 @@ class ChargerOverlay(
             return true
         }
 
-        val cluster = clusters.nearestWithin(e.x, e.y, clusterRadius * 1.6f) { it }
-        if (cluster != null) {
-            // Rebuilt from the coordinates rather than cast: fromPixels is declared
-            // to return IGeoPoint, and casting it would be a crash on tap the day
-            // osmdroid returns anything else.
-            val centre = mapView.projection.fromPixels(cluster.x, cluster.y)
+        val cluster = clusters.nearestWithin(e.x, e.y, clusterRadius * 1.6f) { it.centre }
+            ?: return false
+
+        val height = cluster.north - cluster.south
+        val width = cluster.east - cluster.west
+        if (height < DEGENERATE_SPAN_DEG && width < DEGENERATE_SPAN_DEG) {
+            // Everything in the bubble is on one spot — there is no extent to frame,
+            // so step in instead and let the next tap decide.
             mapView.controller.animateTo(
-                GeoPoint(centre.latitude, centre.longitude),
+                GeoPoint(cluster.north, cluster.east),
                 mapView.zoomLevelDouble + 2.0,
                 CLUSTER_ZOOM_MS
             )
             return true
         }
-        return false
+
+        // Padded so the outermost members do not land against the screen edge.
+        val pad = maxOf(height, width) * BOUNDS_PADDING
+        mapView.zoomToBoundingBox(
+            BoundingBox(
+                cluster.north + pad, cluster.east + pad,
+                cluster.south - pad, cluster.west - pad
+            ),
+            true,
+            0,
+            mapView.maxZoomLevel,
+            CLUSTER_ZOOM_MS
+        )
+        return true
     }
 
     private fun <T> List<T>.nearestWithin(
@@ -270,5 +465,13 @@ class ChargerOverlay(
 
     private companion object {
         const val CLUSTER_ZOOM_MS = 350L
+        const val BOUNDS_PADDING = 0.25
+        /** Below this the members are effectively one point and have no extent. */
+        const val DEGENERATE_SPAN_DEG = 1e-5
+        const val MAX_LABELS = 40
+        const val MAX_LABEL_CHARS = 16
+
+        /** Below this a route point is visually identical to the last one. */
+        const val ROUTE_MIN_STEP_PX = 2f
     }
 }

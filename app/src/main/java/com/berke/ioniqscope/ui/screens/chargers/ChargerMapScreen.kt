@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,22 +14,29 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
@@ -50,7 +59,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.charging.BoundingBox
 import com.berke.ioniqscope.charging.Http
-import com.berke.ioniqscope.charging.SyncState
 import com.berke.ioniqscope.ui.components.Banner
 import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.EmptyState
@@ -63,9 +71,6 @@ import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** Roughly the middle of Türkiye, so the first open shows the country. */
@@ -76,249 +81,339 @@ fun ChargerMapScreen(services: ServiceLocator) {
     val vm = serviceViewModel(services) { ChargerViewModel(it) }
     val context = LocalContext.current
 
-    val sync by vm.syncState.collectAsStateWithLifecycle()
     val count by vm.stationCount.collectAsStateWithLifecycle()
-    val lastSync by vm.lastSync.collectAsStateWithLifecycle()
     val sites by vm.sites.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val location by vm.location.collectAsStateWithLifecycle()
+    val following by vm.following.collectAsStateWithLifecycle()
+    val routes by vm.routes.collectAsStateWithLifecycle()
+    val searchResults by vm.searchResults.collectAsStateWithLifecycle()
 
     var showList by remember { mutableStateOf(false) }
-    var showSourceMenu by remember { mutableStateOf(false) }
+    var searching by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<ChargerSite?>(null) }
+    /** Set when something outside the map asks it to move somewhere. */
+    var moveTo by remember { mutableStateOf<GeoPoint?>(null) }
 
     val locationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted -> if (granted) vm.refreshLocation(context) }
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted -> if (granted.values.any { it }) vm.startFollowing(context) }
 
     LaunchedEffect(Unit) {
         if (ChargerViewModel.hasLocationPermission(context)) vm.refreshLocation(context)
     }
 
-    // Whatever went wrong with locating, say so — the button used to fail silently.
-    val locationMessage = when (location) {
-        LocationState.PermissionMissing ->
-            "Location permission not granted, so the list cannot be sorted by distance."
-        LocationState.Disabled ->
-            "Location is switched off on this device. Turn it on to sort by distance."
-        LocationState.TimedOut ->
-            "Could not get a position. Under cover or indoors this can take a while — " +
-                "try again with a clearer view of the sky."
-        is LocationState.Known ->
-            if ((location as LocationState.Known).fromCache) {
-                "Sorted by your last known position — no fresh fix available here."
-            } else null
-        else -> null
-    }
-
-    // Markers come from the cache, so a finished download has to nudge the query.
+    // Markers come from the cache, so a finished load has to nudge the query.
     LaunchedEffect(count, settings.chargersDcOnly, settings.chargersMinPowerKw) {
         if (count > 0) vm.reloadVisible()
     }
 
-    // The map gets the controls floated over it — that is how map apps are laid
-    // out anyway, and osmdroid draws past its Compose bounds when it is a sibling
-    // in a Column rather than the backdrop. The list has no such problem, so it
-    // stacks normally and never has to guess how tall the overlay happens to be.
-    val controls: @Composable () -> Unit = {
-        if (count == 0 && sync !is SyncState.Running) {
-            Banner(
-                title = "No stations yet",
-                text = "The app ships with the station list, so this should not normally " +
-                    "be empty. Tap refresh to download it.",
-                tone = BannerTone.Warning,
-                modifier = Modifier.padding(12.dp)
-            )
-        }
-
-        when (val state = sync) {
-            is SyncState.Running -> Banner(
-                text = "Downloading from ${state.sourceName}… this can take a minute.",
-                tone = BannerTone.Info,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-            )
-            is SyncState.Failed -> Banner(
-                title = "Refresh failed",
-                text = state.message,
-                tone = BannerTone.Error,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                actionLabel = "Dismiss",
-                onAction = vm::dismissSyncMessage
-            )
-            is SyncState.Done -> Banner(
-                title = if (state.partial) "Partial refresh" else null,
-                text = if (state.partial) {
-                    "${state.added} stations from ${state.sourceName}, but part of the " +
-                        "country did not answer. What arrived was added to what you " +
-                        "already had rather than replacing it. Try again later for a " +
-                        "full refresh."
-                } else {
-                    "${state.added} stations from ${state.sourceName}."
-                },
-                tone = if (state.partial) BannerTone.Warning else BannerTone.Success,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                actionLabel = "Dismiss",
-                onAction = vm::dismissSyncMessage
-            )
-            SyncState.Idle -> Unit
-        }
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box {
-                FilledTonalIconButton(
-                    onClick = { showSourceMenu = true },
-                    enabled = sync !is SyncState.Running
-                ) {
-                    if (sync is SyncState.Running) {
-                        CircularProgressIndicator(Modifier.padding(4.dp))
-                    } else {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh stations")
-                    }
-                }
-                DropdownMenu(
-                    expanded = showSourceMenu,
-                    onDismissRequest = { showSourceMenu = false }
-                ) {
-                    vm.sources().forEach { source ->
-                        DropdownMenuItem(
-                            text = { Text(source.displayName) },
-                            enabled = source.isAvailable(),
-                            onClick = {
-                                showSourceMenu = false
-                                vm.refresh(source)
-                            }
-                        )
-                    }
-                }
-            }
-
-            FilledTonalIconButton(
-                onClick = {
-                    if (ChargerViewModel.hasLocationPermission(context)) vm.refreshLocation(context)
-                    else locationLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
-                },
-                enabled = location !is LocationState.Requesting
-            ) {
-                if (location is LocationState.Requesting) {
-                    CircularProgressIndicator(Modifier.padding(4.dp))
-                } else {
-                    Icon(
-                        Icons.Filled.MyLocation,
-                        contentDescription = "Use my location",
-                        tint = if (location is LocationState.Known) {
-                            MaterialTheme.colorScheme.primary
-                        } else LocalContentColor.current
-                    )
-                }
-            }
-
-            FilledTonalIconButton(onClick = {
-                showList = !showList
-                vm.setListMode(showList)
-            }) {
-                Icon(
-                    if (showList) Icons.Filled.Map else Icons.AutoMirrored.Filled.List,
-                    contentDescription = if (showList) "Show map" else "Show list"
+    val requestLocation: () -> Unit = {
+        if (ChargerViewModel.hasLocationPermission(context)) {
+            if (following) vm.stopFollowing() else vm.startFollowing(context)
+        } else {
+            locationLauncher.launch(
+                arrayOf(
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION
                 )
-            }
-
-
-            // Readable whichever tile happens to be underneath.
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
-            ) {
-                Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                    // "Charge points", not "stations": the sources publish a record
-                    // per socket, and the map groups them, so this number is always
-                    // larger than the number of places you can drive to.
-                    Text(
-                        "$count charge points cached",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    lastSync?.let {
-                        Text(
-                            "updated ${syncFormatter.format(Instant.ofEpochMilli(it))}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-
-        locationMessage?.let {
-            Banner(
-                text = it,
-                tone = BannerTone.Warning,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
             )
-        }
-
-        if (settings.chargersDcOnly || settings.chargersMinPowerKw > 0) {
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                modifier = Modifier.padding(horizontal = 12.dp)
-            ) {
-                Text(
-                    buildString {
-                        append("Filter: ")
-                        if (settings.chargersDcOnly) append("DC only")
-                        if (settings.chargersDcOnly && settings.chargersMinPowerKw > 0) append(" · ")
-                        if (settings.chargersMinPowerKw > 0) append("≥${settings.chargersMinPowerKw} kW")
-                        append(". Stations with no current type recorded are kept — with OSM " +
-                            "data most Turkish entries never say, so excluding them would hide " +
-                            "real chargers.")
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
         }
     }
 
     if (showList) {
         Column(Modifier.fillMaxSize()) {
-            controls()
-            ChargerList(sites)
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilledTonalIconButton(onClick = {
+                    showList = false
+                    vm.setListMode(false)
+                }) {
+                    Icon(Icons.Filled.Map, contentDescription = "Show map")
+                }
+                Text("$count charge points cached", style = MaterialTheme.typography.bodySmall)
+            }
+            ChargerList(sites) { openInMaps(context, it) }
         }
-    } else {
-        Box(Modifier.fillMaxSize()) {
-            ChargerMap(
-                sites = sites,
-                onBoundsChanged = vm::loadForBounds,
-                onSelect = { selected = it },
-                userLocation = (location as? LocationState.Known)?.let { it.lat to it.lon },
-                context = context
-            )
-            Column(Modifier.fillMaxWidth().align(Alignment.TopStart)) { controls() }
+        return
+    }
 
-            selected?.let { site ->
-                SelectedSiteCard(
-                    site = site,
-                    onNavigate = { openInMaps(context, site) },
-                    onDismiss = { selected = null },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(12.dp)
+    Box(Modifier.fillMaxSize()) {
+        ChargerMap(
+            sites = sites,
+            routes = routes,
+            onBoundsChanged = vm::loadForBounds,
+            onSelect = { selected = it },
+            onUserPan = vm::stopFollowing,
+            userLocation = (location as? LocationState.Known)?.let { it.lat to it.lon },
+            following = following,
+            moveTo = moveTo,
+            onMoved = { moveTo = null },
+            context = context
+        )
+
+        Column(
+            Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (searching) {
+                SearchPanel(
+                    results = searchResults,
+                    onQuery = vm::search,
+                    onPick = { site ->
+                        searching = false
+                        vm.clearSearch()
+                        selected = site
+                        moveTo = GeoPoint(site.lat, site.lon)
+                    },
+                    onClose = {
+                        searching = false
+                        vm.clearSearch()
+                    }
                 )
             }
 
+            if (count == 0) {
+                Banner(
+                    title = "No stations",
+                    text = "The station list ships inside the app, so this should never " +
+                        "be empty. Reinstalling the latest build will restore it.",
+                    tone = BannerTone.Warning
+                )
+            }
+
+            locationNote(location, following)?.let {
+                Banner(text = it, tone = BannerTone.Warning)
+            }
+        }
+
+        // Everything the user can press lives in one stack in the corner nearest the
+        // thumb, over the map rather than above it — the earlier row along the top
+        // pushed the map down and put the controls where a right-handed grip cannot
+        // comfortably reach.
+        Column(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 12.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.End
+        ) {
+            MapButton(
+                icon = Icons.Filled.Search,
+                description = "Search stations",
+                active = searching,
+                onClick = {
+                    searching = !searching
+                    if (!searching) vm.clearSearch()
+                }
+            )
+            MapButton(
+                icon = Icons.Filled.MyLocation,
+                description = if (following) "Stop following" else "Follow my location",
+                active = following,
+                busy = location is LocationState.Requesting,
+                onClick = requestLocation
+            )
+            MapButton(
+                icon = Icons.AutoMirrored.Filled.List,
+                description = "Show list",
+                onClick = {
+                    showList = true
+                    vm.setListMode(true)
+                }
+            )
+        }
+
+        Column(
+            Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 12.dp, bottom = 12.dp)
+                .widthIn(max = 220.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (routes.isNotEmpty()) {
+                RouteLegend(routes) { openInMaps(context, it) }
+            }
             Text(
                 CARTO_ATTRIBUTION,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        selected?.let { site ->
+            SelectedSiteCard(
+                site = site,
+                onNavigate = { openInMaps(context, site) },
+                onDismiss = { selected = null },
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(6.dp)
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 12.dp, end = 76.dp, bottom = 12.dp)
+            )
+        }
+    }
+}
+
+/** One round map control. Filled while its mode is on, tonal otherwise. */
+@Composable
+private fun MapButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    active: Boolean = false,
+    busy: Boolean = false,
+    onClick: () -> Unit
+) {
+    val content: @Composable () -> Unit = {
+        if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        else Icon(icon, contentDescription = description)
+    }
+    if (active) {
+        FilledIconButton(onClick = onClick, shape = CircleShape) { content() }
+    } else {
+        FilledTonalIconButton(
+            onClick = onClick,
+            shape = CircleShape,
+            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                // Opaque: a translucent control over a busy map is unreadable.
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            )
+        ) { content() }
+    }
+}
+
+/** Search by name, operator or district, over the stations already on the device. */
+@Composable
+private fun SearchPanel(
+    results: List<ChargerSite>,
+    onQuery: (String) -> Unit,
+    onPick: (ChargerSite) -> Unit,
+    onClose: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 3.dp
+    ) {
+        Column(Modifier.padding(8.dp)) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = {
+                    query = it
+                    onQuery(it)
+                },
+                singleLine = true,
+                label = { Text("Search stations") },
+                placeholder = { Text("ZES, Trugo, a district…") },
+                trailingIcon = {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close search")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (query.isNotBlank() && results.isEmpty()) {
+                Text(
+                    "Nothing matching. Searches run over the stations on the device, " +
+                        "not the whole of the map.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+
+            LazyColumn(
+                Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(vertical = 4.dp)
+            ) {
+                items(results.take(SEARCH_RESULTS_SHOWN), key = { it.id }) { site ->
+                    TextButton(
+                        onClick = { onPick(site) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(Modifier.fillMaxWidth()) {
+                            Text(
+                                site.name ?: site.operator ?: "Charging station",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                listOfNotNull(
+                                    site.operator,
+                                    site.distanceMetres?.let { formatDistance(it) },
+                                    site.address
+                                ).joinToString(" · "),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Which coloured line goes where.
+ *
+ * Without this the lines are decoration: four colours leaving your position and no
+ * way to tell which one ends at which charger, or whether the shortest is also the
+ * quickest. Tapping a row hands that one to the navigation app.
+ */
+@Composable
+private fun RouteLegend(routes: List<SiteRoute>, onNavigate: (ChargerSite) -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f)
+    ) {
+        Column(Modifier.padding(8.dp)) {
+            routes.forEachIndexed { index, entry ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        Modifier
+                            .size(10.dp)
+                            .background(Color(ROUTE_COLOURS[index % ROUTE_COLOURS.size]), CircleShape)
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            entry.site.operator ?: entry.site.name ?: "Charging station",
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1
+                        )
+                        Text(
+                            "${formatDistance(entry.route.metres)} · " +
+                                formatMinutes(entry.route.seconds),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { onNavigate(entry.site) }) {
+                        Icon(
+                            Icons.Filled.Navigation,
+                            contentDescription = "Navigate",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+            Text(
+                "Routes come from an outside service, so your position is sent to it.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -357,8 +452,16 @@ private fun SelectedSiteCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onNavigate) { Text("Navigate") }
+            Row(
+                Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(onClick = onNavigate) {
+                    Icon(Icons.Filled.Navigation, contentDescription = null,
+                        modifier = Modifier.size(18.dp))
+                    Text("Navigate", modifier = Modifier.padding(start = 6.dp))
+                }
                 TextButton(onClick = onDismiss) { Text("Close") }
             }
         }
@@ -378,12 +481,30 @@ private fun chargePointSummary(site: ChargerSite): String? = when (site.chargePo
     else -> "${site.chargePoints} charge points listed"
 }
 
+/** Whatever went wrong with locating, said plainly rather than failing silently. */
+private fun locationNote(location: LocationState, following: Boolean): String? = when {
+    location is LocationState.PermissionMissing ->
+        "Location permission not granted, so the map cannot show or follow you."
+    location is LocationState.Disabled ->
+        "Location is switched off on this device."
+    location is LocationState.TimedOut ->
+        "Could not get a position. Under cover or indoors this can take a while."
+    following && location is LocationState.Known && location.fromCache ->
+        "Following your last known position — waiting for a fresh fix."
+    else -> null
+}
+
 @Composable
 private fun ChargerMap(
     sites: List<ChargerSite>,
+    routes: List<SiteRoute>,
     onBoundsChanged: (BoundingBox) -> Unit,
     onSelect: (ChargerSite) -> Unit,
+    onUserPan: () -> Unit,
     userLocation: Pair<Double, Double>?,
+    following: Boolean,
+    moveTo: GeoPoint?,
+    onMoved: () -> Unit,
     context: Context
 ) {
     val density = LocalDensity.current.density
@@ -419,17 +540,26 @@ private fun ChargerMap(
         }
     }
 
-    // Finding a position used to change nothing on screen except the tint of the
-    // button, which made a working location look broken. Now the map goes there.
-    LaunchedEffect(userLocation) {
+    // Following means the map goes wherever the user goes. Without following the
+    // marker still moves, but the viewport is left exactly where it was put — a map
+    // that drags itself back while you are looking at somewhere else is infuriating.
+    LaunchedEffect(userLocation, following) {
         val (lat, lon) = userLocation ?: return@LaunchedEffect
         overlay.userLocation = lat to lon
-        mapView.controller.animateTo(
-            GeoPoint(lat, lon),
-            maxOf(mapView.zoomLevelDouble, USER_ZOOM),
-            null
-        )
+        if (following) {
+            mapView.controller.animateTo(
+                GeoPoint(lat, lon),
+                maxOf(mapView.zoomLevelDouble, USER_ZOOM),
+                null
+            )
+        }
         mapView.invalidate()
+    }
+
+    LaunchedEffect(moveTo) {
+        val target = moveTo ?: return@LaunchedEffect
+        mapView.controller.animateTo(target, PICKED_ZOOM, null)
+        onMoved()
     }
 
     DisposableEffect(Unit) {
@@ -446,6 +576,12 @@ private fun ChargerMap(
             // looks empty, and no cap that would cut by database order rather than
             // by geography.
             overlay.sites = sites
+            overlay.routes = routes.mapIndexed { index, entry ->
+                ChargerOverlay.DrawnRoute(
+                    entry.route.points,
+                    ROUTE_COLOURS[index % ROUTE_COLOURS.size]
+                )
+            }
             map.invalidate()
         }
     )
@@ -467,6 +603,17 @@ private fun ChargerMap(
         )
         emitBounds(mapView, onBoundsChanged)
     }
+
+    // A drag is the user saying "look here instead", so it releases the follow lock.
+    // Checked on touch rather than on scroll events, because the map scrolls itself
+    // while following and that must not be mistaken for the user taking over.
+    DisposableEffect(mapView) {
+        mapView.setOnTouchListener { _, event ->
+            if (event.actionMasked == android.view.MotionEvent.ACTION_MOVE) onUserPan()
+            false
+        }
+        onDispose { mapView.setOnTouchListener(null) }
+    }
 }
 
 private fun emitBounds(map: MapView, onBoundsChanged: (BoundingBox) -> Unit) {
@@ -482,19 +629,18 @@ private fun emitBounds(map: MapView, onBoundsChanged: (BoundingBox) -> Unit) {
 }
 
 @Composable
-private fun ChargerList(sites: List<ChargerSite>) {
+private fun ChargerList(sites: List<ChargerSite>, onNavigate: (ChargerSite) -> Unit) {
     if (sites.isEmpty()) {
-        EmptyState("No stations here. Pan the map, refresh the list, or relax the filters.")
+        EmptyState("No stations here. Pan the map, or relax the filters.")
         return
     }
-    val context = LocalContext.current
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
         contentPadding = PaddingValues(bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(sites, key = { it.id }) { site ->
-            ChargerRow(site) { openInMaps(context, site) }
+            ChargerRow(site) { onNavigate(site) }
         }
     }
 }
@@ -557,17 +703,21 @@ private fun formatDistance(metres: Double): String =
     if (metres < 1000) String.format(Locale.US, "%.0f m", metres)
     else String.format(Locale.US, "%.1f km", metres / 1000)
 
+private fun formatMinutes(seconds: Double): String {
+    val minutes = (seconds / 60).toInt()
+    return if (minutes < 60) "$minutes min"
+    else String.format(Locale.US, "%d h %02d min", minutes / 60, minutes % 60)
+}
+
 /** Hands off to whatever navigation app the user actually uses. */
 private fun openInMaps(context: Context, site: ChargerSite) {
     val label = Uri.encode(site.name ?: site.operator ?: "Charging station")
     val intent = Intent(
         Intent.ACTION_VIEW,
-        "geo:${site.lat},${site.lon}?q=${site.lat},${site.lon}($label)".toUri()
+        Uri.parse("geo:${site.lat},${site.lon}?q=${site.lat},${site.lon}($label)")
     )
     runCatching { context.startActivity(intent) }
 }
-
-private fun String.toUri(): Uri = Uri.parse(this)
 
 /**
  * CARTO Voyager, used whichever theme the app itself is in.
@@ -619,11 +769,29 @@ private val MAP_MARKERS = ChargerOverlay.Colors(
     clusterText = 0xFFFFFFFF.toInt(),
     outline = 0xFFFFFFFF.toInt(),
     user = 0xFF1A73E8.toInt(),
-    userRing = 0xFFFFFFFF.toInt()
+    userRing = 0xFFFFFFFF.toInt(),
+    label = 0xFF1F2937.toInt(),
+    labelHalo = 0xE6FFFFFF.toInt(),
+    routeCasing = 0x66000000
+)
+
+/**
+ * One colour per drawn route, in descending order of prominence.
+ *
+ * Chosen to be distinguishable from each other, from the marker colours, and from
+ * the roads underneath — the last of which rules out the obvious greys and blues.
+ */
+private val ROUTE_COLOURS = intArrayOf(
+    0xFFE8590C.toInt(),   // orange: the nearest
+    0xFF7048E8.toInt(),   // violet
+    0xFF0CA678.toInt(),   // teal
+    0xFFD6336C.toInt()    // pink
 )
 
 /** Close enough to see the streets around you, without losing nearby towns. */
-private const val USER_ZOOM = 12.0
+private const val USER_ZOOM = 14.0
 
-private val syncFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("d MMM, HH:mm").withZone(ZoneId.systemDefault())
+/** Close enough to see the forecourt of the place that was picked. */
+private const val PICKED_ZOOM = 16.0
+
+private const val SEARCH_RESULTS_SHOWN = 8

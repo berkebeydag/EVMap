@@ -7,9 +7,12 @@ import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.charging.BoundingBox
 import com.berke.ioniqscope.charging.ChargerRepository
 import com.berke.ioniqscope.charging.ChargerSource
+import com.berke.ioniqscope.charging.Route
+import com.berke.ioniqscope.charging.RouteService
 import com.berke.ioniqscope.charging.SyncState
 import com.berke.ioniqscope.data.AppSettings
 import com.berke.ioniqscope.data.ChargingStationEntity
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +21,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** One of the nearest places, and how the road gets there. */
+data class SiteRoute(val site: ChargerSite, val route: Route)
 
 /** A station plus its distance from wherever the user is, when that is known. */
 data class ChargerListItem(
@@ -56,6 +62,24 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     private val _location = MutableStateFlow<LocationState>(LocationState.Unknown)
     val location: StateFlow<LocationState> = _location.asStateFlow()
+
+    /** True while the map is keeping itself centred on the user. */
+    private val _following = MutableStateFlow(false)
+    val following: StateFlow<Boolean> = _following.asStateFlow()
+
+    private val _routes = MutableStateFlow<List<SiteRoute>>(emptyList())
+    val routes: StateFlow<List<SiteRoute>> = _routes.asStateFlow()
+
+    private val _searchResults = MutableStateFlow<List<ChargerSite>>(emptyList())
+    val searchResults: StateFlow<List<ChargerSite>> = _searchResults.asStateFlow()
+
+    private val routeService = RouteService()
+    private var followJob: Job? = null
+    private var routeJob: Job? = null
+    private var searchJob: Job? = null
+
+    /** Where the routes currently on screen were computed from. */
+    private var routedFrom: Pair<Double, Double>? = null
 
     private val here: Pair<Double, Double>?
         get() = (_location.value as? LocationState.Known)?.let { it.lat to it.lon }
@@ -145,6 +169,126 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     }
 
     /**
+     * Starts keeping the map on the user.
+     *
+     * Positions arrive for as long as this is on and stop the moment it is off —
+     * there is no background tracking and nothing is written down. Panning the map
+     * by hand calls [stopFollowing], which is what every map app does and what
+     * anyone who just dragged the map away expects.
+     */
+    fun startFollowing(context: Context) {
+        val finder = LocationFinder(context)
+        if (!finder.hasPermission()) {
+            _location.value = LocationState.PermissionMissing
+            return
+        }
+
+        followJob?.cancel()
+        _following.value = true
+        if (_location.value !is LocationState.Known) _location.value = LocationState.Requesting
+
+        followJob = viewModelScope.launch {
+            finder.stream().collect { fix ->
+                _location.value = fix
+                reloadVisible()
+                refreshRoutesIfMoved(fix.lat, fix.lon)
+            }
+        }
+    }
+
+    fun stopFollowing() {
+        followJob?.cancel()
+        followJob = null
+        _following.value = false
+    }
+
+    override fun onCleared() {
+        stopFollowing()
+        super.onCleared()
+    }
+
+    /**
+     * Routes to the nearest few places, recomputed only once the user has actually
+     * gone somewhere.
+     *
+     * Every fix would otherwise fire a handful of requests a second, which would be
+     * both rude to a free service and a stream of position reports rather than the
+     * occasional one. Well under [ROUTE_REFRESH_M] the existing lines are still
+     * accurate enough to read.
+     */
+    private fun refreshRoutesIfMoved(lat: Double, lon: Double) {
+        val previous = routedFrom
+        if (previous != null &&
+            ChargerRepository.distanceMetres(previous.first, previous.second, lat, lon) <
+            ROUTE_REFRESH_M
+        ) return
+        loadRoutes(lat, lon)
+    }
+
+    /**
+     * Draws the way to the nearest few places.
+     *
+     * Each route is fetched on its own and applied as it arrives, so a service that
+     * is slow or refuses one of them still leaves the others drawn. A route that
+     * cannot be fetched is simply absent — there is nothing useful to say about it,
+     * and a straight line pretending to be a road would be worse than no line.
+     */
+    fun loadRoutes(lat: Double, lon: Double) {
+        routeJob?.cancel()
+        routedFrom = lat to lon
+        routeJob = viewModelScope.launch {
+            val current = settings.first()
+            val targets = groupIntoSites(
+                repo.nearest(lat, lon, limit = NEAREST_LIMIT)
+                    .filter { passesFilters(it, current) }
+                    .map { it.withDistance(lat to lon) }
+            ).sortedBy { it.distanceMetres ?: Double.MAX_VALUE }
+                .take(ROUTE_COUNT)
+
+            _routes.value = emptyList()
+            val found = mutableListOf<SiteRoute>()
+            for (site in targets) {
+                val route = routeService.route(lat, lon, site.lat, site.lon) ?: continue
+                found += SiteRoute(site, route)
+                _routes.value = found.toList()
+            }
+        }
+    }
+
+    fun clearRoutes() {
+        routeJob?.cancel()
+        routedFrom = null
+        _routes.value = emptyList()
+    }
+
+    /**
+     * Looks up stations by name, operator or address.
+     *
+     * Anchored on wherever the user is, or on the middle of the country when that is
+     * unknown, so "zes" returns the nearest ZES sites rather than an arbitrary forty
+     * of the hundreds that exist.
+     */
+    fun search(query: String) {
+        searchJob?.cancel()
+        if (query.isBlank()) {
+            _searchResults.value = emptyList()
+            return
+        }
+        searchJob = viewModelScope.launch {
+            val anchor = here ?: DEFAULT_ANCHOR
+            _searchResults.value = groupIntoSites(
+                repo.search(query, anchor.first, anchor.second)
+                    .map { it.withDistance(here) }
+            )
+        }
+    }
+
+    fun clearSearch() {
+        searchJob?.cancel()
+        _searchResults.value = emptyList()
+    }
+
+    /**
      * Asks for one coarse fix. Every outcome — including the failures — lands in
      * [location] so the UI can say what happened instead of appearing to ignore
      * the tap.
@@ -158,12 +302,24 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
         _location.value = LocationState.Requesting
         viewModelScope.launch {
             _location.value = finder.find()
-            if (_location.value is LocationState.Known) reloadVisible()
+            (_location.value as? LocationState.Known)?.let {
+                reloadVisible()
+                refreshRoutesIfMoved(it.lat, it.lon)
+            }
         }
     }
 
     companion object {
         private const val NEAREST_LIMIT = 300
+
+        /** How many places to draw the way to. More than this and the map is lines. */
+        private const val ROUTE_COUNT = 4
+
+        /** Routes are only redrawn once the user has gone this far. */
+        private const val ROUTE_REFRESH_M = 500.0
+
+        /** Roughly the middle of Türkiye, for ordering searches before a fix. */
+        private val DEFAULT_ANCHOR = 39.0 to 35.0
 
         fun hasLocationPermission(context: Context): Boolean =
             LocationFinder(context).hasPermission()

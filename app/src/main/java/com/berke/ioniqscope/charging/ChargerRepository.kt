@@ -88,9 +88,31 @@ class ChargerRepository(
     suspend fun nearest(lat: Double, lon: Double, limit: Int = 100): List<ChargingStationEntity> =
         dao.nearest(lat, lon, cos(lat * PI / 180.0), limit)
 
+    /**
+     * Free-text search, anchored at [lat]/[lon] so results come back nearest-first.
+     *
+     * `%` and `_` are LIKE wildcards, so a query containing them would silently
+     * match far more than the user typed; they are escaped rather than stripped,
+     * since an address can legitimately contain either.
+     */
+    suspend fun search(
+        query: String,
+        lat: Double,
+        lon: Double,
+        limit: Int = 40
+    ): List<ChargingStationEntity> {
+        val cleaned = query.trim()
+        if (cleaned.length < MIN_SEARCH_CHARS) return emptyList()
+        val escaped = cleaned.replace("%", "\\%").replace("_", "\\_")
+        return dao.search("%$escaped%", lat, lon, cos(lat * PI / 180.0), limit)
+    }
+
     suspend fun clearAll() = dao.deleteAll()
 
     companion object {
+        /** Shorter than this matches most of the country and helps nobody. */
+        const val MIN_SEARCH_CHARS = 2
+
         /** Great-circle distance in metres. */
         fun distanceMetres(
             lat1: Double, lon1: Double,

@@ -10,6 +10,9 @@ import android.location.LocationManager
 import android.os.Looper
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
@@ -25,7 +28,7 @@ sealed interface LocationState {
 }
 
 /**
- * A single coarse position, on demand.
+ * Where the user is: one fix on demand, or a stream while the map is following them.
  *
  * The first implementation only read [LocationManager.getLastKnownLocation], which
  * returns null whenever nothing has asked the system for a fix recently — so on a
@@ -33,9 +36,9 @@ sealed interface LocationState {
  * nothing about why. This asks for a real fix when the cache is empty or stale, and
  * every failure path ends in a state the UI can show.
  *
- * Deliberately one-shot rather than a subscription: the charger list needs an
- * anchor to sort by, not continuous tracking, and continuous tracking would cost
- * battery and be a privacy claim the app does not need to make.
+ * [stream] exists because a map that follows you needs a position every few seconds,
+ * not once. It runs only while something is collecting it, so nothing is tracked
+ * while the map is not on screen or following is switched off.
  */
 @SuppressLint("MissingPermission")
 class LocationFinder(private val context: Context) {
@@ -45,6 +48,74 @@ class LocationFinder(private val context: Context) {
             context,
             Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Whether GPS-grade positioning was granted.
+     *
+     * Coarse location is a cell-tower or wifi estimate, good to somewhere between a
+     * few hundred metres and a couple of kilometres. That is fine for sorting a list
+     * by distance and useless for showing where you are on a road, so following
+     * asks for fine and says so.
+     */
+    fun hasPrecisePermission(): Boolean =
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Positions for as long as this is collected, then nothing.
+     *
+     * Prefers GPS: the network provider updates too rarely and too coarsely for a
+     * map to follow, and would make the marker jump between cell towers rather than
+     * move along the road.
+     */
+    fun stream(): Flow<LocationState.Known> = callbackFlow {
+        if (!hasPermission()) {
+            close()
+            return@callbackFlow
+        }
+        val manager = context.getSystemService(LocationManager::class.java) ?: run {
+            close()
+            return@callbackFlow
+        }
+
+        val providers = manager.getProviders(true)
+        val provider = when {
+            hasPrecisePermission() && LocationManager.GPS_PROVIDER in providers ->
+                LocationManager.GPS_PROVIDER
+            LocationManager.NETWORK_PROVIDER in providers -> LocationManager.NETWORK_PROVIDER
+            providers.isNotEmpty() -> providers.first()
+            else -> null
+        } ?: run {
+            close()
+            return@callbackFlow
+        }
+
+        // Seed from the cache so the map moves immediately rather than sitting still
+        // until the first fix arrives, which outdoors can take several seconds.
+        cachedFix(manager, providers, MAX_CACHE_AGE_MS)?.let {
+            trySend(LocationState.Known(it.latitude, it.longitude, fromCache = true))
+        }
+
+        val listener = object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                trySend(LocationState.Known(location.latitude, location.longitude, false))
+            }
+
+            override fun onProviderEnabled(provider: String) = Unit
+            override fun onProviderDisabled(provider: String) = Unit
+        }
+
+        runCatching {
+            manager.requestLocationUpdates(
+                provider, FOLLOW_INTERVAL_MS, FOLLOW_DISTANCE_M, listener,
+                Looper.getMainLooper()
+            )
+        }.onFailure { close(it) }
+
+        awaitClose { runCatching { manager.removeUpdates(listener) } }
+    }
 
     suspend fun find(): LocationState {
         if (!hasPermission()) return LocationState.PermissionMissing
@@ -128,5 +199,9 @@ class LocationFinder(private val context: Context) {
         /** Older than this and it may be a different city entirely. */
         const val MAX_CACHE_AGE_MS = 10 * 60 * 1000L
         const val FIX_TIMEOUT_MS = 15_000L
+
+        /** Roughly one fix per second at speed, without asking for every last one. */
+        const val FOLLOW_INTERVAL_MS = 1_000L
+        const val FOLLOW_DISTANCE_M = 5f
     }
 }

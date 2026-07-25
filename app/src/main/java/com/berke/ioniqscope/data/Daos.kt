@@ -78,6 +78,37 @@ interface ChargingStationDao {
         limit: Int = 100
     ): List<ChargingStationEntity>
 
+    /**
+     * Free-text search over the cached stations.
+     *
+     * Ordered so that a name match beats an operator match beats an address match:
+     * typing "zes" should reach the ZES branded sites before every street that
+     * happens to contain the letters, and typing a district name should still find
+     * it. Nearest-first within each tier, because there are hundreds of ZES sites
+     * and the useful one is the one you can reach.
+     */
+    @Query(
+        // ESCAPE is required for the caller's backslash-escaping of % and _ to mean
+        // anything; without it the backslash is just another character to match.
+        "SELECT * FROM charging_stations WHERE " +
+            "name LIKE :pattern ESCAPE '\' OR operator LIKE :pattern ESCAPE '\' " +
+            "OR address LIKE :pattern ESCAPE '\' " +
+            "ORDER BY CASE " +
+            "  WHEN name LIKE :pattern ESCAPE '\' THEN 0 " +
+            "  WHEN operator LIKE :pattern ESCAPE '\' THEN 1 " +
+            "  ELSE 2 END, " +
+            "((lat - :lat) * (lat - :lat)) + " +
+            "((lon - :lon) * (lon - :lon) * :lonScale * :lonScale) " +
+            "LIMIT :limit"
+    )
+    suspend fun search(
+        pattern: String,
+        lat: Double,
+        lon: Double,
+        lonScale: Double,
+        limit: Int = 40
+    ): List<ChargingStationEntity>
+
     @Query("DELETE FROM charging_stations WHERE source = :source")
     suspend fun deleteBySource(source: String)
 
