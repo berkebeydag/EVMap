@@ -1,16 +1,25 @@
 """
 Builds the charging-station dataset that ships inside the APK.
 
-Merges three sources, because no single one covers Türkiye:
+Merges four sources, because no single one covers Türkiye:
 
-  OpenStreetMap  free, no key, but measured at ~760 stations — roughly a twentieth
-                 of what EPDK reports exists, and power is recorded on under 10%.
-  Open Charge Map EV-specific and far better attributed (power on ~94%), ~2100
+  Open Charge Map EV-specific and by far the best attributed (power on ~94%), ~2100
                  stations. Needs a free key, passed in via OCM_API_KEY.
-  İBB open data  the İstanbul slice of EPDK's official list, ~2900 stations. No key.
+  ZES            the largest operator's own list, ~2000 stations in Türkiye, from
+                 the endpoint behind the map on their site. No key, one request.
+                 Gives socket counts split AC/DC/HPC but never a kW figure.
+  İBB open data  the İstanbul slice of EPDK's official register, ~2000 public rows.
                  İstanbul only, but that is where most of the fleet is.
+  OpenStreetMap  free and nationwide, but measured at ~760 stations and power
+                 recorded on under 10% — a base layer, not a picture.
 
-Deduplicated on a ~60 m grid, first source wins. Measured union: about 5,400.
+Deduplicated by real distance, first source wins. Measured union: about 5,600.
+
+The other big networks were checked and are not reachable: Eşarj and Otowatt sit
+behind a WAF that rejects anything but a real browser session, Voltrun behind a
+Vercel challenge, and Sharz and Trugo publish no station data on the web at all —
+theirs lives only in their phone apps. Whatever they hold shows up here only to the
+extent Open Charge Map's contributors have entered it.
 
 Usage:  OCM_API_KEY=... python tools/build_charger_bundle.py
 """
@@ -207,6 +216,61 @@ def fetch_ocm(key):
     return out
 
 
+# -------------------------------------------------------------------------- ZES
+
+ZES_MARKERS = "https://zes.net/Station/MarkerSet"
+
+#: Roughly Türkiye, used only to drop roaming partners ZES lists abroad.
+TR_BOX = (35.8, 42.2, 25.5, 45.0)
+
+
+def fetch_zes():
+    """
+    ZES's own station list, the one behind the map on their site.
+
+    The largest network in the country by a wide margin, and the single biggest
+    thing missing from the other three sources: measured, OpenStreetMap knows about
+    a small fraction of it. One request returns everything, with no key and no
+    pagination.
+
+    Power is deliberately left unknown. The feed gives connector counts split into
+    AC, DC and HPC but never a kW figure, and turning "this site has an HPC socket"
+    into a number would be inventing one.
+    """
+    data = json.loads(get(ZES_MARKERS, {"User-Agent": "Mozilla/5.0"}))
+    out = []
+    for s in data:
+        # Their Greek and Bulgarian roaming partners come down the same feed.
+        if not s.get("isZesStation"):
+            continue
+        lat, lon = s.get("latitude"), s.get("longitude")
+        if lat is None or lon is None:
+            continue
+        if not (TR_BOX[0] < lat < TR_BOX[1] and TR_BOX[2] < lon < TR_BOX[3]):
+            continue
+
+        ac = s.get("acConnectorCount") or 0
+        dc = s.get("dcConnectorCount") or 0
+        hpc = s.get("hpcConnectorCount") or 0
+        sockets = ac + dc + hpc
+        if sockets == 0:
+            continue
+
+        out.append({
+            "sourceId": f"zes:{s.get('id')}",
+            "source": "zes",
+            "name": (s.get("name") or "").strip() or None,
+            "operator": "ZES",
+            "lat": lat, "lon": lon,
+            "connectors": None,
+            "maxPowerKw": None,
+            "isDc": True if (dc or hpc) else False,
+            "address": None,
+            "_stated": sockets,
+        })
+    return out
+
+
 # ------------------------------------------------------------------- İBB / EPDK
 
 IBB_GEOJSON = ("https://data.ibb.gov.tr/dataset/79b0e26e-e923-498b-a675-453382274178"
@@ -331,6 +395,10 @@ def main():
     else:
         print("Open Charge Map skipped (set OCM_API_KEY to include it)")
 
+    print("ZES…")
+    zes = fetch_zes()
+    print(f"  {len(zes)}")
+
     print("İBB / EPDK (İstanbul)…")
     ibb = fetch_ibb()
     print(f"  {len(ibb)}")
@@ -341,13 +409,17 @@ def main():
     # tell that apart from a good build.
     missing = [name for name, group in (("OpenStreetMap", osm),
                                         ("Open Charge Map", ocm if key else None),
+                                        ("ZES", zes),
                                         ("İBB", ibb)) if group is not None and not group]
     if missing:
         print(f"\nABORT: no data from {', '.join(missing)}. {OUT} left untouched.")
         return 1
 
     # Best-attributed source first, so its power and connector data survives dedup.
-    merged = merge(ocm, ibb, osm)
+    # ZES sits behind Open Charge Map, which usually carries a kW figure for the same
+    # site, but ahead of the rest: it is the operator's own list and its socket counts
+    # are authoritative where nobody else states one.
+    merged = merge(ocm, zes, ibb, osm)
     with open(OUT, "w", encoding="utf-8") as handle:
         json.dump({"stations": merged}, handle, ensure_ascii=False,
                   separators=(",", ":"))
