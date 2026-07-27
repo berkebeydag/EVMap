@@ -25,24 +25,28 @@ import kotlin.math.tan
  * with one projection call each, which is what makes panning stay smooth at country
  * zoom.
  *
- * Sites within [cellPx] of each other are merged into a numbered bubble. The number
- * is how many *places* are in there — the sockets at a single place were already
- * folded together by [groupIntoSites], so a bubble reading 12 means twelve car parks,
- * not twelve plugs.
+ * Sites within [cellPx] of each other are merged into one dot with a count under it.
+ * The count is how many *places* are in there — the sockets at a single place were
+ * already folded together by [groupIntoSites], so a 12 means twelve car parks, not
+ * twelve plugs.
+ *
+ * A site's colour is its network. That is what the colour is for, so AC-versus-DC
+ * moves to dot size: a marker can only carry so many variables before it carries
+ * none, and which network a charger belongs to decides whether you can use it at all.
  */
 class ChargerOverlay(
     private val colors: Colors,
+    private val brandColors: Map<String, Int>,
     private val density: Float,
     private val onSelect: (ChargerSite) -> Unit
 ) : Overlay() {
 
     /** Theme colours, passed in so the overlay does not reach into Compose. */
     data class Colors(
-        val dc: Int,
-        val ac: Int,
-        val unknown: Int,
+        /** Groups, which span several networks and so belong to none of them. */
         val cluster: Int,
-        val clusterText: Int,
+        /** A network with no colour of its own, and sites with no operator at all. */
+        val otherBrand: Int,
         val outline: Int,
         val user: Int,
         val userRing: Int,
@@ -80,7 +84,6 @@ class ChargerOverlay(
     private class Cluster(
         val centre: Point,
         val count: Int,
-        val operator: String?,
         val north: Double,
         val south: Double,
         val east: Double,
@@ -88,20 +91,23 @@ class ChargerOverlay(
     )
 
     private val cellPx = 56f * density
-    private val dotRadius = 5.5f * density
-    private val clusterRadius = 15f * density
+    private val dotRadius = 5f * density
+
+    /**
+     * Groups get a dot only a little larger than a site's.
+     *
+     * They used to be filled bubbles scaled by how many they held, which at country
+     * zoom put a wall of large discs over the whole map and buried the coastline and
+     * the road network under them. The number underneath carries the size
+     * information; the marker does not have to shout it as well.
+     */
+    private val clusterRadius = 7f * density
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 1.5f * density
     }
-    private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER
-        textSize = 11f * density
-        isFakeBoldText = true
-    }
-
     /**
      * Operator names are drawn over map tiles, not over a flat surface, so they get
      * a halo. Without one a name crossing a road or a park boundary becomes
@@ -166,48 +172,21 @@ class ChargerOverlay(
         for (bucket in buckets.values) {
             if (bucket.size == 1) {
                 val (point, site) = bucket.first()
-                fill.color = when (site.isDc) {
-                    true -> colors.dc
-                    false -> colors.ac
-                    null -> colors.unknown
-                }
-                canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), dotRadius, fill)
-                stroke.color = colors.outline
-                canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), dotRadius, stroke)
+                drawDot(canvas, point.x.toFloat(), point.y.toFloat(), radiusFor(site),
+                    brandColor(site.operator))
                 singleTargets += point to site
             } else {
-                // Centroid keeps the bubble over the group rather than on one member.
+                // Centroid keeps the marker over the group rather than on one member.
                 val cx = bucket.sumOf { it.first.x } / bucket.size
                 val cy = bucket.sumOf { it.first.y } / bucket.size
-                // Grows a little with size so a bubble of 200 reads bigger than one of 3.
-                val radius = clusterRadius *
-                    (1f + (bucket.size.coerceAtMost(200) / 200f) * 0.6f)
 
-                fill.color = colors.cluster
-                canvas.drawCircle(cx.toFloat(), cy.toFloat(), radius, fill)
-                stroke.color = colors.outline
-                canvas.drawCircle(cx.toFloat(), cy.toFloat(), radius, stroke)
-
-                label.color = colors.clusterText
-                // Baseline offset so the digits sit optically centred in the bubble.
-                canvas.drawText(
-                    bucket.size.toString(),
-                    cx.toFloat(),
-                    cy + label.textSize / 3f,
-                    label
-                )
-
-                // Only when every member is the same network. A bubble covering a
-                // ZES, a Trugo and an Eşarj has no single brand, and picking one of
-                // them to print would be inventing information.
-                val operators = bucket.mapNotNull { it.second.operator }.distinct()
-                val unanimous = operators.singleOrNull()
-                    ?.takeIf { bucket.all { site -> site.second.operator != null } }
+                // A group spans several networks, so it gets the neutral colour: a
+                // brand colour here would claim the whole group belongs to one.
+                drawDot(canvas, cx.toFloat(), cy.toFloat(), clusterRadius, colors.cluster)
 
                 clusterTargets += Cluster(
                     centre = Point(cx, cy),
                     count = bucket.size,
-                    operator = unanimous,
                     north = bucket.maxOf { it.second.lat },
                     south = bucket.minOf { it.second.lat },
                     east = bucket.maxOf { it.second.lon },
@@ -216,50 +195,81 @@ class ChargerOverlay(
             }
         }
 
-        drawBrands(canvas, singleTargets, clusterTargets)
+        drawLabels(canvas, singleTargets, clusterTargets)
 
         singles = singleTargets
         clusters = clusterTargets
     }
 
+    /** One dot with a ring, the same treatment for a site and for a group. */
+    private fun drawDot(canvas: Canvas, x: Float, y: Float, radius: Float, color: Int) {
+        fill.color = color
+        canvas.drawCircle(x, y, radius, fill)
+        stroke.color = colors.outline
+        canvas.drawCircle(x, y, radius, stroke)
+    }
+
     /**
-     * Operator names, drawn after every marker so a name is never painted over by a
-     * marker drawn later.
+     * Sites that can fast-charge are drawn slightly larger.
      *
-     * Two limits keep this readable rather than a wall of text: a name is skipped if
-     * it would overlap one already placed, and only so many are drawn at all. Both
-     * mean the labels thin out on their own as you zoom out, with no per-zoom-level
+     * Colour is spoken for by the network, and a marker can only carry so many
+     * variables before it carries none. Size is the weaker channel, which suits the
+     * weaker question: which network it is decides whether you have the app and the
+     * subscription, AC-or-DC decides how long you sit there.
+     */
+    private fun radiusFor(site: ChargerSite): Float =
+        if (site.isDc == true) dotRadius * 1.3f else dotRadius
+
+    private fun brandColor(operator: String?): Int =
+        operator?.let { brandColors[it] } ?: colors.otherBrand
+
+    /**
+     * Labels, drawn after every marker so a name is never painted over by a marker
+     * drawn later.
+     *
+     * A group's number sits under its dot exactly as a network's name sits under
+     * theirs, so the two read as one family rather than as a bubble and a pin. Groups
+     * go first and are not subject to the label budget: a group dot with no number on
+     * it says nothing at all, whereas an unlabelled site still shows its colour and
+     * its position.
+     *
+     * Names are skipped where they would overlap one already placed, and capped in
+     * number, so they thin out on their own as you zoom out with no per-zoom-level
      * tuning to get wrong.
      */
-    private fun drawBrands(
+    private fun drawLabels(
         canvas: Canvas,
         singleTargets: List<Pair<Point, ChargerSite>>,
         clusterTargets: List<Cluster>
     ) {
         takenLabels.clear()
-        var drawn = 0
 
-        // Bubbles first: they stand for more places, so their name is worth more of
-        // the limited room than any single marker's.
         for (cluster in clusterTargets) {
-            if (drawn >= MAX_LABELS) return
-            val name = cluster.operator ?: continue
-            val radius = clusterRadius *
-                (1f + (cluster.count.coerceAtMost(200) / 200f) * 0.6f)
-            if (place(canvas, name, cluster.centre.x.toFloat(),
-                    cluster.centre.y + radius + brand.textSize)) drawn++
+            place(
+                canvas, cluster.count.toString(), cluster.centre.x.toFloat(),
+                cluster.centre.y + clusterRadius + brand.textSize, bold = true
+            )
         }
 
+        var drawn = 0
         for ((point, site) in singleTargets) {
             if (drawn >= MAX_LABELS) return
             val name = site.operator ?: site.name ?: continue
             if (place(canvas, name, point.x.toFloat(),
-                    point.y + dotRadius + brand.textSize)) drawn++
+                    point.y + radiusFor(site) + brand.textSize)) drawn++
         }
     }
 
     /** Draws [text] centred at the point if nothing is there already. */
-    private fun place(canvas: Canvas, text: String, x: Float, y: Float): Boolean {
+    private fun place(
+        canvas: Canvas,
+        text: String,
+        x: Float,
+        y: Float,
+        bold: Boolean = false
+    ): Boolean {
+        brand.isFakeBoldText = bold
+        brandHalo.isFakeBoldText = bold
         val shown = if (text.length > MAX_LABEL_CHARS) {
             text.take(MAX_LABEL_CHARS - 1).trimEnd() + "…"
         } else text

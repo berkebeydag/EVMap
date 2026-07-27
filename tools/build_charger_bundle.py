@@ -49,21 +49,82 @@ def post(url, data, timeout=300):
 
 DC_HINTS = ("combo", "ccs", "chademo", "tesla_supercharger")
 AC_HINTS = ("type2", "schuko", "type1")
-OPERATORS = ["SHARZ", "ZES", "ESARJ", "VOLTRUN", "TRUGO", "TESLA", "ASTOR",
-             "TOGG", "BORENCO", "WAT MOBILITE", "BEEFULL", "OTOWATT", "OTOPRIZ"]
+#: Keyword -> the one name that brand is shown under.
+#:
+#: The same network arrives spelled four different ways across the sources — ESARJ,
+#: "Eşarj (TR)", SHARZ, "Sharz.Net", TRUGO, "Trugo (TR)" — which left 214 distinct
+#: operator strings for what is really a few dozen networks. Unfolded, the map
+#: cannot colour by brand and the labels read like a database dump.
+#:
+#: Order matters: the first keyword found wins, so anything that is a substring of
+#: another brand has to come first.
+OPERATOR_ALIASES = [
+    ("ZES", "ZES"),
+    ("ESARJ", "Eşarj"),
+    ("TRUGO", "Trugo"),
+    ("SHARZ", "Sharz"),
+    ("VOLTRUN", "Voltrun"),
+    ("ASTOR", "Astor Şarj"),
+    ("OTOPRIZ", "Otopriz"),
+    ("WAT MOBILITE", "WAT Mobilite"),
+    ("TORASARJ", "ToraŞarj"),
+    ("POWERSARJ", "PowerŞarj"),
+    ("TOGER", "Toger"),
+    ("BEEFULL", "Beefull"),
+    ("BORENCO", "Borenco"),
+    ("OTOWATT", "Otowatt"),
+    ("EN YAKIT", "En Yakıt"),
+    ("TESLA", "Tesla"),
+    ("AKSA", "Aksa Şarj"),
+    ("PETROL OFISI", "Petrol Ofisi"),
+    ("OPET", "Opet"),
+    ("TOTALENERGIES", "TotalEnergies"),
+    ("MOON", "Moon"),
+    ("CHARZ", "Charz"),
+    ("EVREN", "Evren"),
+]
+
+#: Placeholders the sources use when they mean "we do not know".
+UNKNOWN_OPERATORS = {"UNKNOWN OPERATOR", "UNKNOWN", "BILINMIYOR", "DIGER", "OTHER"}
+
+
+def ascii_fold(text):
+    """Turkish letters folded, so ŞARJ and SARJ match the same keyword."""
+    upper = text.upper()
+    for a, b in [("İ", "I"), ("I", "I"), ("Ş", "S"), ("Ğ", "G"),
+                 ("Ü", "U"), ("Ö", "O"), ("Ç", "C")]:
+        upper = upper.replace(a, b)
+    return upper
 
 
 def fold_operator(raw):
-    """OSM spells the same operator several ways; fold the common Turkish ones."""
+    """One canonical, human-readable name per network."""
     if not raw:
         return None
-    upper = raw.upper()
-    for a, b in [("İ", "I"), ("Ş", "S"), ("Ğ", "G"), ("Ü", "U"), ("Ö", "O"), ("Ç", "C")]:
-        upper = upper.replace(a, b)
-    for known in OPERATORS:
-        if known in upper:
-            return known
-    return raw.strip()
+
+    # "(TR)", "(Türkiye)", "(including Superchargers)" — noise on every OCM name.
+    cleaned = raw.split("(")[0].strip(" -–—·,")
+    if not cleaned:
+        # The whole name was parenthesised, as "(Unknown Operator)" is.
+        cleaned = raw.strip().strip("()").strip()
+
+    folded = ascii_fold(cleaned)
+    if folded in UNKNOWN_OPERATORS:
+        return None
+
+    for keyword, display in OPERATOR_ALIASES:
+        if keyword in folded:
+            return display
+
+    # Not a network we know: keep what the source said, but tidied. Company suffixes
+    # make a legal entity, not a brand anyone would recognise on a map.
+    for suffix in (" SAN.VE TIC.A.S.", " SANAYI VE TICARET ANONIM SIRKETI",
+                   " ANONIM SIRKETI", " A.S.", " LTD.STI.", " LTD. STI."):
+        idx = folded.find(suffix)
+        if idx > 0:
+            cleaned = cleaned[:idx].strip()
+            break
+    return cleaned.title() if cleaned.isupper() else cleaned
 
 
 def parse_power(text):
@@ -203,7 +264,7 @@ def fetch_ocm(key):
             "sourceId": f"ocm:{poi.get('ID')}",
             "source": "ocm",
             "name": info.get("Title"),
-            "operator": (poi.get("OperatorInfo") or {}).get("Title"),
+            "operator": fold_operator((poi.get("OperatorInfo") or {}).get("Title")),
             "lat": lat, "lon": lon,
             "connectors": ", ".join(sorted(names)) or None,
             "maxPowerKw": max(powers) if powers else None,

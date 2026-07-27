@@ -510,7 +510,12 @@ private fun ChargerMap(
     val density = LocalDensity.current.density
 
     val overlay = remember {
-        ChargerOverlay(colors = MAP_MARKERS, density = density, onSelect = onSelect)
+        ChargerOverlay(
+            colors = MAP_MARKERS,
+            brandColors = BRAND_COLOURS,
+            density = density,
+            onSelect = onSelect
+        )
     }
 
     val mapView = remember {
@@ -762,17 +767,39 @@ private val CARTO_VOYAGER = XYTileSource(
  * green park.
  */
 private val MAP_MARKERS = ChargerOverlay.Colors(
-    dc = 0xFF1B8E3C.toInt(),          // green: fast charging
-    ac = 0xFF2563EB.toInt(),          // blue: AC only
-    unknown = 0xFF64748B.toInt(),     // slate: the source never said
-    cluster = 0xFF0F766E.toInt(),
-    clusterText = 0xFFFFFFFF.toInt(),
+    cluster = 0xFF334155.toInt(),     // slate: a group belongs to no one network
+    otherBrand = 0xFF94A3B8.toInt(),  // pale slate: everything outside the palette
     outline = 0xFFFFFFFF.toInt(),
     user = 0xFF1A73E8.toInt(),
     userRing = 0xFFFFFFFF.toInt(),
     label = 0xFF1F2937.toInt(),
     labelHalo = 0xE6FFFFFF.toInt(),
     routeCasing = 0x66000000
+)
+
+/**
+ * A colour per network, for the ten that actually cover the country.
+ *
+ * Ten is close to the limit of what anyone can hold apart at a glance, and these ten
+ * account for about seven in ten of the sites we have; the rest share one neutral
+ * grey rather than being given colours nobody could decode. The names are matched
+ * exactly, which is only workable because the bundle folds ESARJ, "Eşarj (TR)" and
+ * the rest into one spelling per brand first.
+ *
+ * The colours are picked apart from each other, from the route colours, and from the
+ * basemap — which is what rules out the obvious road-grey and motorway-blue.
+ */
+private val BRAND_COLOURS = mapOf(
+    "ZES" to 0xFF00897B.toInt(),          // teal
+    "Eşarj" to 0xFFE53935.toInt(),        // red
+    "Otopriz" to 0xFF43A047.toInt(),      // green
+    "Trugo" to 0xFF1E88E5.toInt(),        // blue
+    "Sharz" to 0xFF8E24AA.toInt(),        // purple
+    "Toger" to 0xFFF57C00.toInt(),        // orange
+    "WAT Mobilite" to 0xFF00ACC1.toInt(), // cyan
+    "Voltrun" to 0xFF6D4C41.toInt(),      // brown
+    "PowerŞarj" to 0xFFC2185B.toInt(),    // magenta
+    "Astor Şarj" to 0xFF7CB342.toInt()    // lime
 )
 
 /**
