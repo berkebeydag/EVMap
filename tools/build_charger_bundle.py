@@ -1,25 +1,29 @@
 """
 Builds the charging-station dataset that ships inside the APK.
 
-Merges four sources, because no single one covers Türkiye:
+Merges five sources, because no single one covers Türkiye:
 
   Open Charge Map EV-specific and by far the best attributed (power on ~94%), ~2100
                  stations. Needs a free key, passed in via OCM_API_KEY.
   ZES            the largest operator's own list, ~2000 stations in Türkiye, from
                  the endpoint behind the map on their site. No key, one request.
                  Gives socket counts split AC/DC/HPC but never a kW figure.
+  Trugo          Togg's network, ~1400 built stations, from the GeoJSON behind the
+                 map on their site. No key. Carries AC/DC but no power or socket
+                 counts, and marks planned sites, which are dropped.
   İBB open data  the İstanbul slice of EPDK's official register, ~2000 public rows.
                  İstanbul only, but that is where most of the fleet is.
   OpenStreetMap  free and nationwide, but measured at ~760 stations and power
                  recorded on under 10% — a base layer, not a picture.
 
-Deduplicated by real distance, first source wins. Measured union: about 5,600.
+Deduplicated by real distance, first source wins. Measured union: about 6,600.
 
-The other big networks were checked and are not reachable: Eşarj and Otowatt sit
-behind a WAF that rejects anything but a real browser session, Voltrun behind a
-Vercel challenge, and Sharz and Trugo publish no station data on the web at all —
-theirs lives only in their phone apps. Whatever they hold shows up here only to the
-extent Open Charge Map's contributors have entered it.
+The remaining large networks were checked in a real browser and publish nothing
+that can be read: Eşarj's "Eşarj Noktaları" page turns out to be a catalogue of
+charger hardware models rather than a station map, Sharz and Otowatt keep their
+lists in their phone apps only, and Voltrun's site never builds its map server-side.
+Those networks appear here only as far as Open Charge Map's contributors entered
+them.
 
 Usage:  OCM_API_KEY=... python tools/build_charger_bundle.py
 """
@@ -332,6 +336,67 @@ def fetch_zes():
     return out
 
 
+# ------------------------------------------------------------------------ Trugo
+
+TRUGO_MAP = "https://trugo.com.tr/api/station/map/"
+
+#: Trugo's map legend has exactly two states, "Tamamlanan" and "Planlanan".
+TRUGO_BUILT = 1
+
+
+def fetch_trugo():
+    """
+    Trugo's own list, the GeoJSON behind the map on their site.
+
+    Togg's network, and the second largest thing missing from everything else:
+    Open Charge Map's contributors had entered 257 of these.
+
+    Planned sites are dropped. The feed carries them alongside the built ones and
+    they are a third of what a naive read would add — but a map that sends someone
+    at 5% to a charger that does not exist yet is worse than one that never
+    mentioned it.
+    """
+    data = json.loads(get(TRUGO_MAP, {"User-Agent": "Mozilla/5.0"}))
+
+    # The collection is nested a couple of levels down inside the page's own state.
+    def find_features(node):
+        if isinstance(node, dict):
+            if node.get("type") == "FeatureCollection":
+                return node.get("features") or []
+            for value in node.values():
+                found = find_features(value)
+                if found:
+                    return found
+        return None
+
+    features = find_features(data) or []
+    out = []
+    for feature in features:
+        props = feature.get("properties") or {}
+        if props.get("status") != TRUGO_BUILT:
+            continue
+        coords = (feature.get("geometry") or {}).get("coordinates") or []
+        if len(coords) < 2:
+            continue
+        lon, lat = coords[0], coords[1]
+
+        # "DC", "AC" or "ACDC" — a current type, never a power or a socket count.
+        kind = (props.get("type") or "").upper()
+        out.append({
+            "sourceId": f"trugo:{props.get('id')}",
+            "source": "trugo",
+            "name": (props.get("locationName") or "").strip() or None,
+            "operator": "Trugo",
+            "lat": lat, "lon": lon,
+            "connectors": None,
+            "maxPowerKw": None,
+            "isDc": True if "DC" in kind else (False if kind == "AC" else None),
+            "address": None,
+            "_stated": None,
+        })
+    return out
+
+
 # ------------------------------------------------------------------- İBB / EPDK
 
 IBB_GEOJSON = ("https://data.ibb.gov.tr/dataset/79b0e26e-e923-498b-a675-453382274178"
@@ -460,6 +525,10 @@ def main():
     zes = fetch_zes()
     print(f"  {len(zes)}")
 
+    print("Trugo…")
+    trugo = fetch_trugo()
+    print(f"  {len(trugo)}")
+
     print("İBB / EPDK (İstanbul)…")
     ibb = fetch_ibb()
     print(f"  {len(ibb)}")
@@ -471,6 +540,7 @@ def main():
     missing = [name for name, group in (("OpenStreetMap", osm),
                                         ("Open Charge Map", ocm if key else None),
                                         ("ZES", zes),
+                                        ("Trugo", trugo),
                                         ("İBB", ibb)) if group is not None and not group]
     if missing:
         print(f"\nABORT: no data from {', '.join(missing)}. {OUT} left untouched.")
@@ -480,7 +550,7 @@ def main():
     # ZES sits behind Open Charge Map, which usually carries a kW figure for the same
     # site, but ahead of the rest: it is the operator's own list and its socket counts
     # are authoritative where nobody else states one.
-    merged = merge(ocm, zes, ibb, osm)
+    merged = merge(ocm, zes, trugo, ibb, osm)
     with open(OUT, "w", encoding="utf-8") as handle:
         json.dump({"stations": merged}, handle, ensure_ascii=False,
                   separators=(",", ":"))
