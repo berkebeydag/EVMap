@@ -285,10 +285,19 @@ fun SettingsScreen(services: ServiceLocator) {
         HorizontalDivider()
         SectionLabel("Gizlilik")
         Text(
+            // The routing sentence used to sit on the map itself. It moved here rather
+            // than being deleted: the map is not the place for a paragraph, but a
+            // feature that sends the user's position to a third party has to be
+            // written down somewhere they can find it.
             "Analitik yok, çökme raporu yok, hesap yok. Seferler, ölçümler ve ayarlar " +
-                "yalnızca bu telefonda duruyor. İnternet üç şey için kullanılıyor: " +
-                "harita karoları, şarj istasyonu listesi ve rota çizimi. Araçtan " +
-                "okunan hiçbir veri telefondan çıkmıyor.",
+                "yalnızca bu telefonda duruyor. Araçtan okunan hiçbir veri telefondan " +
+                "çıkmıyor.\n\n" +
+                "İnternet üç şey için kullanılıyor: harita karoları, şarj istasyonu " +
+                "listesi ve rota çizimi. Bunlardan yalnızca rota çizimi konumunu dışarı " +
+                "gönderiyor — en yakın istasyonlara yol çizmek için başlangıç ve varış " +
+                "noktası bir rota servisine (OSRM) iletiliyor. Karolar sadece haritada " +
+                "hangi bölgeye baktığını belli eder, istasyon listesi ise uygulamanın " +
+                "içinde geldiği için hiçbir istek gerektirmez.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 24.dp)

@@ -98,7 +98,7 @@ class ServiceLocator private constructor(context: Context) {
         perfRunRecorder.start()
         auxBatteryMonitor.start()
         driveDetector.start()
-        chargerSeeder.seedIfEmpty()
+        chargerSeeder.seedIfStale()
         appScope.launch {
             settings.settings.collect {
                 cachedOcmKey = it.ocmApiKey.takeIf { k -> k.isNotBlank() }

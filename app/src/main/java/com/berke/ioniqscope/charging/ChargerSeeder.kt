@@ -1,17 +1,17 @@
 package com.berke.ioniqscope.charging
 
 import android.content.Context
+import com.berke.ioniqscope.BuildConfig
 import com.berke.ioniqscope.data.ChargingStationDao
 import com.berke.ioniqscope.data.ChargingStationEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /**
- * Loads the charging stations bundled with the app the first time it runs.
+ * Loads the charging stations bundled with the app.
  *
  * Making the user find a refresh button before the map shows anything is a bad
  * first launch: the screen that is supposed to help you find a charger starts out
@@ -19,11 +19,14 @@ import org.json.JSONObject
  * may not have. Shipping the dataset means the map is useful the moment the app
  * opens, offline, with no button to discover.
  *
- * The bundled file is built by `tools/build_charger_bundle.py`, which merges three
- * sources — no single one covers Türkiye — and writes them already normalised. It
- * is therefore no longer a raw Overpass response and is parsed here rather than by
- * [OsmChargerSource]. Refreshing later replaces it from whichever single source the
- * user picks.
+ * The bundled file is built by `tools/build_charger_bundle.py`, which merges four
+ * sources — no single one covers Türkiye — and writes them already normalised.
+ *
+ * Re-seeded whenever the installed build changes, not only when the table is empty.
+ * Seeding once was silently wrong: every improvement to the dataset — a thousand
+ * stations added, four spellings of one operator folded into one — reached only
+ * people installing for the first time, while anyone who already had the app kept
+ * the list they were first given and had no way to know it was stale.
  */
 class ChargerSeeder(
     private val appContext: Context,
@@ -31,11 +34,12 @@ class ChargerSeeder(
     private val scope: CoroutineScope
 ) {
 
-    fun seedIfEmpty() {
+    private val marks =
+        appContext.getSharedPreferences("charger_seed", Context.MODE_PRIVATE)
+
+    fun seedIfStale() {
         scope.launch {
-            // Only ever seeds an empty table: a user who has refreshed, or who
-            // deliberately cleared the data, must not have it reappear underneath them.
-            if (dao.observeCount().first() > 0) return@launch
+            if (marks.getInt(KEY_SEEDED_BUILD, 0) == BuildConfig.VERSION_CODE) return@launch
 
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -43,7 +47,12 @@ class ChargerSeeder(
                     parse(json)
                 }
             }.onSuccess { stations ->
-                if (stations.isNotEmpty()) dao.upsertAll(stations)
+                if (stations.isEmpty()) return@onSuccess
+                // Replaced rather than merged: rows from an older bundle carry the
+                // old identifiers and the old operator spellings, so upserting on top
+                // of them would leave both versions on the map.
+                dao.replaceAll(stations)
+                marks.edit().putInt(KEY_SEEDED_BUILD, BuildConfig.VERSION_CODE).apply()
             }
         }
     }
@@ -73,9 +82,9 @@ class ChargerSeeder(
                     .takeIf { !it.isNaN() },
                 isDc = if (o.isNull("isDc")) null else o.optBoolean("isDc"),
                 address = o.optStringOrNull("address"),
+                fetchedAtEpochMs = now,
                 chargePoints = if (o.isNull("chargePoints")) null
-                else o.optInt("chargePoints").takeIf { it > 0 },
-                fetchedAtEpochMs = now
+                else o.optInt("chargePoints").takeIf { it > 0 }
             )
         }
         return out
@@ -87,5 +96,6 @@ class ChargerSeeder(
 
     private companion object {
         const val ASSET = "chargers_tr.json"
+        const val KEY_SEEDED_BUILD = "seeded_build"
     }
 }

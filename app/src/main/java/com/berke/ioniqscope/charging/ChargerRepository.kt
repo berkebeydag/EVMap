@@ -75,7 +75,7 @@ class ChargerRepository(
 
     fun clearSyncState() { _syncState.value = SyncState.Idle }
 
-    suspend fun inBounds(box: BoundingBox, limit: Int = 2000): List<ChargingStationEntity> =
+    suspend fun inBounds(box: BoundingBox, limit: Int = 100_000): List<ChargingStationEntity> =
         dao.inBounds(box.minLat, box.maxLat, box.minLon, box.maxLon, limit)
 
     /**

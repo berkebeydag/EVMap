@@ -75,6 +75,16 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import java.util.Locale
 
+/**
+ * What a site with no operator and no name is called.
+ *
+ * About 300 of the sites have neither: the register they come from lists a licensed
+ * charge point at a coordinate without saying whose it is. Calling them "charging
+ * station" made them look like a network of that name sitting between ZES and
+ * Trugo; this says what is actually the case.
+ */
+private const val UNBRANDED = "Marka belirtilmemiş"
+
 /** Roughly the middle of Türkiye, so the first open shows the country. */
 private val TURKEY_CENTRE = GeoPoint(39.0, 35.0)
 
@@ -136,7 +146,10 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 }) {
                     Icon(Icons.Filled.Map, contentDescription = "Haritayı göster")
                 }
-                Text("$count şarj noktası kayıtlı", style = MaterialTheme.typography.bodySmall)
+                // Places, not sockets. One row was one socket back when the sources
+                // were taken raw; the bundle now merges them, so a row is a place you
+                // can drive to and the socket count lives on the row itself.
+                Text("$count kayıtlı yer", style = MaterialTheme.typography.bodySmall)
             }
             ChargerList(sites) { openInMaps(context, it) }
         }
@@ -360,7 +373,7 @@ private fun SearchPanel(
                     ) {
                         Column(Modifier.fillMaxWidth()) {
                             Text(
-                                site.name ?: site.operator ?: "Şarj istasyonu",
+                                site.name ?: site.operator ?: UNBRANDED,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
@@ -400,7 +413,9 @@ private fun RouteLegend(
         modifier = modifier
     ) {
         Column(Modifier.padding(vertical = 6.dp)) {
-            routes.forEachIndexed { index, entry ->
+            // Nearest at the top. The order routes arrive in is the order the
+            // requests happened to finish, which is no order at all to read.
+            routes.sortedBy { it.route.metres }.forEachIndexed { index, entry ->
                 // The whole row navigates. A separate button for it was one more
                 // thing to aim at for an action the row already stands for.
                 Row(
@@ -420,7 +435,7 @@ private fun RouteLegend(
                             )
                     )
                     Text(
-                        entry.site.operator ?: entry.site.name ?: "Şarj istasyonu",
+                        entry.site.operator ?: entry.site.name ?: UNBRANDED,
                         style = MaterialTheme.typography.labelLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -434,14 +449,6 @@ private fun RouteLegend(
                     )
                 }
             }
-            // Short, but still said: this is the one feature that sends the user's
-            // position off the device.
-            Text(
-                "Rotalar dış servisten — konumun gönderiliyor.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-            )
         }
     }
 }
@@ -462,7 +469,7 @@ private fun SelectedSiteCard(
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Text(
-                site.name ?: site.operator ?: "Şarj istasyonu",
+                site.name ?: site.operator ?: UNBRANDED,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -690,7 +697,7 @@ private fun ChargerRow(site: ChargerSite, onNavigate: () -> Unit) {
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(
-                site.name ?: site.operator ?: "Şarj istasyonu",
+                site.name ?: site.operator ?: UNBRANDED,
                 style = MaterialTheme.typography.titleSmall
             )
             Text(
@@ -745,7 +752,7 @@ private fun formatMinutes(seconds: Double): String {
 
 /** Hands off to whatever navigation app the user actually uses. */
 private fun openInMaps(context: Context, site: ChargerSite) {
-    val label = Uri.encode(site.name ?: site.operator ?: "Şarj istasyonu")
+    val label = Uri.encode(site.name ?: site.operator ?: UNBRANDED)
     val intent = Intent(
         Intent.ACTION_VIEW,
         Uri.parse("geo:${site.lat},${site.lon}?q=${site.lat},${site.lon}($label)")

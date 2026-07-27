@@ -43,6 +43,12 @@ interface ChargingStationDao {
     /**
      * Everything inside a bounding box. Cheap enough for a map viewport and it
      * keeps the "which markers are visible" decision in SQL rather than in memory.
+     *
+     * [limit] is a runaway guard, not a display cap, and is deliberately set far
+     * above the size of the dataset. A cap that actually bites here cuts by row
+     * order, which is insertion order, which is source order — so at country zoom
+     * it filled one half of the country with markers and left the other half
+     * looking as though it had no chargers at all.
      */
     @Query(
         "SELECT * FROM charging_stations " +
@@ -54,7 +60,7 @@ interface ChargingStationDao {
         maxLat: Double,
         minLon: Double,
         maxLon: Double,
-        limit: Int = 2000
+        limit: Int = 100_000
     ): List<ChargingStationEntity>
 
     /**
@@ -127,6 +133,18 @@ interface ChargingStationDao {
 
     @Query("DELETE FROM charging_stations")
     suspend fun deleteAll()
+
+    /**
+     * Swaps the whole table for a new set.
+     *
+     * Transactional so a failure cannot leave the map empty, which on this screen
+     * would read as "there are no chargers near you".
+     */
+    @Transaction
+    suspend fun replaceAll(stations: List<ChargingStationEntity>) {
+        deleteAll()
+        upsertAll(stations)
+    }
 }
 
 @Dao
