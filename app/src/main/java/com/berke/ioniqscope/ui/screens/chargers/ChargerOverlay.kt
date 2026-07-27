@@ -148,12 +148,14 @@ class ChargerOverlay(
 
         val width = canvas.width
         val height = canvas.height
-        // One whole cell of slack: a bubble sitting on the edge of the screen has
-        // members just past it, and dropping those was what made the number on an
-        // edge bubble change — or the bubble vanish — as the map was dragged.
-        val margin = cellPx + clusterRadius * 2f
+        // Two cells of slack. One covers a group sitting on the screen edge whose
+        // members are just past it. The second covers zooming: osmdroid animates a
+        // zoom by drawing this overlay through a scaled canvas, so canvas.width stops
+        // matching what is really on screen and a tight margin culls markers that are
+        // still visible — which looked like markers flickering out mid-zoom.
+        val margin = cellPx * 2f + clusterRadius * 2f
 
-        val pixelsPerDegree = pixelsPerDegree(projection, width)
+        val pixelsPerDegree = quantise(pixelsPerDegree(projection, width))
         val buckets = HashMap<Long, MutableList<Pair<Point, ChargerSite>>>()
 
         for (site in sites) {
@@ -312,6 +314,24 @@ class ChargerOverlay(
             floor(worldX / cellPx).toInt(),
             floor(worldY / cellPx).toInt()
         )
+    }
+
+    /**
+     * The scale the grid is cut at, snapped to whole zoom levels.
+     *
+     * osmdroid zooms continuously, and this overlay is redrawn at every intermediate
+     * scale. Cutting the grid at the live scale meant it was re-cut on every frame of
+     * a zoom, so for the whole length of the animation groups were visibly splitting,
+     * merging and swapping numbers — a step change happening sixty times instead of
+     * once. Snapping to whole levels means the grid changes twice on a two-level zoom,
+     * which is the honest number of times the answer actually changes.
+     *
+     * Scale doubles per zoom level, so the snap is a power of two.
+     */
+    private fun quantise(pixelsPerDegree: Double): Double {
+        if (pixelsPerDegree <= 0.0 || !pixelsPerDegree.isFinite()) return pixelsPerDegree
+        val level = floor(ln(pixelsPerDegree) / LN_2)
+        return Math.pow(2.0, level)
     }
 
     /**
@@ -474,6 +494,7 @@ class ChargerOverlay(
     }
 
     private companion object {
+        val LN_2 = ln(2.0)
         const val CLUSTER_ZOOM_MS = 350L
         const val BOUNDS_PADDING = 0.25
         /** Below this the members are effectively one point and have no extent. */

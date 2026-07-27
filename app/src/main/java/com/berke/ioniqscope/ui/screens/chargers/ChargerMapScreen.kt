@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
@@ -30,7 +32,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -191,61 +193,72 @@ fun ChargerMapScreen(services: ServiceLocator) {
             locationNote(location, following)?.let {
                 Banner(text = it, tone = BannerTone.Warning)
             }
+
+            // Up here with everything else that describes the map, rather than in the
+            // opposite corner from it. Constrained so it never becomes a panel: it is
+            // a key to four coloured lines, not a screen of its own.
+            if (routes.isNotEmpty()) {
+                RouteLegend(
+                    routes = routes,
+                    onNavigate = { openInMaps(context, it) },
+                    modifier = Modifier.widthIn(max = 236.dp)
+                )
+            }
         }
 
         // Everything the user can press lives in one stack in the corner nearest the
         // thumb, over the map rather than above it — the earlier row along the top
         // pushed the map down and put the controls where a right-handed grip cannot
         // comfortably reach.
-        Column(
-            Modifier
+        //
+        // One surface holding three buttons rather than three floating circles: it
+        // reads as a single control, and it takes noticeably less of the map.
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+            shadowElevation = 3.dp,
+            modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 12.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.End
+                .padding(end = 12.dp, bottom = 12.dp)
         ) {
-            MapButton(
-                icon = Icons.Filled.Search,
-                description = "İstasyon ara",
-                active = searching,
-                onClick = {
-                    searching = !searching
-                    if (!searching) vm.clearSearch()
-                }
-            )
-            MapButton(
-                icon = Icons.Filled.MyLocation,
-                description = if (following) "Takibi bırak" else "Konumumu takip et",
-                active = following,
-                busy = location is LocationState.Requesting,
-                onClick = requestLocation
-            )
-            MapButton(
-                icon = Icons.AutoMirrored.Filled.List,
-                description = "Listeyi göster",
-                onClick = {
-                    showList = true
-                    vm.setListMode(true)
-                }
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                MapButton(
+                    icon = Icons.Filled.Search,
+                    description = "İstasyon ara",
+                    active = searching,
+                    onClick = {
+                        searching = !searching
+                        if (!searching) vm.clearSearch()
+                    }
+                )
+                MapButton(
+                    icon = Icons.Filled.MyLocation,
+                    description = if (following) "Takibi bırak" else "Konumumu takip et",
+                    active = following,
+                    busy = location is LocationState.Requesting,
+                    onClick = requestLocation
+                )
+                MapButton(
+                    icon = Icons.AutoMirrored.Filled.List,
+                    description = "Listeyi göster",
+                    onClick = {
+                        showList = true
+                        vm.setListMode(true)
+                    }
+                )
+            }
         }
 
-        Column(
-            Modifier
+        // Required by the tile licence, so it stays — but at the smallest size that
+        // is still legible, in the corner nothing else uses.
+        Text(
+            CARTO_ATTRIBUTION,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 12.dp, bottom = 12.dp)
-                .widthIn(max = 220.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            if (routes.isNotEmpty()) {
-                RouteLegend(routes) { openInMaps(context, it) }
-            }
-            Text(
-                CARTO_ATTRIBUTION,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+                .padding(start = 10.dp, bottom = 8.dp)
+        )
 
         selected?.let { site ->
             SelectedSiteCard(
@@ -260,7 +273,14 @@ fun ChargerMapScreen(services: ServiceLocator) {
     }
 }
 
-/** One round map control. Filled while its mode is on, tonal otherwise. */
+/**
+ * One control inside the stack.
+ *
+ * Transparent when off, so the surface behind it carries the shape and the three
+ * read as one control; tinted when its mode is on, which is the only state that
+ * needs to announce itself. Kept at the full touch target — this gets pressed in a
+ * moving car, and shaving it to look tidier would be the wrong trade.
+ */
 @Composable
 private fun MapButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -269,21 +289,20 @@ private fun MapButton(
     busy: Boolean = false,
     onClick: () -> Unit
 ) {
-    val content: @Composable () -> Unit = {
+    IconButton(
+        onClick = onClick,
+        colors = IconButtonDefaults.iconButtonColors(
+            containerColor = if (active) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else Color.Transparent,
+            contentColor = if (active) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else MaterialTheme.colorScheme.onSurface
+        ),
+        modifier = Modifier.padding(2.dp)
+    ) {
         if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        else Icon(icon, contentDescription = description)
-    }
-    if (active) {
-        FilledIconButton(onClick = onClick, shape = CircleShape) { content() }
-    } else {
-        FilledTonalIconButton(
-            onClick = onClick,
-            shape = CircleShape,
-            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                // Opaque: a translucent control over a busy map is unreadable.
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            )
-        ) { content() }
+        else Icon(icon, contentDescription = description, modifier = Modifier.size(22.dp))
     }
 }
 
@@ -298,11 +317,11 @@ private fun SearchPanel(
     var query by remember { mutableStateOf("") }
 
     Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 3.dp
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        shadowElevation = 4.dp
     ) {
-        Column(Modifier.padding(8.dp)) {
+        Column(Modifier.padding(10.dp)) {
             OutlinedTextField(
                 value = query,
                 onValueChange = {
@@ -369,51 +388,59 @@ private fun SearchPanel(
  * quickest. Tapping a row hands that one to the navigation app.
  */
 @Composable
-private fun RouteLegend(routes: List<SiteRoute>, onNavigate: (ChargerSite) -> Unit) {
+private fun RouteLegend(
+    routes: List<SiteRoute>,
+    onNavigate: (ChargerSite) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Surface(
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f)
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        shadowElevation = 3.dp,
+        modifier = modifier
     ) {
-        Column(Modifier.padding(8.dp)) {
+        Column(Modifier.padding(vertical = 6.dp)) {
             routes.forEachIndexed { index, entry ->
+                // The whole row navigates. A separate button for it was one more
+                // thing to aim at for an action the row already stands for.
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 2.dp),
+                        .clickable { onNavigate(entry.site) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box(
                         Modifier
-                            .size(10.dp)
-                            .background(Color(ROUTE_COLOURS[index % ROUTE_COLOURS.size]), CircleShape)
+                            .size(8.dp)
+                            .background(
+                                Color(ROUTE_COLOURS[index % ROUTE_COLOURS.size]),
+                                CircleShape
+                            )
                     )
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            entry.site.operator ?: entry.site.name ?: "Şarj istasyonu",
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1
-                        )
-                        Text(
-                            "${formatDistance(entry.route.metres)} · " +
-                                formatMinutes(entry.route.seconds),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(onClick = { onNavigate(entry.site) }) {
-                        Icon(
-                            Icons.Filled.Navigation,
-                            contentDescription = "Yol tarifi",
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                    Text(
+                        entry.site.operator ?: entry.site.name ?: "Şarj istasyonu",
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        "${formatDistance(entry.route.metres)} · " +
+                            formatMinutes(entry.route.seconds),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
+            // Short, but still said: this is the one feature that sends the user's
+            // position off the device.
             Text(
-                "Rotalar dış bir servisten geliyor, yani konumun oraya gönderiliyor.",
+                "Rotalar dış servisten — konumun gönderiliyor.",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
             )
         }
     }
@@ -427,16 +454,18 @@ private fun SelectedSiteCard(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        shadowElevation = 4.dp,
+        modifier = modifier.fillMaxWidth()
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Text(
                 site.name ?: site.operator ?: "Şarj istasyonu",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             // The socket count belongs here, not on the map: the map answers "where
             // can I charge", this answers "what will I find when I get there".
