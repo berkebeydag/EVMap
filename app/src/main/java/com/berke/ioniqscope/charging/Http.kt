@@ -15,6 +15,17 @@ import java.net.URL
  */
 internal object Http {
 
+    /**
+     * A non-2xx response, carrying the status so callers can tell the cases apart.
+     *
+     * The status matters here: 429 means wait and retry, 403 from a metered API
+     * usually means the allowance is gone and retrying only wastes more of it, and
+     * everything else is a plain failure. Parsing that back out of a message string
+     * would have been the alternative.
+     */
+    class HttpException(val code: Int, val detail: String) :
+        IllegalStateException("HTTP $code${if (detail.isBlank()) "" else " — $detail"}")
+
     /** Identifies the app to tile and API operators, as their usage policies ask. */
     const val USER_AGENT = "IoniqScope/0.1 (personal OBD app; contact via GitHub)"
 
@@ -62,7 +73,7 @@ internal object Http {
                     ?.use(BufferedReader::readText)
                     ?.take(300)
                     .orEmpty()
-                throw IllegalStateException("HTTP $code${if (detail.isBlank()) "" else " — $detail"}")
+                throw HttpException(code, detail)
             }
             connection.inputStream.bufferedReader().use(BufferedReader::readText)
         } finally {

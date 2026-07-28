@@ -1,6 +1,7 @@
 package com.berke.ioniqscope.charging
 
 import com.berke.ioniqscope.data.ChargingStationEntity
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 import kotlin.math.hypot
 
@@ -21,8 +22,24 @@ import kotlin.math.hypot
  */
 class TomTomChargerSource(
     private val apiKeyProvider: () -> String?,
+    /** Where the unfinished part of a sweep is remembered between runs. */
+    private val progress: SweepProgress,
     private val now: () -> Long = System::currentTimeMillis
 ) : ChargerSource {
+
+    /**
+     * The boxes a sweep has not got to yet.
+     *
+     * A full sweep of Türkiye measured at over 1,200 requests against a free
+     * allowance of 2,500 a month, so a run that stops half way through must not
+     * start again from the top: that would spend the whole of the next month
+     * re-fetching what is already on the phone. Whatever is left is written down and
+     * picked up next time.
+     */
+    interface SweepProgress {
+        fun load(): List<Pair<BoundingBox, Int>>
+        fun save(remaining: List<Pair<BoundingBox, Int>>)
+    }
 
     override val id = "tomtom"
     override val displayName = "TomTom (ücretsiz anahtar gerekir)"
@@ -40,7 +57,8 @@ class TomTomChargerSource(
         // into quarters and queued, so the request budget is spent evenly over the
         // whole area instead of being exhausted inside the first dense city.
         val queue = ArrayDeque<Pair<BoundingBox, Int>>()
-        queue += box to 0
+        val resume = progress.load()
+        if (resume.isNotEmpty()) queue += resume else queue += box to 0
 
         while (queue.isNotEmpty()) {
             if (budget <= 0) {
@@ -56,7 +74,31 @@ class TomTomChargerSource(
             }
 
             budget--
-            val results = query(key, area, radius.coerceAtMost(MAX_RADIUS_M))
+            val results = try {
+                query(key, area, radius.coerceAtMost(MAX_RADIUS_M))
+            } catch (e: Http.HttpException) {
+                when {
+                    // Out of monthly allowance. Nothing is gained by hammering it for
+                    // the rest of the sweep, and the user needs to be told why it
+                    // stopped rather than left with a quietly short list.
+                    e.code == HTTP_FORBIDDEN -> {
+                        queue.addFirst(area to depth)
+                        progress.save(queue.toList())
+                        throw IllegalStateException(
+                            "TomTom aylık istek hakkı doldu. Kalan bölgeler kaydedildi; " +
+                                "hak yenilendiğinde tekrar çalıştır, kaldığı yerden devam eder."
+                        )
+                    }
+                    // Throttled. Wait it out rather than burning budget on retries.
+                    e.code == HTTP_TOO_MANY -> {
+                        delay(THROTTLE_BACKOFF_MS)
+                        queue.addFirst(area to depth)
+                        budget++
+                        continue
+                    }
+                    else -> throw e
+                }
+            }
             results.forEach { found[it.sourceId] = it }
 
             // A full page means the area holds more than was returned, so the answer
@@ -67,9 +109,15 @@ class TomTomChargerSource(
             } else if (results.size >= PAGE_SIZE) {
                 truncated = true
             }
+
+            // Paced. An unthrottled sweep gets rate limited within a couple of
+            // hundred requests, and the retries it then makes come out of the same
+            // monthly allowance as the real ones.
+            delay(REQUEST_SPACING_MS)
         }
 
-        return FetchResult(found.values.toList(), complete = !truncated)
+        progress.save(queue.toList())
+        return FetchResult(found.values.toList(), complete = !truncated && queue.isEmpty())
     }
 
     private suspend fun query(key: String, box: BoundingBox, radius: Double): List<ChargingStationEntity> {
@@ -167,14 +215,31 @@ class TomTomChargerSource(
         const val MAX_RADIUS_M = 50_000.0
 
         /**
-         * Ceiling on requests per refresh.
+         * Ceiling on requests per sweep.
          *
-         * The free allowance is a monthly budget, and a country-sized box split until
-         * every city stops coming back full would eat a large slice of it in one tap.
-         * Sixty covers a region thoroughly; past that the result is reported as
-         * incomplete, which the caller already knows means "merge, do not replace".
+         * Sized from a measured sweep of the whole country rather than guessed. The
+         * first version capped at sixty out of caution, which could not finish
+         * Türkiye and left most of it missing — the free allowance is 2,500 requests
+         * a month, so sixty was protecting nothing and costing everything.
+         *
+         * The cap is still here as a backstop: past it the result is reported as
+         * incomplete, which the caller already treats as "merge, do not replace".
          */
-        const val MAX_REQUESTS = 60
-        const val MAX_DEPTH = 5
+        const val MAX_REQUESTS = 900
+        const val MAX_DEPTH = 6
+
+        const val HTTP_FORBIDDEN = 403
+        const val HTTP_TOO_MANY = 429
+
+        /**
+         * Gap between requests.
+         *
+         * Measured: a sweep with no spacing at all started collecting 429s after
+         * about two hundred requests and kept collecting them for the rest of the
+         * run. Those retries are charged like any other request, so pacing is
+         * cheaper than not pacing.
+         */
+        const val REQUEST_SPACING_MS = 250L
+        const val THROTTLE_BACKOFF_MS = 3_000L
     }
 }

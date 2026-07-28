@@ -477,4 +477,11 @@ private fun ChargerSyncSection(
             }
         }
     }
+    Text(
+        "Bu, ülke çapında tek seferlik bir indirmedir — bastıktan sonra veri " +
+            "telefonda kalır, uygulama güncellemeleri onu silmez. Wi-Fi'dayken " +
+            "yapman iyi olur, birkaç dakika sürer.",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }

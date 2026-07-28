@@ -6,6 +6,7 @@ import com.berke.ioniqscope.charging.ChargerSeeder
 import com.berke.ioniqscope.charging.ChargerSource
 import com.berke.ioniqscope.charging.OcmChargerSource
 import com.berke.ioniqscope.charging.OsmChargerSource
+import com.berke.ioniqscope.charging.StoredSweepProgress
 import com.berke.ioniqscope.charging.TomTomChargerSource
 import com.berke.ioniqscope.connection.AuxBatteryMonitor
 import com.berke.ioniqscope.connection.DriveDetector
@@ -52,7 +53,10 @@ class ServiceLocator private constructor(context: Context) {
 
     val chargerSources: List<ChargerSource> by lazy {
         listOf(
-            TomTomChargerSource(apiKeyProvider = { cachedTomTomKey }),
+            TomTomChargerSource(
+                apiKeyProvider = { cachedTomTomKey },
+                progress = StoredSweepProgress(appContext)
+            ),
             OcmChargerSource(apiKeyProvider = { cachedOcmKey }),
             osmChargerSource
         )
