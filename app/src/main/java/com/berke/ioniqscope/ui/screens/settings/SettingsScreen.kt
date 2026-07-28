@@ -173,7 +173,7 @@ fun SettingsScreen(services: ServiceLocator) {
             valueRange = 0f..350f
         )
         Text(
-            "Elimizdeki 6.613 yerin yalnızca 1.863'ünde güç bilgisi var, yani buradaki " +
+            "Elimizdeki 6.102 yerin yalnızca 1.779'unda güç bilgisi var, yani buradaki " +
                 "alt sınır belirtilmemiş olanların hepsini gizler. Open Charge Map " +
                 "verisiyle işe yarar, OpenStreetMap verisiyle körlemesine keser.",
             style = MaterialTheme.typography.bodySmall,

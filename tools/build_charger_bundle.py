@@ -16,7 +16,7 @@ Merges five sources, because no single one covers Türkiye:
   OpenStreetMap  free and nationwide, but measured at ~760 stations and power
                  recorded on under 10% — a base layer, not a picture.
 
-Deduplicated by real distance, first source wins. Measured union: about 6,600.
+Deduplicated by real distance, first source wins. Measured union: about 6,100.
 
 The remaining large networks were checked in a real browser and publish nothing
 that can be read: Eşarj's "Eşarj Noktaları" page turns out to be a catalogue of
@@ -442,9 +442,45 @@ def fetch_ibb():
 
 # ------------------------------------------------------------------------ merge
 
-def merge(*groups, radius_m=50.0):
+#: Networks that publish their own inventory, and the source id it arrives under.
+#: For these, their own list is the last word on which of their sites exist.
+OWN_LIST = {"ZES": "zes", "Trugo": "trugo"}
+
+
+def trust_own_lists(stations):
+    """
+    Drops sites attributed to a network that the network's own list does not have.
+
+    Where an operator publishes their full inventory, a third-hand record claiming
+    one of their sites and not corroborated by them is either a station that has
+    closed, one attributed to the wrong network, or a duplicate the distance merge
+    still missed. Measured, ZES came out at 108% of its own list.
+
+    Only applied to networks in [OWN_LIST]. For everyone else a third-hand record is
+    the only record there is, and dropping it would remove real chargers.
+    """
+    kept = []
+    for s in stations:
+        own = OWN_LIST.get(s.get("operator"))
+        if own and own not in s.get("_sources", set()):
+            continue
+        kept.append(s)
+    return kept
+
+
+def merge(*groups, radius_m=50.0, same_brand_radius_m=200.0):
     """
     First source wins; a later station within [radius_m] is treated as the same place.
+
+    Two records carrying the *same* operator get [same_brand_radius_m] instead. 50 m
+    is right for deciding whether two unrelated records describe one place, and much
+    too tight for the commonest real case: the operator's own feed gives the charger,
+    while Open Charge Map or the licence register gives the car park entrance or the
+    building, and those are routinely 80-150 m apart. Measured, that left about 267
+    pairs of ZES sites sitting next to each other on the map as separate dots. Two
+    records that both say ZES and are within 200 m are the same forecourt; two
+    records 200 m apart carrying different networks are not, and keep the tight
+    radius.
 
     Real distance rather than grid-cell adjacency: a cell test with a neighbour
     sweep silently merges anything up to about twice the cell size, which at these
@@ -458,6 +494,8 @@ def merge(*groups, radius_m=50.0):
     """
     index, out = {}, []
     cell = radius_m / 111_320.0  # degrees, latitude-equivalent
+    # Cells are sized to the tight radius, so a same-brand match needs a wider sweep.
+    reach = math.ceil(same_brand_radius_m / radius_m)
 
     for group in groups:
         for station in group:
@@ -465,12 +503,23 @@ def merge(*groups, radius_m=50.0):
             gx, gy = math.floor(lat / cell), math.floor(lon / cell)
 
             match = None
-            for dx in (-1, 0, 1):
-                for dy in (-1, 0, 1):
+            for dx in range(-reach, reach + 1):
+                for dy in range(-reach, reach + 1):
                     for other in index.get((gx + dx, gy + dy), ()):
                         dlat = (lat - other["lat"]) * 111_320.0
                         dlon = (lon - other["lon"]) * 111_320.0 * math.cos(math.radians(lat))
-                        if math.hypot(dlat, dlon) < radius_m:
+                        # The wide radius is for the same brand seen by *different*
+                        # sources. Two records from one source are already distinct
+                        # by that source's own reckoning — ZES does not list a site
+                        # twice — so widening it there merges real neighbouring
+                        # stations, which in a dense district are genuinely 150 m
+                        # apart. Measured, doing so cost 274 real ZES sites.
+                        same_brand = (station.get("operator")
+                                      and station["operator"] == other.get("operator"))
+                        cross_source = station["source"] != other["source"]
+                        limit = (same_brand_radius_m
+                                 if same_brand and cross_source else radius_m)
+                        if math.hypot(dlat, dlon) < limit:
                             match = other
                             break
                     if match:
@@ -480,6 +529,7 @@ def merge(*groups, radius_m=50.0):
 
             if match is not None:
                 match["_merged"] += 1
+                match["_sources"].add(station["source"])
                 stated = station.get("_stated")
                 if stated and stated > (match.get("_stated") or 0):
                     match["_stated"] = stated
@@ -492,13 +542,17 @@ def merge(*groups, radius_m=50.0):
                 continue
 
             station["_merged"] = 1
+            station["_sources"] = {station["source"]}
             index.setdefault((gx, gy), []).append(station)
             out.append(station)
+
+    out = trust_own_lists(out)
 
     for station in out:
         # Only ever reports a count it actually has evidence for: either the source
         # stated one, or this many separate records were seen at the spot. A lone
         # record that said nothing stays null, not 1.
+        station.pop("_sources", None)
         stated = station.pop("_stated", None) or 0
         merged = station.pop("_merged", 1)
         station["chargePoints"] = max(stated, merged if merged > 1 else 0) or None
