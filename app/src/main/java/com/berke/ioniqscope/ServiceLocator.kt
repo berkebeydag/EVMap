@@ -6,6 +6,7 @@ import com.berke.ioniqscope.charging.ChargerSeeder
 import com.berke.ioniqscope.charging.ChargerSource
 import com.berke.ioniqscope.charging.OcmChargerSource
 import com.berke.ioniqscope.charging.OsmChargerSource
+import com.berke.ioniqscope.charging.TomTomChargerSource
 import com.berke.ioniqscope.connection.AuxBatteryMonitor
 import com.berke.ioniqscope.connection.DriveDetector
 import com.berke.ioniqscope.connection.ObdConnectionManager
@@ -51,8 +52,9 @@ class ServiceLocator private constructor(context: Context) {
 
     val chargerSources: List<ChargerSource> by lazy {
         listOf(
-            osmChargerSource,
-            OcmChargerSource(apiKeyProvider = { cachedOcmKey })
+            TomTomChargerSource(apiKeyProvider = { cachedTomTomKey }),
+            OcmChargerSource(apiKeyProvider = { cachedOcmKey }),
+            osmChargerSource
         )
     }
 
@@ -82,6 +84,9 @@ class ServiceLocator private constructor(context: Context) {
      */
     @Volatile private var cachedOcmKey: String? = null
 
+    /** Same reason as [cachedOcmKey]: read from composition, cannot suspend there. */
+    @Volatile private var cachedTomTomKey: String? = null
+
     private val perfRunRecorder: PerfRunRecorder by lazy {
         PerfRunRecorder(connectionManager, database.perfRunDao(), appScope)
     }
@@ -102,6 +107,7 @@ class ServiceLocator private constructor(context: Context) {
         appScope.launch {
             settings.settings.collect {
                 cachedOcmKey = it.ocmApiKey.takeIf { k -> k.isNotBlank() }
+                cachedTomTomKey = it.tomtomApiKey.takeIf { k -> k.isNotBlank() }
                 cachedUpdateLink = it.updateShareLink.takeIf { l -> l.isNotBlank() }
             }
         }

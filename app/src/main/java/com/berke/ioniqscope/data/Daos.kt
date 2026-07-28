@@ -134,15 +134,26 @@ interface ChargingStationDao {
     @Query("DELETE FROM charging_stations")
     suspend fun deleteAll()
 
+    @Query("DELETE FROM charging_stations WHERE source IN (:sources)")
+    suspend fun deleteBySources(sources: List<String>)
+
     /**
-     * Swaps the whole table for a new set.
+     * Swaps out the rows belonging to [sources] and puts [stations] in their place.
+     *
+     * Scoped rather than wholesale. The bundled list is re-seeded on every app
+     * update, and a blanket delete would take anything the user had fetched
+     * themselves with their own key down with it — which is the one part of the
+     * table they cannot get back without spending their own request allowance again.
      *
      * Transactional so a failure cannot leave the map empty, which on this screen
      * would read as "there are no chargers near you".
      */
     @Transaction
-    suspend fun replaceAll(stations: List<ChargingStationEntity>) {
-        deleteAll()
+    suspend fun replaceSources(
+        sources: List<String>,
+        stations: List<ChargingStationEntity>
+    ) {
+        if (sources.isNotEmpty()) deleteBySources(sources)
         upsertAll(stations)
     }
 }

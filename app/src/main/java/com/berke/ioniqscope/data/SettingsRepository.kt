@@ -38,6 +38,14 @@ data class AppSettings(
     val autoLogTrips: Boolean = false,
     /** User's own Open Charge Map key. Empty means that source stays off. */
     val ocmApiKey: String = "",
+    /**
+     * User's own TomTom key. Empty means that source stays off.
+     *
+     * Kept per-device rather than shipped: TomTom's data is fetched with the user's
+     * own key and cached on their own phone, which is not the same thing as putting
+     * it in the bundle that gets published for anyone to download.
+     */
+    val tomtomApiKey: String = "",
     /** Hide stations not positively marked as DC. */
     val chargersDcOnly: Boolean = false,
     /** Hide stations below this advertised power. 0 disables the filter. */
@@ -74,6 +82,7 @@ class SettingsRepository(private val context: Context) {
         val autoConnect = booleanPreferencesKey("auto_connect")
         val autoLogTrips = booleanPreferencesKey("auto_log_trips")
         val ocmApiKey = stringPreferencesKey("ocm_api_key")
+        val tomtomApiKey = stringPreferencesKey("tomtom_api_key")
         val chargersDcOnly = booleanPreferencesKey("chargers_dc_only")
         val chargersMinPowerKw = intPreferencesKey("chargers_min_power_kw")
         val updateShareLink = stringPreferencesKey("update_share_link")
@@ -94,6 +103,7 @@ class SettingsRepository(private val context: Context) {
             autoConnect = p[Keys.autoConnect] ?: false,
             autoLogTrips = p[Keys.autoLogTrips] ?: false,
             ocmApiKey = p[Keys.ocmApiKey].orEmpty(),
+            tomtomApiKey = p[Keys.tomtomApiKey].orEmpty(),
             chargersDcOnly = p[Keys.chargersDcOnly] ?: false,
             chargersMinPowerKw = p[Keys.chargersMinPowerKw] ?: 0,
             // Falls back to the built-in address rather than to empty, so updates
@@ -121,6 +131,8 @@ class SettingsRepository(private val context: Context) {
     suspend fun setAutoLogTrips(enabled: Boolean) = edit { it[Keys.autoLogTrips] = enabled }
 
     suspend fun setOcmApiKey(key: String) = edit { it[Keys.ocmApiKey] = key.trim() }
+
+    suspend fun setTomTomApiKey(key: String) = edit { it[Keys.tomtomApiKey] = key.trim() }
 
     suspend fun setChargersDcOnly(enabled: Boolean) = edit { it[Keys.chargersDcOnly] = enabled }
 

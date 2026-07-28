@@ -51,7 +51,12 @@ class ChargerSeeder(
                 // Replaced rather than merged: rows from an older bundle carry the
                 // old identifiers and the old operator spellings, so upserting on top
                 // of them would leave both versions on the map.
-                dao.replaceAll(stations)
+                //
+                // Only the sources the bundle itself contains, though. Anything the
+                // user fetched with their own key — TomTom — is theirs and is left
+                // alone; wiping it would cost them their own request allowance to get
+                // back, on an update they did not ask to pay for.
+                dao.replaceSources(stations.map { it.source }.distinct(), stations)
                 marks.edit().putInt(KEY_SEEDED_BUILD, BuildConfig.VERSION_CODE).apply()
             }
         }
