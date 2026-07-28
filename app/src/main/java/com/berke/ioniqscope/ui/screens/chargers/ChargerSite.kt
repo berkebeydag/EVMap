@@ -42,6 +42,23 @@ data class ChargerSite(
 /** Records closer together than this are treated as the same place. */
 private const val SITE_RADIUS_M = 60.0
 
+/**
+ * How close two records carrying the *same* operator, from *different* sources, have
+ * to be to count as one place.
+ *
+ * 60 m is right for deciding whether two unrelated records describe the same spot,
+ * and much too tight for the commonest real case: one source gives the charger, the
+ * next gives the car park entrance or the building, and those are routinely 80-150 m
+ * apart. Two records that both say ZES and are 150 m apart are one forecourt; two
+ * records 150 m apart carrying different networks are two chargers, and keep the
+ * tight radius.
+ *
+ * The bundle already applies this when it is built. It is needed here too because
+ * anything fetched on the device — TomTom, with its own coordinates for sites the
+ * bundle already holds — arrives after that and is merged only at display time.
+ */
+private const val SAME_BRAND_RADIUS_M = 200.0
+
 private const val METRES_PER_DEGREE = 111_320.0
 
 /**
@@ -54,7 +71,9 @@ private const val METRES_PER_DEGREE = 111_320.0
 fun groupIntoSites(items: List<ChargerListItem>): List<ChargerSite> {
     if (items.isEmpty()) return emptyList()
 
-    val cell = SITE_RADIUS_M / METRES_PER_DEGREE
+    // Cells sized to the wider radius, so one ring of neighbours is enough to find
+    // every candidate and the scan stays at nine cells per station.
+    val cell = SAME_BRAND_RADIUS_M / METRES_PER_DEGREE
     val index = HashMap<Long, MutableList<SiteBuilder>>()
     val builders = ArrayList<SiteBuilder>(items.size)
 
@@ -70,7 +89,9 @@ fun groupIntoSites(items: List<ChargerListItem>): List<ChargerSite> {
             for (dy in -1..1) {
                 val bucket = index[pack(gx + dx, gy + dy)] ?: continue
                 for (candidate in bucket) {
-                    if (candidate.metresFrom(station.lat, station.lon) < SITE_RADIUS_M) {
+                    if (candidate.metresFrom(station.lat, station.lon) <
+                        candidate.radiusFor(station)
+                    ) {
                         target = candidate
                         break@outer
                     }
@@ -95,6 +116,23 @@ private class SiteBuilder(val anchorLat: Double, val anchorLon: Double) {
 
     private val members = mutableListOf<ChargingStationEntity>()
     private var nearest: Double? = null
+    private val operators = HashSet<String>()
+    private val sources = HashSet<String>()
+
+    /**
+     * How far [station] may be and still be this place.
+     *
+     * The wide radius applies only to the same brand arriving from a source this
+     * site has not seen. Two records from one source are already distinct by that
+     * source's own reckoning — a provider does not list one site twice — so
+     * widening it there would merge genuinely neighbouring stations, which in a
+     * dense district really are 150 m apart.
+     */
+    fun radiusFor(station: ChargingStationEntity): Double {
+        val sameBrand = station.operator != null && station.operator in operators
+        val newSource = station.source !in sources
+        return if (sameBrand && newSource) SAME_BRAND_RADIUS_M else SITE_RADIUS_M
+    }
 
     fun metresFrom(lat: Double, lon: Double): Double {
         val dLat = (lat - anchorLat) * METRES_PER_DEGREE
@@ -104,6 +142,8 @@ private class SiteBuilder(val anchorLat: Double, val anchorLon: Double) {
 
     fun add(item: ChargerListItem) {
         members += item.station
+        item.station.operator?.let(operators::add)
+        sources += item.station.source
         val distance = item.distanceMetres
         if (distance != null && (nearest == null || distance < nearest!!)) nearest = distance
     }
