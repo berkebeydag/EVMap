@@ -478,9 +478,10 @@ private fun ChargerSyncSection(
         }
     }
     Text(
-        "Bu, ülke çapında tek seferlik bir indirmedir — bastıktan sonra veri " +
-            "telefonda kalır, uygulama güncellemeleri onu silmez. Wi-Fi'dayken " +
-            "yapman iyi olur, birkaç dakika sürer.",
+        "Ülke çapında, tek seferlik bir indirme. Şarj istasyonları taşınmadığı için " +
+            "bunu bir kez yapman yeter: veri telefonda kalır, uygulama güncellemeleri " +
+            "silmez, yarım kalırsa kaldığı yerden devam eder. Wi-Fi'dayken yap, " +
+            "birkaç dakika sürer.",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )

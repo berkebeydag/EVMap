@@ -115,6 +115,16 @@ interface ChargingStationDao {
         limit: Int = 40
     ): List<ChargingStationEntity>
 
+    /**
+     * Just the coordinates, for deciding where a sweep needs to look.
+     *
+     * Sweeping a provider by tiling the country's bounding box spends most of its
+     * requests on sea and empty steppe. The stations already cached are a far better
+     * map of where chargers actually are, and there are only a few thousand of them.
+     */
+    @Query("SELECT lat, lon FROM charging_stations")
+    suspend fun allCoordinates(): List<Coordinate>
+
     @Query("DELETE FROM charging_stations WHERE source = :source")
     suspend fun deleteBySource(source: String)
 
@@ -238,6 +248,12 @@ interface TripDao {
     )
     suspend fun stats(tripId: Long, pidKey: String): PidStats?
 }
+
+/** A bare lat/lon pair, for queries that need nothing else. */
+data class Coordinate(
+    @androidx.room.ColumnInfo(name = "lat") val lat: Double,
+    @androidx.room.ColumnInfo(name = "lon") val lon: Double
+)
 
 data class SeriesPoint(
     @androidx.room.ColumnInfo(name = "atEpochMs") val atEpochMs: Long,

@@ -55,7 +55,11 @@ class ServiceLocator private constructor(context: Context) {
         listOf(
             TomTomChargerSource(
                 apiKeyProvider = { cachedTomTomKey },
-                progress = StoredSweepProgress(appContext)
+                progress = StoredSweepProgress(appContext),
+                knownPoints = {
+                    database.chargingStationDao().allCoordinates()
+                        .map { it.lat to it.lon }
+                }
             ),
             OcmChargerSource(apiKeyProvider = { cachedOcmKey }),
             osmChargerSource

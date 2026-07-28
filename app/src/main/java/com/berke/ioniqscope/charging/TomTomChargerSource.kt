@@ -3,6 +3,7 @@ package com.berke.ioniqscope.charging
 import com.berke.ioniqscope.data.ChargingStationEntity
 import kotlinx.coroutines.delay
 import org.json.JSONObject
+import kotlin.math.floor
 import kotlin.math.hypot
 
 /**
@@ -24,6 +25,16 @@ class TomTomChargerSource(
     private val apiKeyProvider: () -> String?,
     /** Where the unfinished part of a sweep is remembered between runs. */
     private val progress: SweepProgress,
+    /**
+     * Coordinates already known, used to decide where to look.
+     *
+     * Measured: tiling the country's bounding box down to the 50 km query radius is
+     * 1,024 requests before a single station is found, most of them spent on sea,
+     * empty steppe and the neighbouring countries. Tiling the 6,102 coordinates we
+     * already hold covers every one of them in 304, and anywhere a charger exists in
+     * Türkiye, one of those is within 50 km.
+     */
+    private val knownPoints: suspend () -> List<Pair<Double, Double>>,
     private val now: () -> Long = System::currentTimeMillis
 ) : ChargerSource {
 
@@ -58,7 +69,10 @@ class TomTomChargerSource(
         // whole area instead of being exhausted inside the first dense city.
         val queue = ArrayDeque<Pair<BoundingBox, Int>>()
         val resume = progress.load()
-        if (resume.isNotEmpty()) queue += resume else queue += box to 0
+        when {
+            resume.isNotEmpty() -> queue += resume
+            else -> queue += seedTiles(box)
+        }
 
         while (queue.isNotEmpty()) {
             if (budget <= 0) {
@@ -186,15 +200,65 @@ class TomTomChargerSource(
         return out
     }
 
+    /**
+     * Where to start looking: one tile per populated cell, not one per map cell.
+     *
+     * Falls back to the plain box when nothing is cached yet, which only happens if
+     * the bundled list failed to load — in that case there is no better guess than
+     * the whole area.
+     */
+    private suspend fun seedTiles(box: BoundingBox): List<Pair<BoundingBox, Int>> {
+        val points = runCatching { knownPoints() }.getOrDefault(emptyList())
+            .filter { (lat, lon) ->
+                lat in box.minLat..box.maxLat && lon in box.minLon..box.maxLon
+            }
+        if (points.isEmpty()) return listOf(box to 0)
+
+        // Cells sized so one request covers each. The longitude step has to come
+        // from the *row's* latitude, not from each station's own: deriving it
+        // per-station puts the station in a cell whose box, rebuilt from the row,
+        // does not contain it. Measured, that left 141 of 6,102 outside the circle
+        // meant to cover them.
+        val stepLat = TILE_KM / 111.32
+        val cells = HashSet<Pair<Int, Int>>()
+        for ((lat, lon) in points) {
+            val row = floor(lat / stepLat).toInt()
+            cells += Pair(row, floor(lon / stepLonFor(row, stepLat)).toInt())
+        }
+
+        return cells.map { (row, column) ->
+            val stepLon = stepLonFor(row, stepLat)
+            BoundingBox(
+                minLat = row * stepLat,
+                minLon = column * stepLon,
+                maxLat = (row + 1) * stepLat,
+                maxLon = (column + 1) * stepLon
+            ) to 0
+        }
+    }
+
+    /** Longitude degrees per tile in a given row, taken at the row's mid-latitude. */
+    private fun stepLonFor(row: Int, stepLat: Double): Double {
+        val centreLat = (row + 0.5) * stepLat
+        return TILE_KM / (111.32 * kotlin.math.cos(Math.toRadians(centreLat)))
+    }
+
     private fun BoundingBox.centreLat() = (minLat + maxLat) / 2
     private fun BoundingBox.centreLon() = (minLon + maxLon) / 2
 
-    /** Half the diagonal, so the circle covers the corners of the box. */
+    /**
+     * Half the diagonal, plus a little, so the circle covers the corners of the box.
+     *
+     * Exactly half the diagonal puts a station standing on a corner precisely on the
+     * circle, where rounding decides whether it is inside. One of the 6,102 cached
+     * stations sits there. The overlap costs nothing — neighbouring circles were
+     * always going to overlap — and removes the coin toss.
+     */
     private fun BoundingBox.radiusMetres(): Double {
         val height = (maxLat - minLat) * 111_320.0
         val width = (maxLon - minLon) * 111_320.0 *
             kotlin.math.cos(Math.toRadians(centreLat()))
-        return hypot(height, width) / 2
+        return hypot(height, width) / 2 * CORNER_MARGIN
     }
 
     private fun BoundingBox.quarters(): List<BoundingBox> {
@@ -213,6 +277,18 @@ class TomTomChargerSource(
         const val EV_CATEGORY = 7309
         const val PAGE_SIZE = 100
         const val MAX_RADIUS_M = 50_000.0
+
+        /**
+         * Seed tile size, in kilometres.
+         *
+         * Matched to the query radius: a cell this wide fits inside one request, so
+         * the initial pass is one request per populated cell. Measured over the
+         * cached stations, 50 km gives 304 tiles and leaves none of them uncovered.
+         */
+        const val TILE_KM = 50.0
+
+        /** Enough that a station on a tile corner is unambiguously inside it. */
+        const val CORNER_MARGIN = 1.03
 
         /**
          * Ceiling on requests per sweep.
