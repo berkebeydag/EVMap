@@ -12,6 +12,7 @@
     <string name="nav_console">Komut konsolu</string>
     <string name="nav_aux_battery">12V akü</string>
     <string name="nav_trip_detail">Sefer</string>
+    <string name="nav_obd">OBD</string>
     <string name="back">Geri</string>
 
     <!-- Connection status, announced from the top-bar icon -->

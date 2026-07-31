@@ -335,7 +335,7 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 RouteLegend(
                     routes = routes,
                     onNavigate = { openInMaps(context, it) },
-                    modifier = Modifier.widthIn(max = 236.dp)
+                    modifier = Modifier.widthIn(max = 208.dp)
                 )
             }
         }
@@ -552,7 +552,7 @@ private fun RouteLegend(
         shadowElevation = 3.dp,
         modifier = modifier
     ) {
-        Column(Modifier.padding(vertical = 6.dp)) {
+        Column(Modifier.padding(vertical = 3.dp)) {
             // Nearest at the top. The order routes arrive in is the order the
             // requests happened to finish, which is no order at all to read.
             routes.sortedBy { it.route.metres }.forEachIndexed { index, entry ->
@@ -562,13 +562,13 @@ private fun RouteLegend(
                     Modifier
                         .fillMaxWidth()
                         .clickable { onNavigate(entry.site) }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     Box(
                         Modifier
-                            .size(8.dp)
+                            .size(7.dp)
                             .background(
                                 Color(ROUTE_COLOURS[index % ROUTE_COLOURS.size]),
                                 CircleShape
@@ -581,7 +581,7 @@ private fun RouteLegend(
                     Column(Modifier.weight(1f)) {
                         Text(
                             entry.site.operator ?: entry.site.name ?: UNBRANDED,
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.labelMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )

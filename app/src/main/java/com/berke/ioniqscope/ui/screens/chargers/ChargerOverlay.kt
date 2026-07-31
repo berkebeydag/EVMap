@@ -301,10 +301,27 @@ class ChargerOverlay(
         var drawn = 0
         for ((point, site) in singleTargets) {
             if (drawn >= MAX_LABELS) return
-            val name = site.operator ?: site.name ?: continue
+            val name = labelFor(site) ?: continue
             if (place(canvas, name, point.x.toFloat(),
                     point.y + radiusFor(site) + brand.textSize)) drawn++
         }
+    }
+
+    /**
+     * What a marker says: the network, and how fast it charges.
+     *
+     * The power is the thing that decides whether a site is worth stopping at — 180 kW
+     * and 11 kW are twenty minutes and a whole evening — and it was only visible after
+     * tapping. Sites that never published a figure keep the bare name rather than
+     * being given a made-up one.
+     */
+    private fun labelFor(site: ChargerSite): String? {
+        val name = site.operator ?: site.name ?: return null
+        val kw = site.maxPowerKw?.takeIf { it > 0 } ?: return name
+        // Whole numbers for whole ratings: "22 kW", not "22.0 kW". The halves that do
+        // occur (7.4, 3.7) are real and stay.
+        val power = if (kw % 1.0 == 0.0) kw.toInt().toString() else String.format("%.1f", kw)
+        return "$name $power kW"
     }
 
     /** Draws [text] centred at the point if nothing is there already. */
@@ -601,7 +618,8 @@ class ChargerOverlay(
         /** Below this the members are effectively one point and have no extent. */
         const val DEGENERATE_SPAN_DEG = 1e-5
         const val MAX_LABELS = 40
-        const val MAX_LABEL_CHARS = 16
+        /** Up from 16, so the power is not what gets cut off the end of a name. */
+        const val MAX_LABEL_CHARS = 22
 
         /** Below this a route point is visually identical to the last one. */
         const val ROUTE_MIN_STEP_PX = 2f

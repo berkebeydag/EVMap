@@ -19,11 +19,19 @@ enum class Destination(
     @param:StringRes val labelRes: Int,
     val icon: ImageVector
 ) {
-    Dashboard("dashboard", R.string.nav_dashboard, Icons.Filled.Speed),
     Chargers("chargers", R.string.nav_chargers, Icons.Filled.EvStation),
-    Performance("performance", R.string.nav_performance, Icons.Filled.Timer),
-    Diagnostics("diagnostics", R.string.nav_diagnostics, Icons.Filled.Warning),
     Trips("trips", R.string.nav_trips, Icons.Filled.Route),
+
+    /**
+     * Everything that only says anything with the adapter plugged in.
+     *
+     * The gauges, the timer and the fault reader used to be three tabs of five, which
+     * put the two screens that work without a car — the map and the trip log — in the
+     * minority of their own navigation bar. They are one destination now, with the
+     * three of them behind a row of tabs inside it, because "am I connected" is the
+     * question they all share and none of the others ask.
+     */
+    Obd("obd", R.string.nav_obd, Icons.Filled.Speed),
 
     // Reached from the top bar, not the bottom bar.
     Connect("connect", R.string.nav_connect, Icons.Filled.Bluetooth),
@@ -38,12 +46,12 @@ enum class Destination(
 
     companion object {
         /**
-         * The four places you actually spend time. Connect and Settings live in the
+         * The three places you actually spend time. Connect and Settings live in the
          * top bar instead: Connect is something you do once at the start of a drive,
-         * not a destination you return to, and six items crowd the labels off a
-         * phone-width NavigationBar.
+         * not a destination you return to, and crowded labels are the first thing to
+         * go on a phone-width NavigationBar.
          */
-        val bottomBar = listOf(Dashboard, Chargers, Performance, Diagnostics, Trips)
+        val bottomBar = listOf(Chargers, Trips, Obd)
 
         /** Pushed detail screens — these get a back arrow rather than a tab. */
         val detail = listOf(Connect, Settings, RawConsole, AuxBattery, TripDetail)

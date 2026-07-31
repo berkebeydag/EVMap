@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -56,9 +57,8 @@ import com.berke.ioniqscope.ui.screens.battery.AuxBatteryScreen
 import com.berke.ioniqscope.ui.screens.chargers.ChargerMapScreen
 import com.berke.ioniqscope.ui.screens.connect.ConnectScreen
 import com.berke.ioniqscope.ui.screens.console.RawConsoleScreen
-import com.berke.ioniqscope.ui.screens.dashboard.DashboardScreen
-import com.berke.ioniqscope.ui.screens.diagnostics.DiagnosticsScreen
-import com.berke.ioniqscope.ui.screens.performance.PerformanceScreen
+import com.berke.ioniqscope.ui.screens.obd.AUX_BATTERY
+import com.berke.ioniqscope.ui.screens.obd.ObdScreen
 import com.berke.ioniqscope.ui.screens.settings.SettingsScreen
 import com.berke.ioniqscope.ui.screens.trips.TripDetailScreen
 import com.berke.ioniqscope.ui.screens.trips.TripLogScreen
@@ -79,7 +79,7 @@ inline fun <reified VM : ViewModel> serviceViewModel(
 fun IoniqScopeRoot(services: ServiceLocator) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val current = Destination.fromRoute(backStackEntry?.destination?.route) ?: Destination.Dashboard
+    val current = Destination.fromRoute(backStackEntry?.destination?.route) ?: Destination.Chargers
     val connection by services.connectionManager.connectionState.collectAsStateWithLifecycle()
 
     val isDetail = current in Destination.detail
@@ -117,13 +117,20 @@ fun IoniqScopeRoot(services: ServiceLocator) {
             )
         },
         bottomBar = {
-            NavigationBar {
+            // Shorter than the 80dp default. Three items do not need the height five
+            // did, and this bar sits under a map that wants every row it can get.
+            NavigationBar(Modifier.height(64.dp)) {
                 Destination.bottomBar.forEach { destination ->
                     NavigationBarItem(
                         selected = current == destination,
                         onClick = { navController.navigateTo(destination) },
                         icon = { Icon(destination.icon, contentDescription = null) },
-                        label = { Text(stringResource(destination.labelRes)) }
+                        label = {
+                            Text(
+                                stringResource(destination.labelRes),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                     )
                 }
             }
@@ -131,20 +138,24 @@ fun IoniqScopeRoot(services: ServiceLocator) {
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = Destination.Dashboard.route,
+            // The map opens the app. It is the screen that says something before
+            // anything is plugged in, which is most of the time.
+            startDestination = Destination.Chargers.route,
             modifier = Modifier.padding(padding)
         ) {
             val toConnect: () -> Unit = { navController.navigateTo(Destination.Connect) }
 
-            composable(Destination.Dashboard.route) { DashboardScreen(services, toConnect) }
             composable(Destination.Chargers.route) { ChargerMapScreen(services) }
-            composable(Destination.Performance.route) { PerformanceScreen(services, toConnect) }
-            composable(Destination.Diagnostics.route) {
-                DiagnosticsScreen(
+            composable(Destination.Obd.route) {
+                ObdScreen(
                     services = services,
                     onConnect = toConnect,
-                    onOpenConsole = { navController.navigateTo(Destination.RawConsole) },
-                    onOpenAuxBattery = { navController.navigateTo(Destination.AuxBattery) }
+                    onOpen = { target ->
+                        navController.navigateTo(
+                            if (target == AUX_BATTERY) Destination.AuxBattery
+                            else Destination.RawConsole
+                        )
+                    }
                 )
             }
             composable(Destination.Trips.route) {
