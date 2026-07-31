@@ -75,6 +75,8 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     private val routeService = RouteService()
     private var followJob: Job? = null
+    /** The direct ask that runs alongside a follow, so failures still get reported. */
+    private var oneShotJob: Job? = null
     private var routeJob: Job? = null
     private var searchJob: Job? = null
 
@@ -197,11 +199,32 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
         _following.value = true
         if (_location.value !is LocationState.Known) _location.value = LocationState.Requesting
 
+        var streamed = false
         followJob = viewModelScope.launch {
             finder.stream().collect { fix ->
+                streamed = true
                 _location.value = fix
                 reloadVisible()
                 refreshRoutesIfMoved(fix.lat, fix.lon)
+            }
+        }
+
+        // A stream alone reports success and nothing else: with the providers all
+        // switched off it simply closes, and while GPS is still searching it stays
+        // open and silent. Either way the screen said "Konum alınıyor" indefinitely
+        // and never explained itself. One direct ask alongside it always ends in a
+        // state the UI can show — a fix, or the reason there is not one.
+        //
+        // Applied only if the stream has not already answered, and dropped if it
+        // answers first, so a slow single fix cannot overwrite a live one.
+        oneShotJob?.cancel()
+        oneShotJob = viewModelScope.launch {
+            val outcome = finder.find()
+            if (streamed) return@launch
+            _location.value = outcome
+            (outcome as? LocationState.Known)?.let {
+                reloadVisible()
+                refreshRoutesIfMoved(it.lat, it.lon)
             }
         }
     }
@@ -209,6 +232,8 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     fun stopFollowing() {
         followJob?.cancel()
         followJob = null
+        oneShotJob?.cancel()
+        oneShotJob = null
         _following.value = false
     }
 
@@ -296,27 +321,6 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     fun clearSearch() {
         searchJob?.cancel()
         _searchResults.value = emptyList()
-    }
-
-    /**
-     * Asks for one coarse fix. Every outcome — including the failures — lands in
-     * [location] so the UI can say what happened instead of appearing to ignore
-     * the tap.
-     */
-    fun refreshLocation(context: Context) {
-        val finder = LocationFinder(context)
-        if (!finder.hasPermission()) {
-            _location.value = LocationState.PermissionMissing
-            return
-        }
-        _location.value = LocationState.Requesting
-        viewModelScope.launch {
-            _location.value = finder.find()
-            (_location.value as? LocationState.Known)?.let {
-                reloadVisible()
-                refreshRoutesIfMoved(it.lat, it.lon)
-            }
-        }
     }
 
     companion object {

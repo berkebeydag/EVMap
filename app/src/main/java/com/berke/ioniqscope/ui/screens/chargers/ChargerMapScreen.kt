@@ -110,9 +110,32 @@ fun ChargerMapScreen(services: ServiceLocator) {
     /** Where something outside the map wants it, and how close to sit when it arrives. */
     var moveTo by remember { mutableStateOf<Pair<GeoPoint, Double>?>(null) }
 
+    /** Set while the pending request is the precise-location upgrade, not the first ask. */
+    var askingForPrecise by remember { mutableStateOf(false) }
+
     val locationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { granted -> if (granted.values.any { it }) vm.startFollowing(context) }
+    ) { granted ->
+        val wasUpgrade = askingForPrecise
+        askingForPrecise = false
+        if (granted.values.any { it }) vm.startFollowing(context)
+        // Asked for precise and still coarse. Android only offers that dialog once;
+        // after that the permission screen is the only thing that can still change
+        // it, so go there rather than leaving a button that visibly does nothing.
+        if (wasUpgrade && !ChargerViewModel.hasPreciseLocationPermission(context)) {
+            openAppSettings(context)
+        }
+    }
+
+    val askForPrecise: () -> Unit = {
+        askingForPrecise = true
+        locationLauncher.launch(
+            arrayOf(
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
 
     // Re-read on every fix rather than once: the permission dialog can be answered
     // while this screen is up, and "Kesin" granted mid-session has to stop the note.
@@ -120,23 +143,23 @@ fun ChargerMapScreen(services: ServiceLocator) {
         ChargerViewModel.hasPreciseLocationPermission(context)
     }
 
-    LaunchedEffect(Unit) {
-        if (ChargerViewModel.hasLocationPermission(context)) vm.refreshLocation(context)
-    }
-
     /**
      * Opening on the whole country is the right answer exactly once — before anyone
      * has told the app where they are. After that it is a map of Türkiye when what
      * was wanted is the chargers within reach, and it took a tap on the locate button
-     * every single time to get there. The first fix after the screen opens moves the
-     * map to it; every move after that is the user's.
+     * every time to get there.
+     *
+     * Following rather than a single fix, because the other thing this screen is for
+     * is being looked at from a moving car: one fix leaves the marker where you were
+     * when you opened it, and by the time it matters you are a junction past it.
+     * Panning by hand still hands control back, and leaving the screen stops the
+     * stream — nothing is tracked while the map is not up.
      */
-    var centredOnUser by remember { mutableStateOf(false) }
-    LaunchedEffect(location) {
-        if (centredOnUser) return@LaunchedEffect
-        val fix = location as? LocationState.Known ?: return@LaunchedEffect
-        centredOnUser = true
-        moveTo = GeoPoint(fix.lat, fix.lon) to USER_ZOOM
+    LaunchedEffect(Unit) {
+        if (ChargerViewModel.hasLocationPermission(context)) vm.startFollowing(context)
+    }
+    DisposableEffect(Unit) {
+        onDispose { vm.stopFollowing() }
     }
 
     // Markers come from the cache, so a finished load has to nudge the query.
@@ -224,7 +247,20 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 )
             }
 
-            locationNote(location, following, precisePermission)?.let {
+            // Given its own banner rather than a line of text, because unlike every
+            // other note here this one has something the driver can actually press.
+            if (!precisePermission && location is LocationState.Known) {
+                Banner(
+                    text = "Yalnızca yaklaşık konum izni verilmiş, bu yüzden Android " +
+                        "konumu bir-iki kilometre bulanıklaştırıyor. Uygulama bunu " +
+                        "kendi başına düzeltemez.",
+                    tone = BannerTone.Warning,
+                    actionLabel = "Kesin konumu aç",
+                    onAction = askForPrecise
+                )
+            }
+
+            locationNote(location, following)?.let {
                 Banner(text = it, tone = BannerTone.Warning)
             }
 
@@ -536,31 +572,31 @@ private fun chargePointSummary(site: ChargerSite): String? = when (site.chargePo
 }
 
 /** Whatever went wrong with locating, said plainly rather than failing silently. */
-private fun locationNote(
-    location: LocationState,
-    following: Boolean,
-    precisePermission: Boolean
-): String? = when {
+private fun locationNote(location: LocationState, following: Boolean): String? = when {
     location is LocationState.PermissionMissing ->
         "Konum izni verilmedi, bu yüzden harita seni gösteremiyor ve takip edemiyor."
     location is LocationState.Disabled ->
         "Bu cihazda konum kapalı."
     location is LocationState.TimedOut ->
         "Konum alınamadı. Kapalı alanda ya da bina içinde bu uzun sürebilir."
-    // Android's own choice, not ours, and nothing the app does can sharpen it: with
-    // "Yaklaşık" granted the system hands out a deliberately blurred position of a
-    // kilometre or two. That is indistinguishable from a bug from the driver's side —
-    // the marker is simply a district away — so it has to be said out loud, with the
-    // one action that fixes it.
-    !precisePermission && location is LocationState.Known ->
-        "Yalnızca yaklaşık konum izni verilmiş, bu yüzden bir-iki kilometre şaşabilir. " +
-            "Ayarlar › Uygulamalar › IoniqScope › Konum'dan \"Kesin konumu kullan\"ı aç."
     following && location is LocationState.Known && location.fromCache ->
         "Bilinen son konumun takip ediliyor — yeni sinyal bekleniyor."
     location is LocationState.Known && (location.accuracyMetres ?: 0f) > COARSE_FIX_M ->
         "Konum şu an yaklaşık ${location.accuracyMetres!!.roundToInt()} m " +
             "doğrulukta — açık alanda kendiliğinden düzelir."
     else -> null
+}
+
+/** The one screen that can still grant precise location once the dialog is spent. */
+private fun openAppSettings(context: Context) {
+    runCatching {
+        context.startActivity(
+            Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", context.packageName, null)
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
 }
 
 /** Past this the fix is a neighbourhood, not a place, and the map should say so. */

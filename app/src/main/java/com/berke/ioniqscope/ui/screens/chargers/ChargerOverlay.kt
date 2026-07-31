@@ -93,6 +93,10 @@ class ChargerOverlay(
     private val cellPx = 56f * density
     private val dotRadius = 5f * density
 
+    /** How long each chevron's tail is. Small enough to sit inside the line's width. */
+    private val arrowSize = 3.4f * density
+    private val arrowSpacingPx = 30f * density
+
     /**
      * Groups get a dot only a little larger than a site's.
      *
@@ -124,18 +128,44 @@ class ChargerOverlay(
         strokeWidth = 3f * density
     }
 
+    /**
+     * Route width, cut back from 5dp.
+     *
+     * Four routes at 5dp with an 8dp casing is 52dp of paint over a city street grid,
+     * and at that weight the lines stop reading as routes on a map and start reading
+     * as a scribble over one — the street names and junctions they run along, which
+     * are the thing that makes a route legible, disappear underneath them.
+     */
     private val routeLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 5f * density
+        strokeWidth = 3.2f * density
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
     private val routeCasing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 8f * density
+        strokeWidth = 5f * density
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
+
+    /**
+     * The chevrons that say which way the route runs.
+     *
+     * Thin, round-capped and half transparent on purpose. A route with no direction on
+     * it is ambiguous at both ends, and the usual fix — solid filled triangles — turns
+     * the line into a row of arrowheads and costs more legibility than the ambiguity
+     * did. Two short strokes at a quarter of the line's weight are enough to read the
+     * direction from and quiet enough to ignore while reading anything else.
+     */
+    private val routeArrow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.5f * density
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        color = 0xB8FFFFFF.toInt()
+    }
+    private val arrowPath = Path()
 
     private val path = Path()
     private val reusablePoint = Point()
@@ -377,9 +407,14 @@ class ChargerOverlay(
 
         for (route in routes) {
             path.rewind()
+            arrowPath.rewind()
             var lastX = Float.NaN
             var lastY = Float.NaN
             var started = false
+            // Distance walked since the last chevron, so they are spaced along the
+            // road rather than one per coordinate — a motorway stretch is one long
+            // segment and a roundabout is thirty short ones.
+            var sinceArrow = arrowSpacingPx * 0.5f
 
             for ((lat, lon) in route.points) {
                 projection.toPixels(GeoPoint(lat, lon), reusablePoint)
@@ -391,7 +426,12 @@ class ChargerOverlay(
                     kotlin.math.abs(y - lastY) < ROUTE_MIN_STEP_PX
                 ) continue
 
-                if (started) path.lineTo(x, y) else path.moveTo(x, y)
+                if (started) {
+                    path.lineTo(x, y)
+                    sinceArrow = appendArrows(lastX, lastY, x, y, sinceArrow)
+                } else {
+                    path.moveTo(x, y)
+                }
                 started = true
                 lastX = x
                 lastY = y
@@ -402,7 +442,53 @@ class ChargerOverlay(
             canvas.drawPath(path, routeCasing)
             routeLine.color = route.color
             canvas.drawPath(path, routeLine)
+            canvas.drawPath(arrowPath, routeArrow)
         }
+    }
+
+    /**
+     * Chevrons along one segment, evenly spaced, pointing the way the route runs.
+     *
+     * Returns how far past the last chevron the segment ended, so the next segment
+     * carries on from there and the spacing stays even across the whole route rather
+     * than restarting at every coordinate.
+     */
+    private fun appendArrows(
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float,
+        carried: Float
+    ): Float {
+        val dx = x2 - x1
+        val dy = y2 - y1
+        val length = kotlin.math.hypot(dx, dy)
+        if (length < 0.001f) return carried
+
+        val ux = dx / length
+        val uy = dy / length
+        // Perpendicular, for the two tails.
+        val px = -uy
+        val py = ux
+
+        val spread = arrowSize * 0.62f
+        var at = arrowSpacingPx - carried
+        while (at <= length) {
+            val tipX = x1 + ux * at
+            val tipY = y1 + uy * at
+            val backX = tipX - ux * arrowSize
+            val backY = tipY - uy * arrowSize
+
+            arrowPath.moveTo(backX + px * spread, backY + py * spread)
+            arrowPath.lineTo(tipX, tipY)
+            arrowPath.lineTo(backX - px * spread, backY - py * spread)
+
+            at += arrowSpacingPx
+        }
+        // `at` now points past the end, one spacing beyond the last chevron drawn —
+        // or, if none was, one spacing beyond where it would have gone. Either way
+        // the gap left behind is what the next segment starts with.
+        return length - (at - arrowSpacingPx)
     }
 
     /**
