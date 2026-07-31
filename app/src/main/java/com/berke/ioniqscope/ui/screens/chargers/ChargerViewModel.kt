@@ -84,8 +84,18 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     private val here: Pair<Double, Double>?
         get() = (_location.value as? LocationState.Known)?.let { it.lat to it.lon }
 
-    /** True while the list should be showing nearest-first rather than the viewport. */
-    private var listMode = false
+    /**
+     * True while the list is up, and with it the list's nearest-first query.
+     *
+     * Owned here rather than remembered in the composable, because the two lifetimes
+     * are not the same and the copies came apart. This survives leaving the screen;
+     * a `remember` does not. So opening the list and then switching tabs reset the
+     * composable's flag to false and left this one true, and from then on the map was
+     * drawn from the nearest 300 stations no matter where it was pointed — the whole
+     * country showing a single group of 231 over Ankara and nothing anywhere else.
+     */
+    private val _listMode = MutableStateFlow(false)
+    val listMode: StateFlow<Boolean> = _listMode.asStateFlow()
 
     fun sources(): List<ChargerSource> = services.chargerSources
 
@@ -104,7 +114,7 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
      * empty until the user happened to pan.
      */
     fun reloadVisible() {
-        if (listMode && here != null) loadNearest()
+        if (_listMode.value && here != null) loadNearest()
         else lastBounds?.let { loadForBounds(it) } ?: loadNearest()
     }
 
@@ -114,7 +124,7 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
      * stays bound to its viewport; the list, once a position is known, does not.
      */
     fun setListMode(enabled: Boolean) {
-        listMode = enabled
+        _listMode.value = enabled
         reloadVisible()
     }
 
@@ -123,7 +133,7 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
         lastBounds = box
         // While the list is showing nearest-first, panning the map underneath must
         // not quietly replace it with viewport results.
-        if (listMode && here != null) return
+        if (_listMode.value && here != null) return
         viewModelScope.launch {
             val current = settings.first()
             val anchor = here

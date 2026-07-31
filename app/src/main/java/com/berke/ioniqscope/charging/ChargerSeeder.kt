@@ -51,19 +51,30 @@ class ChargerSeeder(
                 }
             }.onSuccess { stations ->
                 if (stations.isEmpty()) return@onSuccess
+                val sources = stations.map { it.source }.distinct()
+
                 // Replaced rather than merged: rows from an older bundle carry the
                 // old identifiers and the old operator spellings, so upserting on top
                 // of them would leave both versions on the map.
                 //
-                // Only the sources the bundle itself contains, though — the rest of
-                // the table is left alone. That carve-out used to protect the user's
-                // own TomTom rows, which the bundle now supersedes: it is a sweep of
-                // the same source, keyed by the same TomTom ids, so a re-seed lands on
-                // those rows rather than beside them and hands back more than it
-                // takes. Sweeping again with their own key is still theirs to do, and
-                // still updates the same rows.
-                dao.replaceSources(stations.map { it.source }.distinct(), stations)
-                marks.edit().putInt(KEY_SEEDED_BUILD, BuildConfig.VERSION_CODE).apply()
+                // What the *previous* bundle seeded has to go too, not just the
+                // sources this one happens to contain. When the bundle moved from the
+                // five-source merge to a TomTom sweep it stopped containing the source
+                // names it used to, so nothing claimed the old rows and they simply
+                // stayed: 16,104 new stations landed on top of 6,102 orphaned ones and
+                // the app reported 22,206. Every station in the country appeared to
+                // have acquired a duplicate.
+                //
+                // Which means the last seed has to say what it put there. Installs
+                // predating that record fall back to the sources the merge used, which
+                // is what every such install has.
+                val previous = marks.getStringSet(KEY_SEEDED_SOURCES, null) ?: LEGACY_SOURCES
+                dao.replaceSources((previous + sources).distinct(), stations)
+
+                marks.edit()
+                    .putInt(KEY_SEEDED_BUILD, BuildConfig.VERSION_CODE)
+                    .putStringSet(KEY_SEEDED_SOURCES, sources.toSet())
+                    .apply()
             }
         }
     }
@@ -108,5 +119,17 @@ class ChargerSeeder(
     private companion object {
         const val ASSET = "chargers_tr.json"
         const val KEY_SEEDED_BUILD = "seeded_build"
+        const val KEY_SEEDED_SOURCES = "seeded_sources"
+
+        /**
+         * What the bundle contained before the seed started writing down what it put
+         * there — the five sources of `build_charger_bundle.py`.
+         *
+         * Clearing these can take an OSM sync the user ran themselves down with it,
+         * since the bundle's OSM rows and theirs are the same source under the same
+         * ids and are genuinely indistinguishable. That costs them one tap of a free,
+         * keyless source, against a duplicated map for everyone who does not.
+         */
+        val LEGACY_SOURCES = setOf("ocm", "zes", "trugo", "ibb", "osm")
     }
 }

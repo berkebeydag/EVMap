@@ -101,7 +101,9 @@ fun ChargerMapScreen(services: ServiceLocator) {
     val routes by vm.routes.collectAsStateWithLifecycle()
     val searchResults by vm.searchResults.collectAsStateWithLifecycle()
 
-    var showList by remember { mutableStateOf(false) }
+    // The view model owns this. Remembering it here as well let the two disagree
+    // whenever the screen left composition with the list open.
+    val showList by vm.listMode.collectAsStateWithLifecycle()
     var searching by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<ChargerSite?>(null) }
     /** Set when something outside the map asks it to move somewhere. */
@@ -140,10 +142,7 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                FilledTonalIconButton(onClick = {
-                    showList = false
-                    vm.setListMode(false)
-                }) {
+                FilledTonalIconButton(onClick = { vm.setListMode(false) }) {
                     Icon(Icons.Filled.Map, contentDescription = "Haritayı göster")
                 }
                 // Places, not sockets. One row was one socket back when the sources
@@ -254,10 +253,7 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 MapButton(
                     icon = Icons.AutoMirrored.Filled.List,
                     description = "Listeyi göster",
-                    onClick = {
-                        showList = true
-                        vm.setListMode(true)
-                    }
+                    onClick = { vm.setListMode(true) }
                 )
             }
         }
