@@ -127,14 +127,38 @@ def query(b, r):
         return json.loads(resp.read().decode("utf-8")).get("results") or []
 
 
-found, brands = {}, Counter()
+def load_found():
+    """
+    Everything a previous run already fetched.
+
+    Without this a resumed run starts with an empty set and the first flush
+    overwrites the file with only the handful of stations that run collected — so
+    continuing a sweep would destroy the sweep it was continuing. The stations are
+    keyed by TomTom's own id, so re-reading them cannot introduce duplicates.
+    """
+    try:
+        with open(OUT, encoding="utf-8") as fh:
+            return {x["id"]: x for x in json.load(fh)["stations"] if x.get("id")}
+    except Exception:
+        return {}
+
+
+found, brands = load_found(), Counter()
 
 
 def flush():
-    """Write what we have so far. Cheap next to the cost of re-fetching it."""
-    with open(OUT, "w", encoding="utf-8") as fh:
+    """
+    Write what we have so far. Cheap next to the cost of re-fetching it.
+
+    Written to a temporary file and moved into place: a crash halfway through a
+    20 MB dump would otherwise leave a truncated file where the results used to be,
+    which is the one failure this whole arrangement exists to prevent.
+    """
+    tmp = OUT + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
         json.dump({"stations": list(found.values())}, fh,
                   ensure_ascii=False, separators=(",", ":"))
+    os.replace(tmp, OUT)
 
 requests = 0
 resume = load_state()
