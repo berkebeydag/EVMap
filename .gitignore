@@ -18,3 +18,4 @@ tools/__pycache__/
 # A TomTom sweep, if one is run locally. Their terms forbid redistributing it,
 # and this repository is public.
 tomtom_tr.json
+.tomtom_sweep_state.json
