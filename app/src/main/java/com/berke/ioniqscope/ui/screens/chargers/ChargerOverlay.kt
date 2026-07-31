@@ -98,9 +98,14 @@ class ChargerOverlay(
      * a bubble reading "2" over a neighbourhood you can see every building in tells
      * you strictly less than two dots would. This is a hair over the widest marker, so
      * sites merge only when they would otherwise be drawn on top of each other, and
-     * they separate roughly a zoom and a half earlier than before.
+     * they separate roughly two zoom levels earlier than before.
+     *
+     * This is close to the floor. The widest marker is 13dp across, so below about
+     * 16dp a "2" stops meaning "two sites near each other" and starts meaning "two
+     * sites that would be drawn as one dot anyway" — at which point splitting them
+     * shows the user the same single blob, minus the number telling them it is two.
      */
-    private val cellPx = 22f * density
+    private val cellPx = 16f * density
     private val dotRadius = 5f * density
 
     /** How long each chevron's tail is. Small enough to sit inside the line's width. */

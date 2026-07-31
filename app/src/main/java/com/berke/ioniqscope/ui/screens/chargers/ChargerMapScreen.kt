@@ -209,11 +209,29 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 // Places, not sockets. One row was one socket back when the sources
                 // were taken raw; the bundle now merges them, so a row is a place you
                 // can drive to and the socket count lives on the row itself.
+                // One quantity, always: how many places are in the list below. It
+                // briefly said "271 DC yer" with the filter on and "16104 kayıtlı yer"
+                // with it off — the nearby count and the whole database, swapping
+                // places under the same label.
                 Text(
-                    if (settings.chargersDcOnly) "${sites.size} DC yer" else "$count kayıtlı yer",
+                    "${sites.size} yer",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f)
                 )
+                // The brand filter belongs here too. Both filters apply to this list;
+                // being able to change only one of them from it is the asymmetry the
+                // AC/DC switch was added to fix in the first place.
+                FilledTonalIconButton(
+                    onClick = { pickingBrands = true },
+                    colors = if (settings.chargersOperators.isNotEmpty()) {
+                        IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else IconButtonDefaults.filledTonalIconButtonColors()
+                ) {
+                    Icon(Icons.Filled.FilterAlt, contentDescription = "Şarj ağını seç")
+                }
                 // The same switch as the map's, because the list is the same question
                 // asked a different way and a filter that only exists on one of them
                 // is a filter you cannot trust either of them about.
@@ -234,6 +252,14 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 }
             }
             ChargerList(sites) { openInMaps(context, it) }
+        }
+        if (pickingBrands) {
+            BrandFilterDialog(
+                operators = operators,
+                selected = settings.chargersOperators,
+                onApply = { vm.setOperators(it) },
+                onDismiss = { pickingBrands = false }
+            )
         }
         return
     }
