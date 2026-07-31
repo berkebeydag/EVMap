@@ -25,7 +25,10 @@ from collections import Counter
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-BUNDLE = "app/src/main/assets/chargers_tr.json"
+#: The five-source merge, not the shipped asset. The asset is now itself a TomTom
+#: sweep, so comparing against it would only measure TomTom against TomTom and report
+#: that it adds nothing.
+BUNDLE = "data/chargers_tr.merged.json"
 
 #: TomTom's POI category for an electric vehicle charging station.
 EV_CATEGORY = 7309

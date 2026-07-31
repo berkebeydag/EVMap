@@ -14,12 +14,12 @@ import kotlin.math.hypot
  * Eşarj, Voltrun, Sharz, WAT — and, unlike every other source, it states the power on
  * every single result. Power is known on under a third of the bundled sites.
  *
- * Deliberately *not* part of the bundle that ships inside the APK. TomTom's terms are
- * for use by the licence holder, and the bundle is a file published on a public
- * repository for anyone to download — that would be redistributing their data. Here
- * it works the way Open Charge Map does: the user registers their own free key, the
- * results are fetched with that key and cached on that user's own device, and with no
- * key the source simply stays off.
+ * A full sweep of the country now *is* the bundle that ships inside the APK, built by
+ * `tools/build_bundle_from_sweep.py` — see the note on redistribution there. This
+ * source stays because the bundle is a snapshot: it is how the licence holder brings
+ * it up to date without waiting for a release, using their own free key, with the
+ * results landing on the same rows the bundle seeded because both are keyed by
+ * TomTom's own ids. With no key the source simply stays off.
  */
 class TomTomChargerSource(
     private val apiKeyProvider: () -> String?,

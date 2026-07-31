@@ -10,9 +10,8 @@ stations and a month's request allowance went with it. A sweep costs about half
 the monthly free allowance, which makes losing the results expensive enough that
 the file is flushed as it goes.
 
-The output is for loading onto the licence holder's own device. It is deliberately
-not merged into app/src/main/assets — that file is published on a public repository,
-and TomTom's terms forbid compiling and redistributing their data.
+The output is the raw POI records, kept out of the repository. Run
+`build_bundle_from_sweep.py` on it to produce the bundle that ships in the APK.
 
 Usage:  TOMTOM_KEY=... python tools/sweep_tomtom.py [out.json]
 """
@@ -35,7 +34,12 @@ MAX_RADIUS = 50_000.0
 MAX_DEPTH = 6
 HARD_CAP = 900           # so a bug cannot empty the monthly allowance
 SPACING_S = 0.25         # measured: unspaced runs start collecting 429s at ~200
-BUNDLE = "app/src/main/assets/chargers_tr.json"
+#: Where to look, in both senses: the shipped bundle is where the last sweep landed,
+#: and the five-source merge beside it is an independent map of where chargers are.
+#: Seeding from the union matters now that the bundle is itself a TomTom sweep — on
+#: its own it would only ever send the next sweep back where the last one succeeded,
+#: and a cell TomTom has never covered would stay uncovered forever.
+BUNDLES = ("app/src/main/assets/chargers_tr.json", "data/chargers_tr.merged.json")
 STATE = ".tomtom_sweep_state.json"
 
 TURKEY = (35.8, 25.6, 42.2, 44.9)   # minLat, minLon, maxLat, maxLon
@@ -68,17 +72,19 @@ def seed_tiles():
 
     Tiling Türkiye's bounding box down to the query radius is 1,024 requests before
     a single station is found, most of them landing on sea, empty steppe and the
-    neighbouring countries. The 6,102 coordinates already in the bundle are a far
-    better map of where chargers are: covering them takes 305 tiles, and anywhere a
+    neighbouring countries. The coordinates we already hold are a far better map of
+    where chargers are: covering the original 6,102 took 305 tiles, and anywhere a
     charger exists in Türkiye one of those points is within range.
 
     The longitude step has to come from the row's latitude rather than each
     station's own, or the tile a station is filed under does not contain it.
     """
-    try:
-        rows = json.load(open(BUNDLE, encoding="utf-8"))["stations"]
-    except Exception:
-        return [(TURKEY, 0)]
+    rows = []
+    for path in BUNDLES:
+        try:
+            rows += json.load(open(path, encoding="utf-8"))["stations"]
+        except Exception:
+            continue
     if not rows:
         return [(TURKEY, 0)]
 

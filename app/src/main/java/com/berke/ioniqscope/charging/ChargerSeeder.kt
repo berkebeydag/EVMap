@@ -19,8 +19,11 @@ import org.json.JSONObject
  * may not have. Shipping the dataset means the map is useful the moment the app
  * opens, offline, with no button to discover.
  *
- * The bundled file is built by `tools/build_charger_bundle.py`, which merges four
- * sources — no single one covers Türkiye — and writes them already normalised.
+ * The bundled file is built by `tools/build_bundle_from_sweep.py` from a full TomTom
+ * sweep of Türkiye, already normalised: 16,104 stations, every one of them carrying
+ * its power, its connector types and an address. The five-source merge it replaced
+ * found 6,102 and could state the power on under a third of them; it is still built
+ * by `tools/build_charger_bundle.py` and kept at `data/chargers_tr.merged.json`.
  *
  * Re-seeded whenever the installed build changes, not only when the table is empty.
  * Seeding once was silently wrong: every improvement to the dataset — a thousand
@@ -52,10 +55,13 @@ class ChargerSeeder(
                 // old identifiers and the old operator spellings, so upserting on top
                 // of them would leave both versions on the map.
                 //
-                // Only the sources the bundle itself contains, though. Anything the
-                // user fetched with their own key — TomTom — is theirs and is left
-                // alone; wiping it would cost them their own request allowance to get
-                // back, on an update they did not ask to pay for.
+                // Only the sources the bundle itself contains, though — the rest of
+                // the table is left alone. That carve-out used to protect the user's
+                // own TomTom rows, which the bundle now supersedes: it is a sweep of
+                // the same source, keyed by the same TomTom ids, so a re-seed lands on
+                // those rows rather than beside them and hands back more than it
+                // takes. Sweeping again with their own key is still theirs to do, and
+                // still updates the same rows.
                 dao.replaceSources(stations.map { it.source }.distinct(), stations)
                 marks.edit().putInt(KEY_SEEDED_BUILD, BuildConfig.VERSION_CODE).apply()
             }

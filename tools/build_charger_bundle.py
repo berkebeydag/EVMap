@@ -1,5 +1,12 @@
 """
-Builds the charging-station dataset that ships inside the APK.
+Builds the five-source merged charging-station dataset.
+
+No longer what ships inside the APK. The bundle is now built from a TomTom sweep by
+`build_bundle_from_sweep.py`, which finds 16,104 stations against this merge's 6,102
+and states the power on all of them rather than on under a third. This is kept as
+the fallback and as the only source that does not depend on a TomTom key: it writes
+to `data/chargers_tr.merged.json`, and copying that over the asset restores the old
+bundle.
 
 Merges five sources, because no single one covers Türkiye:
 
@@ -34,7 +41,7 @@ import sys
 import urllib.parse
 import urllib.request
 
-OUT = "app/src/main/assets/chargers_tr.json"
+OUT = "data/chargers_tr.merged.json"
 UA = {"User-Agent": "IoniqScope/0.1 (personal EV app)"}
 TURKEY_AREA = 3600174737
 

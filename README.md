@@ -117,30 +117,39 @@ not compile — it can be deleted once you are happy with the integrated copies.
 
 ## Charging stations — and an honest word about the data
 
-The map caches stations locally; network is only touched to refresh that cache.
+A dataset ships inside the APK, so the map is useful the moment the app opens, with
+no signal and no button to find. Network is only touched to refresh it.
 
-Two sources are wired behind a `ChargerSource` interface:
+**Bundled: 16,104 stations across Türkiye (July 2026), every one of them carrying
+its power rating, its connector types and an address**, under 613 operator names.
+About half are DC. It is built from a full sweep of TomTom's POI search by
+`tools/sweep_tomtom.py` and `tools/build_bundle_from_sweep.py`, and it costs the
+APK 830 KB.
 
-- **OpenStreetMap** (default, no key, no account) — queried through Overpass,
-  constrained to the Türkiye boundary relation rather than a bounding box, because
-  a box around Türkiye also catches Greece, Bulgaria, Cyprus and slices of the
-  Caucasus and Levant; measured, that was about half of everything returned.
-- **Open Charge Map** — EV-specific and much better on connectors and power, but
-  needs a free key you register yourself and paste into Settings.
+What it replaced is kept at `data/chargers_tr.merged.json` and still builds, via
+`tools/build_charger_bundle.py`: a merge of Open Charge Map, ZES's and Trugo's own
+lists, İBB's slice of the EPDK register, and OpenStreetMap. That found 6,102
+stations and could state the power on under a third of them, because the only
+source that reliably carries kW is Open Charge Map and the operators' feeds do not.
+It is the fallback, and the one that needs no key at all.
 
-**Measured OSM coverage for Türkiye (July 2026): 654 stations.** By operator:
-SHARZ 131, ZES 83, Astor 34, Tesla 33, Eşarj 33, Voltrun 29, Togg 15, Trugo 12,
-and 171 with no operator recorded at all. Only **59** are tagged as DC and only
-**54** record their power.
+Two live sources are wired behind a `ChargerSource` interface, for refreshing the
+bundle without waiting for a release:
 
-That is not a complete picture of Türkiye — ZES alone runs far more than 83
-locations. It is a usable base layer, and the UI says so rather than presenting it
-as authoritative. An Open Charge Map key improves it considerably.
+- **OpenStreetMap** (no key, no account) — queried through Overpass, constrained to
+  the Türkiye boundary relation rather than a bounding box, because a box around
+  Türkiye also catches Greece, Bulgaria, Cyprus and slices of the Caucasus and
+  Levant; measured, that was about half of everything returned. On its own it
+  measured 654 stations for Türkiye, 59 of them tagged DC — a base layer, not a
+  picture, which is why nothing relies on it alone any more.
+- **TomTom** — needs a free key you register yourself and paste into Settings.
+  Sweeps the country the same way the bundle was built and lands on the same rows,
+  since both are keyed by TomTom's own ids.
 
 EPDK publishes the authoritative national list (every licensed operator must
 report; it is what the official Şarj@TR app shows) and a REST web service is
 referenced in İBB's open-data portal, but no publicly documented endpoint was
-found. If one surfaces it drops in as a third `ChargerSource` with nothing else
+found. If one surfaces it drops in as another `ChargerSource` with nothing else
 changing — see the `TODO(epdk)` in that file.
 
 ## Privacy

@@ -15,7 +15,10 @@ local.properties
 !debug.keystore
 tools/__pycache__/
 
-# A TomTom sweep, if one is run locally. Their terms forbid redistributing it,
-# and this repository is public.
+# The raw TomTom sweep. 21 MB of POI records the app never reads, and everything it
+# does read is already in app/src/main/assets/chargers_tr.json, built from it by
+# tools/build_bundle_from_sweep.py. Committing both would put the same data in the
+# history twice.
+sarjistasyonlari_tr.json
 tomtom_tr*.json
 .tomtom_sweep_state.json
