@@ -23,13 +23,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
@@ -60,6 +64,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.charging.BoundingBox
+import com.berke.ioniqscope.data.OperatorCount
 import com.berke.ioniqscope.charging.Http
 import com.berke.ioniqscope.ui.components.Banner
 import com.berke.ioniqscope.ui.components.BannerTone
@@ -112,6 +117,8 @@ fun ChargerMapScreen(services: ServiceLocator) {
 
     /** Set while the pending request is the precise-location upgrade, not the first ask. */
     var askingForPrecise by remember { mutableStateOf(false) }
+    var pickingBrands by remember { mutableStateOf(false) }
+    val operators by vm.operators.collectAsStateWithLifecycle()
 
     val locationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -163,8 +170,17 @@ fun ChargerMapScreen(services: ServiceLocator) {
     }
 
     // Markers come from the cache, so a finished load has to nudge the query.
-    LaunchedEffect(count, settings.chargersDcOnly, settings.chargersMinPowerKw) {
-        if (count > 0) vm.reloadVisible()
+    LaunchedEffect(
+        count,
+        settings.chargersDcOnly,
+        settings.chargersMinPowerKw,
+        settings.chargersOperators
+    ) {
+        if (count > 0) {
+            vm.reloadVisible()
+            // The suggestions are filtered too, so they are as stale as the map is.
+            vm.refreshRoutes()
+        }
     }
 
     val requestLocation: () -> Unit = {
@@ -193,7 +209,29 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 // Places, not sockets. One row was one socket back when the sources
                 // were taken raw; the bundle now merges them, so a row is a place you
                 // can drive to and the socket count lives on the row itself.
-                Text("$count kayıtlı yer", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    if (settings.chargersDcOnly) "${sites.size} DC yer" else "$count kayıtlı yer",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f)
+                )
+                // The same switch as the map's, because the list is the same question
+                // asked a different way and a filter that only exists on one of them
+                // is a filter you cannot trust either of them about.
+                FilledTonalIconButton(
+                    onClick = { vm.setDcOnly(!settings.chargersDcOnly) },
+                    colors = if (settings.chargersDcOnly) {
+                        IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else IconButtonDefaults.filledTonalIconButtonColors()
+                ) {
+                    Icon(
+                        Icons.Filled.Bolt,
+                        contentDescription = if (settings.chargersDcOnly)
+                            "AC istasyonları da göster" else "Yalnızca DC göster"
+                    )
+                }
             }
             ChargerList(sites) { openInMaps(context, it) }
         }
@@ -309,6 +347,19 @@ fun ChargerMapScreen(services: ServiceLocator) {
                     onClick = requestLocation
                 )
                 MapButton(
+                    icon = Icons.Filled.Bolt,
+                    description = if (settings.chargersDcOnly) "AC istasyonları da göster"
+                    else "Yalnızca DC göster",
+                    active = settings.chargersDcOnly,
+                    onClick = { vm.setDcOnly(!settings.chargersDcOnly) }
+                )
+                MapButton(
+                    icon = Icons.Filled.FilterAlt,
+                    description = "Şarj ağını seç",
+                    active = settings.chargersOperators.isNotEmpty(),
+                    onClick = { pickingBrands = true }
+                )
+                MapButton(
                     icon = Icons.AutoMirrored.Filled.List,
                     description = "Listeyi göster",
                     onClick = { vm.setListMode(true) }
@@ -326,6 +377,15 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 .align(Alignment.BottomStart)
                 .padding(start = 10.dp, bottom = 8.dp)
         )
+
+        if (pickingBrands) {
+            BrandFilterDialog(
+                operators = operators,
+                selected = settings.chargersOperators,
+                onApply = { vm.setOperators(it) },
+                onDismiss = { pickingBrands = false }
+            )
+        }
 
         selected?.let { site ->
             SelectedSiteCard(
@@ -488,13 +548,27 @@ private fun RouteLegend(
                                 CircleShape
                             )
                     )
-                    Text(
-                        entry.site.operator ?: entry.site.name ?: UNBRANDED,
-                        style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
+                    // Network on top, where you would actually arrive underneath.
+                    // The network alone answers "can I charge here"; it does not
+                    // answer "where am I going", and four rows reading ZES, ZES,
+                    // Trugo, ZES are four rows you cannot choose between.
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            entry.site.operator ?: entry.site.name ?: UNBRANDED,
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        destinationOf(entry.site)?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                     Text(
                         "${formatDistance(entry.route.metres)} · " +
                             formatMinutes(entry.route.seconds),
@@ -505,6 +579,116 @@ private fun RouteLegend(
             }
         }
     }
+}
+
+/**
+ * Where a route actually ends, in as few words as fit on one line.
+ *
+ * The site's own name first — "Migros Balçova" is the thing you look for when you get
+ * there. Failing that the address, cut back to the part that locates it: these arrive
+ * as "Mithatpaşa Caddesi 1234, 35330, Balçova, İzmir", and the postcode and the
+ * province are the two parts nobody standing in İzmir needs.
+ */
+private fun destinationOf(site: ChargerSite): String? {
+    site.name?.takeIf { it.isNotBlank() && it != site.operator }?.let { return it }
+    val address = site.address?.takeIf { it.isNotBlank() } ?: return null
+    val parts = address.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    // Drop a bare postcode wherever it sits, then keep the street and the district.
+    val useful = parts.filterNot { it.length == 5 && it.all(Char::isDigit) }
+    return when {
+        useful.isEmpty() -> null
+        useful.size <= 2 -> useful.joinToString(", ")
+        else -> "${useful.first()}, ${useful[useful.lastIndex - 1]}"
+    }
+}
+
+/**
+ * Picks which networks appear, listed by how many stations each one has.
+ *
+ * Ordered by size rather than alphabetically because that is the order the list is
+ * useful in: 613 operators sorted by name buries ZES and Trugo — between them a fifth
+ * of the country — under a long tail of names with a single station each. The ones
+ * worth filtering by are the ones you can actually reach, and those are at the top.
+ *
+ * Selection is applied on dismissal rather than per tap: choosing three networks
+ * would otherwise rebuild the map three times on the way there.
+ */
+@Composable
+private fun BrandFilterDialog(
+    operators: List<OperatorCount>,
+    selected: Set<String>,
+    onApply: (Set<String>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var picked by remember(selected) { mutableStateOf(selected) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Şarj ağı") },
+        text = {
+            Column {
+                Text(
+                    if (picked.isEmpty()) "Hepsi gösteriliyor."
+                    else "${picked.size} ağ seçili — harita ve rota önerileri yalnızca " +
+                        "bunlara bakıyor.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                LazyColumn(Modifier.padding(top = 8.dp)) {
+                    items(operators, key = { it.name }) { operator ->
+                        val isOn = operator.name in picked
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    picked = if (isOn) picked - operator.name
+                                    else picked + operator.name
+                                }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // The same colour the map draws this network in, so the
+                            // filter and the map are read as one thing.
+                            Box(
+                                Modifier
+                                    .size(10.dp)
+                                    .background(
+                                        Color(
+                                            BRAND_COLOURS[operator.name]
+                                                ?: MAP_MARKERS.otherBrand
+                                        ),
+                                        CircleShape
+                                    )
+                            )
+                            Text(
+                                operator.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                operator.stations.toString(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Checkbox(checked = isOn, onCheckedChange = null)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onApply(picked); onDismiss() }) { Text("Uygula") }
+        },
+        dismissButton = {
+            // Clearing is the way back to "everything", and it is worth its own
+            // button: unticking a dozen networks by hand to see the whole map again
+            // is not a thing anyone should have to do.
+            TextButton(onClick = { onApply(emptySet()); onDismiss() }) { Text("Hepsi") }
+        }
+    )
 }
 
 /** Details for the tapped site, over the map rather than on a new screen. */
@@ -637,6 +821,23 @@ private fun ChargerMap(
             userAgentValue = Http.USER_AGENT
             osmdroidBasePath = context.filesDir
             osmdroidTileCache = context.cacheDir.resolve("osmdroid")
+
+            // osmdroid's defaults are sized for a small map in a corner of a screen,
+            // not a full-screen one being dragged around. Nine tiles in memory is
+            // fewer than a phone screen holds, so panning evicted tiles it was about
+            // to need again and re-decoded them from disk; two downloads at a time
+            // then made a cold area arrive in visible waves.
+            //
+            // The overshoot is the one that matters most here: it keeps a ring of
+            // tiles beyond the screen edge, which is precisely the ground a sideways
+            // drag moves onto. Without it the first thing a pan reveals is always
+            // empty. (Not measured on this machine — the emulator's tiles were long
+            // since cached and its connection is not a phone's — so these are sized
+            // from what the screen actually needs rather than from a before-and-after.)
+            cacheMapTileCount = 64
+            cacheMapTileOvershoot = 2
+            tileDownloadThreads = 6
+            tileDownloadMaxQueueSize = 80
         }
         MapView(context).apply {
             setTileSource(CARTO_POSITRON)
@@ -701,6 +902,14 @@ private fun ChargerMap(
 
     LaunchedEffect(mapView) {
         // Debounced so a pan does not fire a query per frame.
+        //
+        // 400 ms was the largest single part of the wait after letting go of the map —
+        // longer than the query and the grouping put together — and it was that long
+        // because every one of those queries used to be expensive and run on the UI
+        // thread. Neither is true now: a query that is superseded gets cancelled, one
+        // that lands inside the area already loaded does not run at all, and what does
+        // run is off the main thread. So the delay can be what it was meant to be,
+        // long enough not to fire mid-drag rather than long enough to hide the cost.
         mapView.addMapListener(
             DelayedMapListener(
                 object : MapListener {
@@ -711,7 +920,7 @@ private fun ChargerMap(
                         emitBounds(mapView, onBoundsChanged); return true
                     }
                 },
-                400L
+                140L
             )
         )
         emitBounds(mapView, onBoundsChanged)
@@ -932,7 +1141,8 @@ private val ROUTE_COLOURS = intArrayOf(
     0xFFE8590C.toInt(),   // orange: the nearest
     0xFF7048E8.toInt(),   // violet
     0xFF0CA678.toInt(),   // teal
-    0xFFD6336C.toInt()    // pink
+    0xFFD6336C.toInt(),   // pink
+    0xFF1098AD.toInt()    // deep cyan: the fifth, added with ROUTE_COUNT
 )
 
 /** Close enough to see the streets around you, without losing nearby towns. */

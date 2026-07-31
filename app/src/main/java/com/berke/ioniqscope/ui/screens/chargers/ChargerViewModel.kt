@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.charging.BoundingBox
+import com.berke.ioniqscope.charging.contains
+import com.berke.ioniqscope.charging.paddedBy
 import com.berke.ioniqscope.charging.ChargerRepository
 import com.berke.ioniqscope.charging.ChargerSource
 import com.berke.ioniqscope.charging.Route
@@ -12,15 +14,19 @@ import com.berke.ioniqscope.charging.RouteService
 import com.berke.ioniqscope.charging.SyncState
 import com.berke.ioniqscope.data.AppSettings
 import com.berke.ioniqscope.data.ChargingStationEntity
+import com.berke.ioniqscope.data.OperatorCount
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** One of the nearest places, and how the road gets there. */
 data class SiteRoute(val site: ChargerSite, val route: Route)
@@ -58,6 +64,12 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
      */
     val sites: StateFlow<List<ChargerSite>> = _visible
         .map { items -> groupIntoSites(items).sortedBy { it.distanceMetres ?: Double.MAX_VALUE } }
+        // Off the main thread. `viewModelScope` is Dispatchers.Main.immediate, so
+        // without this the grouping and the sort — a full pass and an n-log-n pass
+        // over as many as 16,000 stations at country zoom — ran on the UI thread
+        // every time the map moved. Measured: a 916 ms frame and "Skipped 50 frames"
+        // the moment a pan settled, which is exactly the pause after letting go.
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _location = MutableStateFlow<LocationState>(LocationState.Unknown)
@@ -75,6 +87,7 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     private val routeService = RouteService()
     private var followJob: Job? = null
+    private var boundsJob: Job? = null
     /** The direct ask that runs alongside a follow, so failures still get reported. */
     private var oneShotJob: Job? = null
     private var routeJob: Job? = null
@@ -107,8 +120,33 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     fun dismissSyncMessage() = repo.clearSyncState()
 
+    /**
+     * The AC/DC switch, wired here as well as in Settings.
+     *
+     * It is the one filter a driver changes while looking at the map — an Ioniq on a
+     * long run wants the DC sites and nothing else, and the same driver parked
+     * overnight wants everything — so it belongs next to the map, not three taps into
+     * a settings screen. Both places write the same stored setting, so they cannot
+     * disagree.
+     */
+    fun setDcOnly(enabled: Boolean) = viewModelScope.launch {
+        services.settings.setChargersDcOnly(enabled)
+    }
+
+    /** Every network with a station, most first — the brand filter's own list. */
+    val operators: StateFlow<List<OperatorCount>> = repo.operators
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Empty means every network, which is what an untouched filter has to mean. */
+    fun setOperators(operators: Set<String>) = viewModelScope.launch {
+        services.settings.setChargersOperators(operators)
+    }
+
     /** Last viewport asked for, so a finished sync can repopulate it. */
     private var lastBounds: BoundingBox? = null
+
+    /** The area [_visible] actually holds, which is wider than the viewport that asked. */
+    private var loadedBox: BoundingBox? = null
 
     /**
      * Re-runs the last query. Called when the cached count changes, because a sync
@@ -116,6 +154,7 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
      * empty until the user happened to pan.
      */
     fun reloadVisible() {
+        invalidate()
         if (_listMode.value && here != null) loadNearest()
         else lastBounds?.let { loadForBounds(it) } ?: loadNearest()
     }
@@ -136,24 +175,59 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
         // While the list is showing nearest-first, panning the map underneath must
         // not quietly replace it with viewport results.
         if (_listMode.value && here != null) return
-        viewModelScope.launch {
+
+        // Panning inside what is already loaded needs no query at all. Every query
+        // fetches a viewport wider than the one that asked for it, so a nudge in any
+        // direction lands inside the last answer and costs nothing — which is most
+        // pans. Only leaving that area goes back to the database.
+        loadedBox?.let { if (it.contains(box)) return }
+
+        val padded = box.paddedBy(VIEWPORT_MARGIN)
+        // A pan that arrives while the last one is still running supersedes it: the
+        // answer to a viewport nobody is looking at any more is worth nothing, and
+        // dragging across the country would otherwise queue one full pass per step.
+        boundsJob?.cancel()
+        boundsJob = viewModelScope.launch {
             val current = settings.first()
             val anchor = here
-            _visible.value = repo.inBounds(box)
-                .filter { passesFilters(it, current) }
-                .map { station -> station.withDistance(anchor) }
-                .sortedBy { it.distanceMetres ?: Double.MAX_VALUE }
+            // Filtered in SQL, so the rows never built are the ones being hidden.
+            val rows = repo.inBounds(
+                padded,
+                dcOnly = current.chargersDcOnly,
+                minPowerKw = current.chargersMinPowerKw.toDouble(),
+                operators = current.chargersOperators
+            )
+            val prepared = withContext(Dispatchers.Default) {
+                rows.map { station -> station.withDistance(anchor) }
+                    .sortedBy { it.distanceMetres ?: Double.MAX_VALUE }
+            }
+            loadedBox = padded
+            _visible.value = prepared
         }
+    }
+
+    /**
+     * Forgets what is loaded, so the next viewport actually queries.
+     *
+     * Anything that changes which stations belong on screen — a filter, a finished
+     * sync — has to go through here, or the skip above happily serves the answer to
+     * the previous question.
+     */
+    private fun invalidate() {
+        loadedBox = null
     }
 
     fun loadNearest() {
         val anchor = here ?: return
         viewModelScope.launch {
             val current = settings.first()
-            _visible.value = repo.nearest(anchor.first, anchor.second, limit = NEAREST_LIMIT)
-                .filter { passesFilters(it, current) }
-                .map { it.withDistance(anchor) }
-                .sortedBy { it.distanceMetres }
+            _visible.value = repo.nearest(
+                anchor.first, anchor.second,
+                dcOnly = current.chargersDcOnly,
+                minPowerKw = current.chargersMinPowerKw.toDouble(),
+                operators = current.chargersOperators,
+                limit = NEAREST_LIMIT
+            ).map { it.withDistance(anchor) }.sortedBy { it.distanceMetres }
         }
     }
 
@@ -165,20 +239,6 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
             }
         )
 
-    /**
-     * `isDc == null` means the source never said. Those are kept even under
-     * "Sadece DC", because with OSM tagging DC on a small minority of Turkish
-     * entries, excluding unknowns would hide most real fast chargers. The UI
-     * states this rather than quietly filtering.
-     */
-    private fun passesFilters(station: ChargingStationEntity, settings: AppSettings): Boolean {
-        if (settings.chargersDcOnly && station.isDc == false) return false
-        if (settings.chargersMinPowerKw > 0) {
-            val power = station.maxPowerKw ?: return false
-            if (power < settings.chargersMinPowerKw) return false
-        }
-        return true
-    }
 
     /**
      * Starts keeping the map on the user.
@@ -204,7 +264,14 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
             finder.stream().collect { fix ->
                 streamed = true
                 _location.value = fix
-                reloadVisible()
+                // Not reloadVisible(). Following delivers a fix a second, and each one
+                // would throw away the loaded area and re-run the whole viewport
+                // pipeline — the exact work the padded box exists to avoid, now on a
+                // timer instead of on a pan. The map moves itself while following, and
+                // moving fires the viewport listener, which loads what is needed. Only
+                // the list asks a question a new position genuinely changes the answer
+                // to, so only the list reloads here.
+                if (_listMode.value) reloadVisible()
                 refreshRoutesIfMoved(fix.lat, fix.lon)
             }
         }
@@ -273,10 +340,17 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
         routedFrom = lat to lon
         routeJob = viewModelScope.launch {
             val current = settings.first()
+            // The same filters the map is showing. A suggestion to drive to a network
+            // the user has just filtered off the map is a suggestion about a station
+            // they have said they cannot use.
             val targets = groupIntoSites(
-                repo.nearest(lat, lon, limit = NEAREST_LIMIT)
-                    .filter { passesFilters(it, current) }
-                    .map { it.withDistance(lat to lon) }
+                repo.nearest(
+                    lat, lon,
+                    dcOnly = current.chargersDcOnly,
+                    minPowerKw = current.chargersMinPowerKw.toDouble(),
+                    operators = current.chargersOperators,
+                    limit = NEAREST_LIMIT
+                ).map { it.withDistance(lat to lon) }
             ).sortedBy { it.distanceMetres ?: Double.MAX_VALUE }
                 .take(ROUTE_COUNT)
 
@@ -288,6 +362,20 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
                 _routes.value = found.toList()
             }
         }
+    }
+
+    /**
+     * Recomputes the suggestions from where the user is now, whatever the distance.
+     *
+     * [refreshRoutesIfMoved] deliberately does nothing until the car has actually gone
+     * somewhere, which is right for a position update and wrong for a filter change:
+     * picking two networks left five suggestions on screen pointing at the three the
+     * user had just switched off, and the lines on the map still ran to them.
+     */
+    fun refreshRoutes() {
+        val (lat, lon) = here ?: return
+        routedFrom = null
+        loadRoutes(lat, lon)
     }
 
     fun clearRoutes() {
@@ -326,8 +414,21 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     companion object {
         private const val NEAREST_LIMIT = 300
 
+        /**
+         * How much wider than the viewport each query reaches, as a fraction of the
+         * viewport's own span.
+         *
+         * The point is to make small pans free. A third on each side covers roughly
+         * a screen's worth of dragging before the database is asked anything, which
+         * is the difference between a pause every time you nudge the map and a pause
+         * only when you actually go somewhere. Wider would skip more queries and make
+         * each one bigger; a third is where those stop trading well at country zoom,
+         * where the answer is already the whole country.
+         */
+        private const val VIEWPORT_MARGIN = 0.33
+
         /** How many places to draw the way to. More than this and the map is lines. */
-        private const val ROUTE_COUNT = 4
+        private const val ROUTE_COUNT = 5
 
         /** Routes are only redrawn once the user has gone this far. */
         private const val ROUTE_REFRESH_M = 500.0

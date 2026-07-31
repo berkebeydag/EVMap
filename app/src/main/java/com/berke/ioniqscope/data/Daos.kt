@@ -49,10 +49,23 @@ interface ChargingStationDao {
      * order, which is insertion order, which is source order — so at country zoom
      * it filled one half of the country with markers and left the other half
      * looking as though it had no chargers at all.
+     *
+     * The filters are here rather than in Kotlin because the cost of this call is
+     * building the row objects, not the scan. Measured at country zoom: 13,379 rows
+     * came back in 81 ms and half of them were discarded a moment later — so half
+     * that time was spent constructing objects for stations the user had asked not
+     * to see.
+     *
+     * `is_dc IS NULL` survives [dcOnly] deliberately, matching what the Kotlin filter
+     * did: a source that never said whether a site is DC is not the same as one that
+     * said AC, and hiding the unknowns would hide real fast chargers.
      */
     @Query(
         "SELECT * FROM charging_stations " +
             "WHERE lat BETWEEN :minLat AND :maxLat AND lon BETWEEN :minLon AND :maxLon " +
+            "AND (:dcOnly = 0 OR is_dc IS NULL OR is_dc != 0) " +
+            "AND (:minPowerKw <= 0 OR (max_power_kw IS NOT NULL AND max_power_kw >= :minPowerKw)) " +
+            "AND (:allBrands = 1 OR operator IN (:brands)) " +
             "LIMIT :limit"
     )
     suspend fun inBounds(
@@ -60,6 +73,10 @@ interface ChargingStationDao {
         maxLat: Double,
         minLon: Double,
         maxLon: Double,
+        dcOnly: Boolean = false,
+        minPowerKw: Double = 0.0,
+        allBrands: Boolean = true,
+        brands: List<String> = listOf(""),
         limit: Int = 100_000
     ): List<ChargingStationEntity>
 
@@ -72,7 +89,11 @@ interface ChargingStationDao {
      * a degree of longitude is not treated as a degree of latitude.
      */
     @Query(
-        "SELECT * FROM charging_stations ORDER BY " +
+        "SELECT * FROM charging_stations WHERE " +
+            "(:dcOnly = 0 OR is_dc IS NULL OR is_dc != 0) " +
+            "AND (:minPowerKw <= 0 OR (max_power_kw IS NOT NULL AND max_power_kw >= :minPowerKw)) " +
+            "AND (:allBrands = 1 OR operator IN (:brands)) " +
+            "ORDER BY " +
             "((lat - :lat) * (lat - :lat)) + " +
             "((lon - :lon) * (lon - :lon) * :lonScale * :lonScale) " +
             "LIMIT :limit"
@@ -81,8 +102,26 @@ interface ChargingStationDao {
         lat: Double,
         lon: Double,
         lonScale: Double,
+        dcOnly: Boolean = false,
+        minPowerKw: Double = 0.0,
+        allBrands: Boolean = true,
+        brands: List<String> = listOf(""),
         limit: Int = 100
     ): List<ChargingStationEntity>
+
+    /**
+     * Every network, most stations first.
+     *
+     * Ordered by how many each one has because that is the order they are useful in:
+     * a filter listing 613 operators alphabetically buries ZES and Trugo — between
+     * them a fifth of the country — under names with one station apiece.
+     */
+    @Query(
+        "SELECT operator AS name, COUNT(*) AS stations FROM charging_stations " +
+            "WHERE operator IS NOT NULL AND operator != '' " +
+            "GROUP BY operator ORDER BY stations DESC, name ASC"
+    )
+    fun observeOperators(): Flow<List<OperatorCount>>
 
     /**
      * Free-text search over the cached stations.

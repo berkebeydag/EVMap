@@ -124,3 +124,9 @@ data class TripSampleEntity(
     @ColumnInfo(name = "value") val value: Double,
     @ColumnInfo(name = "unit") val unit: String
 )
+
+/** One network and how many stations it has, for the brand filter's list. */
+data class OperatorCount(
+    val name: String,
+    val stations: Int
+)

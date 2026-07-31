@@ -47,7 +47,13 @@ data class AppSettings(
      */
     val tomtomApiKey: String = "",
     /** Hide stations not positively marked as DC. */
-    val chargersDcOnly: Boolean = false,
+    /** Default on: an EV on the road wants fast charging, and it halves what is drawn. */
+    val chargersDcOnly: Boolean = true,
+    /**
+     * Which networks to show. Empty means all of them, which is the default and the
+     * only sane one — a filter nobody has touched must not be hiding anything.
+     */
+    val chargersOperators: Set<String> = emptySet(),
     /** Hide stations below this advertised power. 0 disables the filter. */
     val chargersMinPowerKw: Int = 0,
     /** Where the app looks for newer builds. Empty disables updates. */
@@ -84,6 +90,7 @@ class SettingsRepository(private val context: Context) {
         val ocmApiKey = stringPreferencesKey("ocm_api_key")
         val tomtomApiKey = stringPreferencesKey("tomtom_api_key")
         val chargersDcOnly = booleanPreferencesKey("chargers_dc_only")
+        val chargersOperators = stringSetPreferencesKey("chargers_operators")
         val chargersMinPowerKw = intPreferencesKey("chargers_min_power_kw")
         val updateShareLink = stringPreferencesKey("update_share_link")
         val autoCheckUpdates = booleanPreferencesKey("auto_check_updates")
@@ -104,7 +111,8 @@ class SettingsRepository(private val context: Context) {
             autoLogTrips = p[Keys.autoLogTrips] ?: false,
             ocmApiKey = p[Keys.ocmApiKey].orEmpty(),
             tomtomApiKey = p[Keys.tomtomApiKey].orEmpty(),
-            chargersDcOnly = p[Keys.chargersDcOnly] ?: false,
+            chargersDcOnly = p[Keys.chargersDcOnly] ?: true,
+            chargersOperators = p[Keys.chargersOperators] ?: emptySet(),
             chargersMinPowerKw = p[Keys.chargersMinPowerKw] ?: 0,
             // Falls back to the built-in address rather than to empty, so updates
             // work on a fresh install without anyone having to paste a URL in.
@@ -135,6 +143,10 @@ class SettingsRepository(private val context: Context) {
     suspend fun setTomTomApiKey(key: String) = edit { it[Keys.tomtomApiKey] = key.trim() }
 
     suspend fun setChargersDcOnly(enabled: Boolean) = edit { it[Keys.chargersDcOnly] = enabled }
+
+    suspend fun setChargersOperators(operators: Set<String>) = edit {
+        it[Keys.chargersOperators] = operators
+    }
 
     suspend fun setChargersMinPower(kw: Int) = edit {
         it[Keys.chargersMinPowerKw] = kw.coerceIn(0, 400)

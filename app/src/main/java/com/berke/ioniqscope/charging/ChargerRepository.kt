@@ -1,6 +1,7 @@
 package com.berke.ioniqscope.charging
 
 import com.berke.ioniqscope.data.ChargingStationDao
+import com.berke.ioniqscope.data.OperatorCount
 import com.berke.ioniqscope.data.ChargingStationEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,8 +76,27 @@ class ChargerRepository(
 
     fun clearSyncState() { _syncState.value = SyncState.Idle }
 
-    suspend fun inBounds(box: BoundingBox, limit: Int = 100_000): List<ChargingStationEntity> =
-        dao.inBounds(box.minLat, box.maxLat, box.minLon, box.maxLon, limit)
+    suspend fun inBounds(
+        box: BoundingBox,
+        dcOnly: Boolean = false,
+        minPowerKw: Double = 0.0,
+        operators: Set<String> = emptySet(),
+        limit: Int = 100_000
+    ): List<ChargingStationEntity> = dao.inBounds(
+        box.minLat, box.maxLat, box.minLon, box.maxLon,
+        dcOnly, minPowerKw, operators.isEmpty(), operators.orPlaceholder(), limit
+    )
+
+    /** Every network with a station, most first. Drives the brand filter's list. */
+    val operators: Flow<List<OperatorCount>> = dao.observeOperators()
+
+    /**
+     * Room expands `IN (:brands)` literally, and an empty list would render `IN ()`,
+     * which SQLite refuses to parse. The query never reads the list when the
+     * all-brands flag is set, so a single unmatchable value keeps it valid.
+     */
+    private fun Set<String>.orPlaceholder(): List<String> =
+        if (isEmpty()) listOf("") else toList()
 
     /**
      * Nearest stations to a point.
@@ -85,8 +105,17 @@ class ChargerRepository(
      * so they are scaled by cos(lat) before distances are compared — without it,
      * at Turkish latitudes an east-west offset would look about 25% closer than it is.
      */
-    suspend fun nearest(lat: Double, lon: Double, limit: Int = 100): List<ChargingStationEntity> =
-        dao.nearest(lat, lon, cos(lat * PI / 180.0), limit)
+    suspend fun nearest(
+        lat: Double,
+        lon: Double,
+        dcOnly: Boolean = false,
+        minPowerKw: Double = 0.0,
+        operators: Set<String> = emptySet(),
+        limit: Int = 100
+    ): List<ChargingStationEntity> = dao.nearest(
+        lat, lon, cos(lat * PI / 180.0),
+        dcOnly, minPowerKw, operators.isEmpty(), operators.orPlaceholder(), limit
+    )
 
     /**
      * Free-text search, anchored at [lat]/[lon] so results come back nearest-first.

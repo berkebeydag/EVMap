@@ -74,3 +74,26 @@ interface ChargerSource {
  * and one such record next to a real station was enough to poison its count.
  */
 const val PLAUSIBLE_MAX_CHARGE_POINTS = 50
+
+/** True when [other] lies entirely inside this box. */
+fun BoundingBox.contains(other: BoundingBox): Boolean =
+    other.minLat >= minLat && other.maxLat <= maxLat &&
+        other.minLon >= minLon && other.maxLon <= maxLon
+
+/**
+ * The same box grown by [fraction] of its own span on every side.
+ *
+ * Clamped in latitude because Mercator has no data past the poles, and left
+ * unclamped in longitude: a viewport near the antimeridian is a wider query rather
+ * than a wrong one, and the map never goes there.
+ */
+fun BoundingBox.paddedBy(fraction: Double): BoundingBox {
+    val padLat = (maxLat - minLat) * fraction
+    val padLon = (maxLon - minLon) * fraction
+    return BoundingBox(
+        minLat = (minLat - padLat).coerceAtLeast(-85.0),
+        minLon = minLon - padLon,
+        maxLat = (maxLat + padLat).coerceAtMost(85.0),
+        maxLon = maxLon + padLon
+    )
+}

@@ -90,7 +90,17 @@ class ChargerOverlay(
         val west: Double
     )
 
-    private val cellPx = 56f * density
+    /**
+     * How close two sites have to be on screen before they are drawn as one bubble.
+     *
+     * Down from 56dp, which clustered far too eagerly: at street zoom, with whole
+     * streets between them, two stations were still arriving as a numbered blob — and
+     * a bubble reading "2" over a neighbourhood you can see every building in tells
+     * you strictly less than two dots would. This is a hair over the widest marker, so
+     * sites merge only when they would otherwise be drawn on top of each other, and
+     * they separate roughly a zoom and a half earlier than before.
+     */
+    private val cellPx = 22f * density
     private val dotRadius = 5f * density
 
     /** How long each chevron's tail is. Small enough to sit inside the line's width. */
