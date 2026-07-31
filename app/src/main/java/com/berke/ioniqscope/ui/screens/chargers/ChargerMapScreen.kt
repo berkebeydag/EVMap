@@ -639,7 +639,7 @@ private fun ChargerMap(
             osmdroidTileCache = context.cacheDir.resolve("osmdroid")
         }
         MapView(context).apply {
-            setTileSource(CARTO_VOYAGER)
+            setTileSource(CARTO_POSITRON)
             setMultiTouchControls(true)
             // Without this the raster tiles are blitted 1:1 onto a ~3x density
             // screen, which is why the map read as a low-resolution image pasted in.
@@ -854,13 +854,25 @@ private fun openInMaps(context: Context, site: ChargerSite) {
  */
 private const val CARTO_ATTRIBUTION = "© OpenStreetMap contributors © CARTO"
 
-private val CARTO_VOYAGER = XYTileSource(
-    "carto-voyager",
+/**
+ * Positron rather than Voyager.
+ *
+ * Voyager is a warm cream basemap with yellow roads, and it competes: every marker
+ * and every route line on this screen is drawn *over* it, and the road network was
+ * arriving at roughly the same weight and saturation as the data. Positron is the
+ * quiet one in the same family — near-white land, pale blue-grey roads and water,
+ * muted green parks, which is the palette a navigation map wants and what leaves the
+ * chargers as the loudest thing on screen.
+ *
+ * Same provider, same terms, same attribution, and no key or account either way.
+ */
+private val CARTO_POSITRON = XYTileSource(
+    "carto-positron",
     0, 20, 512, "@2x.png",
     arrayOf(
-        "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
-        "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
-        "https://c.basemaps.cartocdn.com/rastertiles/voyager/"
+        "https://a.basemaps.cartocdn.com/rastertiles/light_all/",
+        "https://b.basemaps.cartocdn.com/rastertiles/light_all/",
+        "https://c.basemaps.cartocdn.com/rastertiles/light_all/"
     ),
     CARTO_ATTRIBUTION
 )
