@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The themed-icon layer, where the system throws the colours away and tints whatever
+  it is given a single flat colour.
+
+  So this is a silhouette, not the artwork: the pin with the bolt cut out of it by
+  evenOdd. The road and the disc cannot survive being reduced to one tint — they are
+  three shades of the same shape once the colour is gone — and the bolt is the part
+  that still says what the app is.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M54,86 C54,86 76,63 76,47 A22,22 0 1,0 32,47 C32,63 54,86 54,86 Z
+                          M57,33 L44,50.5 L52,50.5 L49.5,61.5 L63.5,43.5 L55.5,43.5 Z" />
+</vector>

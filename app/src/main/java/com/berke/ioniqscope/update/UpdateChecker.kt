@@ -65,7 +65,7 @@ class UpdateChecker(
 
         if (!silent) _state.value = UpdateState.Checking
         try {
-            val json = JSONObject(Http.get(manifestUrl))
+            val json = JSONObject(Http.get(freshest(manifestUrl)))
             val versionCode = json.optInt("versionCode", -1)
             if (versionCode <= BuildConfig.VERSION_CODE) {
                 _state.value = if (silent) UpdateState.Idle else UpdateState.UpToDate
@@ -104,4 +104,47 @@ class UpdateChecker(
     /** Lets the manifest name the APK relative to itself, so moving hosts is a one-line change. */
     private fun resolve(manifestUrl: String, target: String): String =
         runCatching { URI(manifestUrl).resolve(target).toString() }.getOrDefault(target)
+
+    /**
+     * The same manifest, at an address that cannot be served stale.
+     *
+     * GitHub's raw host puts `Cache-Control: max-age=300` on a branch URL, so for five
+     * minutes after a release the check reads the *previous* manifest and reports,
+     * correctly for what it was given, that there is nothing new. Which is exactly
+     * when someone who has just been told a build is out goes looking for it. Neither
+     * a cache-busting query string nor a `no-cache` request header shifts it —
+     * measured, both come back `X-Cache: HIT` on the old copy — because the branch
+     * path is the whole cache key.
+     *
+     * A commit URL is a different key, and a new release is always a new commit, so
+     * asking the API which commit the branch is on and reading the manifest from
+     * *that* is never a hit on a previous release. The API answers with a 60-second
+     * cache of its own, which is the residual staleness and a twentieth of what it
+     * replaces.
+     *
+     * Entirely an optimisation: any failure — rate limit, no network, a URL that is
+     * not GitHub, a branch that is already a commit — falls back to the address as
+     * given, which still works and is merely slower to notice. That keeps the
+     * arrangement what it was meant to be, a plain file at a plain address, with no
+     * vendor API in the path that anything depends on.
+     */
+    private suspend fun freshest(manifestUrl: String): String {
+        val match = RAW_BRANCH.matchEntire(manifestUrl) ?: return manifestUrl
+        val (owner, repo, ref, path) = match.destructured
+        if (COMMIT_SHA.matches(ref)) return manifestUrl
+        return runCatching {
+            val sha = JSONObject(
+                Http.get("https://api.github.com/repos/$owner/$repo/commits/$ref")
+            ).optString("sha")
+            if (COMMIT_SHA.matches(sha)) {
+                "https://raw.githubusercontent.com/$owner/$repo/$sha/$path"
+            } else manifestUrl
+        }.getOrDefault(manifestUrl)
+    }
+
+    private companion object {
+        val RAW_BRANCH =
+            Regex("""https://raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)/(.+)""")
+        val COMMIT_SHA = Regex("""[0-9a-f]{40}""")
+    }
 }

@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The mark itself, not a redrawing of it.
+
+  The foreground is the artwork cut out of logo.png onto transparency and scaled into
+  the 68dp safe zone, which is the only way it is guaranteed to be exactly the logo —
+  a hand-traced vector was close and visibly not the same drawing.
+
+  Monochrome has to be separate: that layer is flattened to one tint, so the real
+  artwork would arrive as a solid blob. It gets a silhouette instead — the pin with
+  the bolt knocked out of it — which is what survives being reduced to one colour.
+-->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
-    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
 </adaptive-icon>
