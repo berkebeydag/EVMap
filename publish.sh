@@ -41,6 +41,21 @@ VERSION_NAME=$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" <<<"$BADGING")
 SIZE=$(stat -c%s "$APK_OUT")
 NOTES="${1:-$(git log -1 --pretty=%s)}"
 
+# versionCode is the commit count, so publishing without committing first republishes
+# the number that is already out there — and the phone, correctly, sees nothing new
+# and offers no update. That looked exactly like a broken updater. Catch it here,
+# where the fix is one commit away, rather than on the phone.
+if [[ -z "$LOCAL_DIR" ]]; then
+    PUBLISHED=$(git ls-remote origin "refs/heads/$DIST_BRANCH" >/dev/null 2>&1 &&
+        git fetch --quiet origin "$DIST_BRANCH" 2>/dev/null &&
+        git show "FETCH_HEAD:latest.json" 2>/dev/null |
+        sed -n 's/.*"versionCode"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p')
+    if [[ -n "$PUBLISHED" && "$VERSION_CODE" -le "$PUBLISHED" ]]; then
+        echo "build $VERSION_CODE is already published; commit first so the version rises." >&2
+        exit 1
+    fi
+fi
+
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 

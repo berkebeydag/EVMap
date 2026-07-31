@@ -333,5 +333,15 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
         fun hasLocationPermission(context: Context): Boolean =
             LocationFinder(context).hasPermission()
+
+        /**
+         * Whether the fix will be a place or a district.
+         *
+         * Granting "Yaklaşık" instead of "Kesin" is a single tap in the permission
+         * dialog and blurs every position the app is given to a kilometre or two,
+         * which reads as the map being broken rather than as a setting.
+         */
+        fun hasPreciseLocationPermission(context: Context): Boolean =
+            LocationFinder(context).hasPrecisePermission()
     }
 }

@@ -74,6 +74,7 @@ import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * What a site with no operator and no name is called.
@@ -106,15 +107,36 @@ fun ChargerMapScreen(services: ServiceLocator) {
     val showList by vm.listMode.collectAsStateWithLifecycle()
     var searching by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<ChargerSite?>(null) }
-    /** Set when something outside the map asks it to move somewhere. */
-    var moveTo by remember { mutableStateOf<GeoPoint?>(null) }
+    /** Where something outside the map wants it, and how close to sit when it arrives. */
+    var moveTo by remember { mutableStateOf<Pair<GeoPoint, Double>?>(null) }
 
     val locationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { granted -> if (granted.values.any { it }) vm.startFollowing(context) }
 
+    // Re-read on every fix rather than once: the permission dialog can be answered
+    // while this screen is up, and "Kesin" granted mid-session has to stop the note.
+    val precisePermission = remember(location) {
+        ChargerViewModel.hasPreciseLocationPermission(context)
+    }
+
     LaunchedEffect(Unit) {
         if (ChargerViewModel.hasLocationPermission(context)) vm.refreshLocation(context)
+    }
+
+    /**
+     * Opening on the whole country is the right answer exactly once — before anyone
+     * has told the app where they are. After that it is a map of Türkiye when what
+     * was wanted is the chargers within reach, and it took a tap on the locate button
+     * every single time to get there. The first fix after the screen opens moves the
+     * map to it; every move after that is the user's.
+     */
+    var centredOnUser by remember { mutableStateOf(false) }
+    LaunchedEffect(location) {
+        if (centredOnUser) return@LaunchedEffect
+        val fix = location as? LocationState.Known ?: return@LaunchedEffect
+        centredOnUser = true
+        moveTo = GeoPoint(fix.lat, fix.lon) to USER_ZOOM
     }
 
     // Markers come from the cache, so a finished load has to nudge the query.
@@ -184,7 +206,7 @@ fun ChargerMapScreen(services: ServiceLocator) {
                         searching = false
                         vm.clearSearch()
                         selected = site
-                        moveTo = GeoPoint(site.lat, site.lon)
+                        moveTo = GeoPoint(site.lat, site.lon) to PICKED_ZOOM
                     },
                     onClose = {
                         searching = false
@@ -202,7 +224,7 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 )
             }
 
-            locationNote(location, following)?.let {
+            locationNote(location, following, precisePermission)?.let {
                 Banner(text = it, tone = BannerTone.Warning)
             }
 
@@ -514,17 +536,35 @@ private fun chargePointSummary(site: ChargerSite): String? = when (site.chargePo
 }
 
 /** Whatever went wrong with locating, said plainly rather than failing silently. */
-private fun locationNote(location: LocationState, following: Boolean): String? = when {
+private fun locationNote(
+    location: LocationState,
+    following: Boolean,
+    precisePermission: Boolean
+): String? = when {
     location is LocationState.PermissionMissing ->
         "Konum izni verilmedi, bu yüzden harita seni gösteremiyor ve takip edemiyor."
     location is LocationState.Disabled ->
         "Bu cihazda konum kapalı."
     location is LocationState.TimedOut ->
         "Konum alınamadı. Kapalı alanda ya da bina içinde bu uzun sürebilir."
+    // Android's own choice, not ours, and nothing the app does can sharpen it: with
+    // "Yaklaşık" granted the system hands out a deliberately blurred position of a
+    // kilometre or two. That is indistinguishable from a bug from the driver's side —
+    // the marker is simply a district away — so it has to be said out loud, with the
+    // one action that fixes it.
+    !precisePermission && location is LocationState.Known ->
+        "Yalnızca yaklaşık konum izni verilmiş, bu yüzden bir-iki kilometre şaşabilir. " +
+            "Ayarlar › Uygulamalar › IoniqScope › Konum'dan \"Kesin konumu kullan\"ı aç."
     following && location is LocationState.Known && location.fromCache ->
         "Bilinen son konumun takip ediliyor — yeni sinyal bekleniyor."
+    location is LocationState.Known && (location.accuracyMetres ?: 0f) > COARSE_FIX_M ->
+        "Konum şu an yaklaşık ${location.accuracyMetres!!.roundToInt()} m " +
+            "doğrulukta — açık alanda kendiliğinden düzelir."
     else -> null
 }
+
+/** Past this the fix is a neighbourhood, not a place, and the map should say so. */
+private const val COARSE_FIX_M = 300f
 
 @Composable
 private fun ChargerMap(
@@ -535,7 +575,7 @@ private fun ChargerMap(
     onUserPan: () -> Unit,
     userLocation: Pair<Double, Double>?,
     following: Boolean,
-    moveTo: GeoPoint?,
+    moveTo: Pair<GeoPoint, Double>?,
     onMoved: () -> Unit,
     context: Context
 ) {
@@ -594,8 +634,8 @@ private fun ChargerMap(
     }
 
     LaunchedEffect(moveTo) {
-        val target = moveTo ?: return@LaunchedEffect
-        mapView.controller.animateTo(target, PICKED_ZOOM, null)
+        val (target, zoom) = moveTo ?: return@LaunchedEffect
+        mapView.controller.animateTo(target, zoom, null)
         onMoved()
     }
 
