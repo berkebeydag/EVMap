@@ -64,6 +64,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.charging.BoundingBox
+import com.berke.ioniqscope.charging.ChargerTariffs
+import com.berke.ioniqscope.charging.ChargerTariffs.AS_OF
 import com.berke.ioniqscope.data.OperatorCount
 import com.berke.ioniqscope.charging.Http
 import com.berke.ioniqscope.ui.components.Banner
@@ -601,16 +603,48 @@ private fun RouteLegend(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Text(
-                        "${formatDistance(entry.route.metres)} · " +
-                            formatMinutes(entry.route.seconds),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "${formatDistance(entry.route.metres)} · " +
+                                formatMinutes(entry.route.seconds),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        // Rounded to whole lira here and only here. A suggestion is a
+                        // choice between five stops, and "13-16 ₺" separates them just
+                        // as well as "12,99-16,49 ₺" in a third of the width; the exact
+                        // figures are one tap away on the card.
+                        formatTariff(entry.site, short = true)?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+/**
+ * What a stop at this site costs per kWh, as its network published it.
+ *
+ * Prefixed with "~" and never presented as the price: this is the operator's own
+ * tariff, and membership, campaigns, roaming and — by ZES's own admission on its
+ * pricing page — the location itself can all move it. Networks with no published
+ * figure return null and the UI shows nothing, rather than a guess.
+ *
+ * [short] rounds to whole lira for the places measured in millimetres.
+ */
+private fun formatTariff(site: ChargerSite, short: Boolean): String? {
+    val band = ChargerTariffs.bandFor(site.operator, site.isDc) ?: return null
+    fun money(value: Double) =
+        if (short) String.format(Locale.US, "%.0f", value)
+        else String.format(Locale.US, "%.2f", value).replace('.', ',')
+    val figure = if (band.varies) "${money(band.from)}-${money(band.to)}" else money(band.from)
+    return "~$figure ₺" + if (short) "" else "/kWh"
 }
 
 /** A charge rating as a driver reads it, or nothing when nobody published one. */
@@ -770,6 +804,23 @@ private fun SelectedSiteCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            // The one place with room to say what the number actually is. Shown
+            // compactly in two other places, and a price quoted twice over without
+            // ever being explained is a price the user is entitled to think is theirs.
+            formatTariff(site, short = false)?.let { price ->
+                Text(
+                    "$price · ${site.operator} tarifesi, $AS_OF",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+                Text(
+                    "İşletmecinin yayımladığı fiyat. Üyelik, kampanya ve lokasyona " +
+                        "göre değişebilir.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Row(
                 Modifier.padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1048,6 +1099,16 @@ private fun ChargerRow(site: ChargerSite, onNavigate: () -> Unit) {
                         "$it şarj noktası",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                // The network's published rate. Exact figures here, where there is
+                // room for a range and for the "~" that says this is what the network
+                // charges rather than what this socket will bill.
+                formatTariff(site, short = false)?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.secondary
                     )
                 }
             }
