@@ -359,7 +359,11 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
             for (site in targets) {
                 val route = routeService.route(lat, lon, site.lat, site.lon) ?: continue
                 found += SiteRoute(site, route)
-                _routes.value = found.toList()
+                // Sorted here, not at each place that draws them. The panel ordered by
+                // distance while the map coloured by arrival order, so a route's line
+                // and its row in the panel could be given different colours — the two
+                // things the colour exists to tie together.
+                _routes.value = found.sortedBy { it.route.metres }
             }
         }
     }

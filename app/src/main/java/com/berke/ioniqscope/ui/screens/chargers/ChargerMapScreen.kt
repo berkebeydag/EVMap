@@ -936,8 +936,12 @@ private fun ChargerMap(
             overlay.sites = sites
             overlay.routes = routes.mapIndexed { index, entry ->
                 ChargerOverlay.DrawnRoute(
-                    entry.route.points,
-                    ROUTE_COLOURS[index % ROUTE_COLOURS.size]
+                    points = entry.route.points,
+                    color = ROUTE_COLOURS[index % ROUTE_COLOURS.size],
+                    // The station's own coordinate, not the route's last point: the
+                    // route ends where the road does, which is the kerb outside.
+                    destinationLat = entry.site.lat,
+                    destinationLon = entry.site.lon
                 )
             }
             map.invalidate()
@@ -1163,16 +1167,40 @@ private val MAP_MARKERS = ChargerOverlay.Colors(
  * basemap — which is what rules out the obvious road-grey and motorway-blue.
  */
 private val BRAND_COLOURS = mapOf(
-    "ZES" to 0xFF00897B.toInt(),          // teal
-    "Eşarj" to 0xFFE53935.toInt(),        // red
-    "Otopriz" to 0xFF43A047.toInt(),      // green
-    "Trugo" to 0xFF1E88E5.toInt(),        // blue
-    "Sharz" to 0xFF8E24AA.toInt(),        // purple
-    "Toger" to 0xFFF57C00.toInt(),        // orange
-    "WAT Mobilite" to 0xFF00ACC1.toInt(), // cyan
-    "Voltrun" to 0xFF6D4C41.toInt(),      // brown
-    "PowerŞarj" to 0xFFC2185B.toInt(),    // magenta
-    "Astor Şarj" to 0xFF7CB342.toInt()    // lime
+    // Tier one: the six largest, a third of every station in the country between
+    // them. These are pushed as far apart in hue as six colours go, because these are
+    // the ones a glance has to separate. The pairing that used to break this was ZES
+    // and WAT Mobilite — the first and fourth largest — sitting on 00897B and 00ACC1,
+    // which is the same teal twice.
+    "ZES" to 0xFF2E7D32.toInt(),           // green
+    "Trugo" to 0xFF283593.toInt(),         // indigo
+    "Voltrun" to 0xFFEF6C00.toInt(),       // orange
+    "WAT Mobilite" to 0xFF00BCD4.toInt(),  // cyan
+    "Eşarj" to 0xFFD32F2F.toInt(),         // red
+    "Otopriz" to 0xFF7B1FA2.toInt(),       // purple
+
+    // Tier two fills the gaps between those hues. Ranks 7 to 15, another 14% — and
+    // the tier the old palette skipped entirely: it spent colours on Toger, PowerŞarj
+    // and Astor Şarj, which are 19th and below, while Otojet, En Yakıt and Otowatt sat
+    // in the neutral grey with three hundred stations apiece.
+    "Otojet" to 0xFFF9A825.toInt(),        // amber
+    "En Yakıt" to 0xFF6D4C41.toInt(),      // brown
+    "Otowatt" to 0xFF00897B.toInt(),       // teal
+    "Sharz" to 0xFFC2185B.toInt(),         // magenta
+    "Aksa Şarj" to 0xFF558B2F.toInt(),     // olive
+    "Autel" to 0xFF5E35B1.toInt(),         // violet
+    "Beefull" to 0xFFFF7043.toInt(),       // coral
+    "ovolt" to 0xFF0288D1.toInt(),         // light blue
+    "EPSIS" to 0xFFAD1457.toInt(),         // dark pink
+
+    // Tier three, ranks 16 to 20. Past here the differences stop being readable on a
+    // 10dp dot, so the tail keeps the neutral grey rather than being given colours
+    // nobody could tell apart.
+    "D-Charge" to 0xFF37474F.toInt(),      // slate
+    "5 Şarj" to 0xFF8D6E63.toInt(),        // light brown
+    "Oncharge" to 0xFF689F38.toInt(),      // light green
+    "Astor Şarj" to 0xFF7CB342.toInt(),    // lime
+    "Efish" to 0xFF26A69A.toInt()          // light teal
 )
 
 /**

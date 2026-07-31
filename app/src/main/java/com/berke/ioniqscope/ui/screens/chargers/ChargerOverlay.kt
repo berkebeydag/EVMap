@@ -68,7 +68,13 @@ class ChargerOverlay(
     /** Routes to the nearest few sites, each in its own colour. Empty draws nothing. */
     var routes: List<DrawnRoute> = emptyList()
 
-    class DrawnRoute(val points: List<Pair<Double, Double>>, val color: Int)
+    class DrawnRoute(
+        val points: List<Pair<Double, Double>>,
+        val color: Int,
+        /** Where the route is actually going, so the pin lands on the station. */
+        val destinationLat: Double,
+        val destinationLon: Double
+    )
 
     /** Screen positions from the last draw, reused for hit-testing. */
     private var singles: List<Pair<Point, ChargerSite>> = emptyList()
@@ -181,6 +187,11 @@ class ChargerOverlay(
         color = 0xB8FFFFFF.toInt()
     }
     private val arrowPath = Path()
+    private val pinPath = Path()
+
+    /** Sized against the markers: clearly the larger thing without burying them. */
+    private val pinRadius = 8f * density
+    private val pinHeight = 20f * density
 
     private val path = Path()
     private val reusablePoint = Point()
@@ -243,9 +254,55 @@ class ChargerOverlay(
         }
 
         drawLabels(canvas, singleTargets, clusterTargets)
+        // Last, over everything. A suggestion's end point is the one marker on this
+        // screen the user is being pointed at, and drawn in with the rest it was a dot
+        // among five hundred dots — indistinguishable from the stations it was being
+        // recommended over.
+        drawDestinations(canvas, projection)
 
         singles = singleTargets
         clusters = clusterTargets
+    }
+
+    /**
+     * A pin at the end of each route, in that route's own colour.
+     *
+     * A pin rather than a bigger dot: the shape is what separates "this is where you
+     * are being sent" from "this is a charging station", and the tip gives it a exact
+     * point on the map, which a circle does not have. The colour is what ties it to
+     * its line and to its row in the panel.
+     */
+    private fun drawDestinations(canvas: Canvas, projection: Projection) {
+        for (route in routes) {
+            projection.toPixels(
+                GeoPoint(route.destinationLat, route.destinationLon), reusablePoint
+            )
+            val x = reusablePoint.x.toFloat()
+            val y = reusablePoint.y.toFloat()
+            if (x < -pinHeight || y < -pinHeight ||
+                x > canvas.width + pinHeight || y > canvas.height + pinHeight
+            ) continue
+
+            val centreY = y - pinHeight
+            pinPath.rewind()
+            pinPath.addCircle(x, centreY, pinRadius, Path.Direction.CW)
+            // The tail, from the circle's lower flanks down to the point. Overlapping
+            // the circle is fine and deliberate — one fill, non-zero winding, so the
+            // two shapes come out as one silhouette with no seam between them.
+            pinPath.moveTo(x - pinRadius * 0.7f, centreY + pinRadius * 0.72f)
+            pinPath.lineTo(x, y)
+            pinPath.lineTo(x + pinRadius * 0.7f, centreY + pinRadius * 0.72f)
+            pinPath.close()
+
+            fill.color = route.color
+            canvas.drawPath(pinPath, fill)
+            stroke.color = colors.outline
+            canvas.drawPath(pinPath, stroke)
+            // A hole in the middle, so the pin reads as a pin at a glance rather than
+            // as a coloured blob, and so the outline is not the only thing shaping it.
+            fill.color = colors.outline
+            canvas.drawCircle(x, centreY, pinRadius * 0.34f, fill)
+        }
     }
 
     /** One dot with a ring, the same treatment for a site and for a group. */
