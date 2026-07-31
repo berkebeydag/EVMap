@@ -9,7 +9,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -117,9 +120,17 @@ fun IoniqScopeRoot(services: ServiceLocator) {
             )
         },
         bottomBar = {
-            // Shorter than the 80dp default. Three items do not need the height five
+            // Shorter than the 80dp default — three items do not need the height five
             // did, and this bar sits under a map that wants every row it can get.
-            NavigationBar(Modifier.height(64.dp)) {
+            //
+            // Added to the gesture bar's own inset rather than replacing it. A flat
+            // 64dp is the height of *everything*, insets included, so on a phone with
+            // gesture navigation the labels were squeezed down into the system bar's
+            // space and ended up sitting on the line itself. This is 60dp of bar plus
+            // however much the system is reserving underneath it.
+            val systemBar = WindowInsets.navigationBars.asPaddingValues()
+                .calculateBottomPadding()
+            NavigationBar(Modifier.height(60.dp + systemBar)) {
                 Destination.bottomBar.forEach { destination ->
                     NavigationBarItem(
                         selected = current == destination,

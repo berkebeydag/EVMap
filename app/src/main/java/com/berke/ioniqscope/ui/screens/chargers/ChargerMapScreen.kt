@@ -585,15 +585,21 @@ private fun RouteLegend(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        destinationOf(entry.site)?.let {
-                            Text(
-                                it,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        // Power first, then where. The kW is what decides whether a
+                        // suggestion is worth taking — 180 and 11 are twenty minutes
+                        // and an evening — and it was the one thing on this panel the
+                        // map markers said and it did not. On the same line as the
+                        // destination so the panel does not grow a row to say it.
+                        Text(
+                            listOfNotNull(
+                                formatPower(entry.site.maxPowerKw),
+                                destinationOf(entry.site)
+                            ).joinToString(" · "),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                     Text(
                         "${formatDistance(entry.route.metres)} · " +
@@ -605,6 +611,15 @@ private fun RouteLegend(
             }
         }
     }
+}
+
+/** A charge rating as a driver reads it, or nothing when nobody published one. */
+private fun formatPower(kw: Double?): String? {
+    val value = kw?.takeIf { it > 0 } ?: return null
+    // Whole numbers for whole ratings: "22 kW", not "22.0 kW". The halves that really
+    // occur — 7.4, 3.7 — are genuine and stay.
+    return if (value % 1.0 == 0.0) "${value.toInt()} kW"
+    else String.format(Locale.getDefault(), "%.1f kW", value)
 }
 
 /**
@@ -619,13 +634,16 @@ private fun destinationOf(site: ChargerSite): String? {
     site.name?.takeIf { it.isNotBlank() && it != site.operator }?.let { return it }
     val address = site.address?.takeIf { it.isNotBlank() } ?: return null
     val parts = address.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-    // Drop a bare postcode wherever it sits, then keep the street and the district.
+    // Drop a bare postcode wherever it sits and keep the first part, which in a
+    // Turkish address is the neighbourhood — the word that actually locates it.
+    //
+    // Just the one part. It used to carry the district too, and once the charge rating
+    // joined it on the same line the pair no longer fit: five rows read "Etiler, Ko…",
+    // "Mimarsin…", "Oğuzlar, K…". The district was the half worth losing anyway, since
+    // suggestions are all within a few kilometres and it is usually the same for every
+    // one of them.
     val useful = parts.filterNot { it.length == 5 && it.all(Char::isDigit) }
-    return when {
-        useful.isEmpty() -> null
-        useful.size <= 2 -> useful.joinToString(", ")
-        else -> "${useful.first()}, ${useful[useful.lastIndex - 1]}"
-    }
+    return useful.firstOrNull()
 }
 
 /**
