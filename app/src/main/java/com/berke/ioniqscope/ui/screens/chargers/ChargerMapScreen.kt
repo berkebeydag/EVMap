@@ -1291,8 +1291,11 @@ private val MAP_MARKERS = ChargerOverlay.Colors(
     outline = 0xFFFFFFFF.toInt(),
     user = 0xFF1A73E8.toInt(),
     userRing = 0xFFFFFFFF.toInt(),
-    label = 0xFF1F2937.toInt(),
-    labelHalo = 0xE6FFFFFF.toInt(),
+    // Warm, to sit on parchment rather than on the slate the map used to be. The
+    // halo is the basemap's own cream, so a name crossing a road reads as printed on
+    // the map instead of pasted over it.
+    label = 0xFF5F5749.toInt(),
+    labelHalo = 0xF0F6F1E6.toInt(),
     routeCasing = 0x66000000
 )
 

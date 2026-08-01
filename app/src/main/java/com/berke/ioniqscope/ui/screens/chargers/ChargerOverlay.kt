@@ -1,5 +1,6 @@
 package com.berke.ioniqscope.ui.screens.chargers
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -189,9 +190,30 @@ class ChargerOverlay(
     private val arrowPath = Path()
     private val pinPath = Path()
 
-    /** Sized against the markers: clearly the larger thing without burying them. */
-    private val pinRadius = 8f * density
-    private val pinHeight = 20f * density
+    /** Half the pin's height; the tip sits on the site and the body above it. */
+    private val pinBody = 8f * density
+    private val shadowDrop = 1.6f * density
+
+    /**
+     * The teardrop: a circle a body's height up plus a tail down to the tip. The
+     * overlap is deliberate — one fill with non-zero winding makes them a single
+     * silhouette with no seam where they meet.
+     */
+    /**
+     * One rendered pin per colour and size. Bounded by the palette, not by the map:
+     * twenty brands plus the neutral, times two sizes, is the whole cache.
+     */
+    private val pinCache = HashMap<Pair<Int, Boolean>, Bitmap>()
+
+    /**
+     * Sized against the markers: clearly the larger thing without burying them.
+     *
+     * Every site is a pin now, so a destination that was merely a pin no longer says
+     * anything. Half again as wide is what separates "you are being sent here" from
+     * "there is a charger here" once the shape is shared.
+     */
+    private val pinRadius = 11.5f * density
+    private val pinHeight = 26f * density
 
     private val path = Path()
     private val reusablePoint = Point()
@@ -230,8 +252,10 @@ class ChargerOverlay(
         for (bucket in buckets.values) {
             if (bucket.size == 1) {
                 val (point, site) = bucket.first()
-                drawDot(canvas, point.x.toFloat(), point.y.toFloat(), radiusFor(site),
-                    brandColor(site.operator))
+                drawSitePin(
+                    canvas, point.x.toFloat(), point.y.toFloat(),
+                    big = site.isDc == true, color = brandColor(site.operator)
+                )
                 singleTargets += point to site
             } else {
                 // Centroid keeps the marker over the group rather than on one member.
@@ -305,12 +329,64 @@ class ChargerOverlay(
         }
     }
 
-    /** One dot with a ring, the same treatment for a site and for a group. */
+    /** One dot with a ring, kept for the groups, which are not places. */
     private fun drawDot(canvas: Canvas, x: Float, y: Float, radius: Float, color: Int) {
         fill.color = color
         canvas.drawCircle(x, y, radius, fill)
         stroke.color = colors.outline
         canvas.drawCircle(x, y, radius, stroke)
+    }
+
+    /**
+     * A site, drawn as a pin rather than a dot.
+     *
+     * The dot was honest and flat: it marked a coordinate without saying it was a place
+     * you go to. A teardrop has a tip, so it points at its own spot instead of covering
+     * it, and it reads as somewhere on a map rather than as data plotted over one —
+     * which is most of what makes the design's map look calmer than ours did.
+     *
+     * Drawn from a cached bitmap rather than a path. Measured: three paths per marker
+     * — shadow, body, hole — through a scaled canvas took panning from 6% janky frames
+     * to 66%, and the 99th percentile frame from 19 ms to 101 ms, because a scaled path
+     * is re-tessellated every time it is drawn and there are hundreds on screen. A
+     * bitmap is one blit, the tessellation happens once per colour, and there are only
+     * about twenty colours in the whole palette.
+     */
+    private fun drawSitePin(canvas: Canvas, x: Float, y: Float, big: Boolean, color: Int) {
+        val bitmap = pinCache.getOrPut(color to big) { buildPin(color, big) }
+        canvas.drawBitmap(bitmap, x - bitmap.width / 2f, y - bitmap.height + shadowDrop, null)
+    }
+
+    /** One pin, rendered once. Tip at the bottom centre, body and shadow above it. */
+    private fun buildPin(color: Int, big: Boolean): Bitmap {
+        val body = if (big) pinBody * 1.15f else pinBody
+        val width = Math.ceil((body * 2 + 2 * density).toDouble()).toInt()
+        val height = Math.ceil((body * 2 + shadowDrop + 2 * density).toDouble()).toInt()
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val into = Canvas(bitmap)
+
+        val shape = Path().apply {
+            addCircle(0f, -body, body, Path.Direction.CW)
+            moveTo(-body * 0.68f, -body * 0.72f)
+            lineTo(0f, 0f)
+            lineTo(body * 0.68f, -body * 0.72f)
+            close()
+        }
+
+        into.translate(width / 2f, height - 1f - shadowDrop)
+        // A soft drop, as an offset copy: shadow layers fall off the hardware path.
+        fill.color = SHADOW
+        into.translate(0f, shadowDrop)
+        into.drawPath(shape, fill)
+        into.translate(0f, -shadowDrop)
+
+        fill.color = color
+        into.drawPath(shape, fill)
+        // The hole reads as a socket at any size and keeps the silhouette from
+        // becoming a solid blob when several sit together.
+        fill.color = colors.outline
+        into.drawCircle(0f, -body, body * 0.30f, fill)
+        return bitmap
     }
 
     /**
@@ -360,7 +436,7 @@ class ChargerOverlay(
             if (drawn >= MAX_LABELS) return
             val name = labelFor(site) ?: continue
             if (place(canvas, name, point.x.toFloat(),
-                    point.y + radiusFor(site) + brand.textSize)) drawn++
+                    point.y + brand.textSize * 0.9f)) drawn++
         }
     }
 
@@ -680,5 +756,8 @@ class ChargerOverlay(
 
         /** Below this a route point is visually identical to the last one. */
         const val ROUTE_MIN_STEP_PX = 2f
+
+        /** The design's drop, soft enough to read as depth rather than as an edge. */
+        const val SHADOW = 0x38000000
     }
 }

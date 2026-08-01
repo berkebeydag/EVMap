@@ -6,7 +6,7 @@
     <string name="nav_dashboard">Gösterge</string>
     <string name="nav_performance">Performans</string>
     <string name="nav_diagnostics">Arıza</string>
-    <string name="nav_trips">Seferler</string>
+    <string name="nav_trips">Yolculuklar</string>
     <string name="nav_chargers">Şarj</string>
     <string name="nav_settings">Ayarlar</string>
     <string name="nav_console">Komut konsolu</string>
