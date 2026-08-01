@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#050D12; font-family:'Plus Jakarta Sans',sans-serif; }
+  a { color:#22C1D6; text-decoration:none } a:hover { color:#6DBE4B }
+  @keyframes blip { 0%{transform:scale(.6);opacity:.6} 100%{transform:scale(2);opacity:0} }
+</style>
+</helmet>
+
+<section style="padding:56px 56px 100px; background:#050D12; display:flex; flex-direction:column; gap:36px">
+  <div>
+    <div style="display:flex; align-items:center; gap:12px">
+      <div style="width:32px; height:32px; border-radius:10px; background:linear-gradient(145deg,#22C1D6,#0E8FA0); display:flex; align-items:center; justify-content:center"><div style="width:9px; height:16px; background:#05161C; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div>
+      <span style="font-size:24px; font-weight:800; color:#E6F2F5; letter-spacing:-.5px">SarjBul — Parşömen</span>
+    </div>
+    <div style="margin-top:8px; font-size:13px; color:#93AAB4; max-width:600px; line-height:1.55">Apple Maps karakterinde sakin, kromsuz harita; tüm ekranlar aynı dilde. Alt gezinme: Şarj · Yolculuklar · OBD.</div>
+  </div>
+
+  <div style="display:flex; gap:44px; flex-wrap:wrap; align-items:flex-start">
+<!-- 1 · ŞARJ / HARİTA -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:10px">
+        <span style="width:6px; height:6px; border-radius:50%; background:#6DBE4B"></span>
+        <span lang="tr" style="font:700 12px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#E6F2F5">Şarj — Harita</span>
+      </div>
+      <div data-screen-label="Şarj Harita" style="width:412px; height:915px; background:#F6F1E6; border:1px solid #35525E; border-radius:34px; overflow:hidden; position:relative; display:flex; flex-direction:column; box-shadow:0 36px 80px rgba(0,0,0,.6)">
+        <div style="position:absolute; inset:0; background:#F6F1E6"></div>
+        <div style="position:relative; z-index:6; height:32px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font:600 12px 'Plus Jakarta Sans',sans-serif; color:#E6F2F5; background:#0A161D">
+          <span>1:03</span><div style="width:22px;height:11px;border:1.5px solid #93AAB4;border-radius:3px;padding:1.5px;display:flex"><div style="width:78%;background:#E6F2F5;border-radius:1px"></div></div>
+        </div>
+
+        <div style="position:absolute; left:-70px; top:-40px; width:250px; height:280px; background:#B9D9EB"></div>
+        <div style="position:absolute; left:120px; top:120px; width:170px; height:120px; background:#B9D9EB; border-radius:0 0 70% 40%"></div>
+        <div style="position:absolute; left:40px; top:470px; width:130px; height:90px; background:#DCE8D0; border-radius:40% 60% 50% 45%"></div>
+        <div style="position:absolute; left:250px; top:600px; width:150px; height:110px; background:#DCE8D0; border-radius:55% 40% 45% 60%"></div>
+        <div style="position:absolute; left:-40px; top:250px; width:520px; height:10px; background:#FFF; box-shadow:0 0 0 1px #E6DFCE; transform:rotate(-6deg)"></div>
+        <div style="position:absolute; left:-40px; top:430px; width:520px; height:8px; background:#FFF; box-shadow:0 0 0 1px #E6DFCE; transform:rotate(4deg)"></div>
+        <div style="position:absolute; left:-40px; top:640px; width:520px; height:7px; background:#FFF; box-shadow:0 0 0 1px #E6DFCE; transform:rotate(-2deg)"></div>
+        <div style="position:absolute; left:150px; top:-20px; width:7px; height:900px; background:#FFF; box-shadow:0 0 0 1px #E6DFCE; transform:rotate(8deg)"></div>
+        <div style="position:absolute; left:320px; top:-20px; width:5px; height:900px; background:#FFF; box-shadow:0 0 0 1px #E6DFCE; transform:rotate(-6deg)"></div>
+        <div style="position:absolute; left:44px; top:392px; font:600 17px 'Plus Jakarta Sans'; color:#8A8172; letter-spacing:1.5px">İZMİR</div>
+        <div style="position:absolute; left:196px; top:266px; font:500 10px 'Plus Jakarta Sans'; color:#A39A88; transform:rotate(-6deg)">Liman Caddesi</div>
+        <div style="position:absolute; left:64px; top:498px; font:500 10px 'Plus Jakarta Sans'; color:#A39A88">Kültürpark</div>
+
+        <!-- route -->
+        <div style="position:absolute; left:176px; top:404px; width:132px; height:5px; border-radius:3px; background:#22C1D6; transform:rotate(-34deg); transform-origin:left"></div>
+        <div style="position:absolute; left:176px; top:404px; width:142px; height:4px; border-radius:3px; background:#8B5CF6; transform:rotate(52deg); transform-origin:left"></div>
+        <div style="position:absolute; left:176px; top:404px; width:120px; height:4px; border-radius:3px; background:#1BA98A; transform:rotate(205deg); transform-origin:left"></div>
+        <div style="position:absolute; left:176px; top:404px; width:140px; height:4px; border-radius:3px; background:#E8467C; transform:rotate(118deg); transform-origin:left"></div>
+        <div style="position:absolute; left:176px; top:404px; width:200px; height:4px; border-radius:3px; background:#F0862B; transform:rotate(72deg); transform-origin:left"></div>
+
+        <!-- stations -->
+        <div style="position:absolute; left:286px; top:314px; display:flex; flex-direction:column; align-items:center; gap:4px">
+          <div style="width:32px; height:32px; border-radius:50% 50% 50% 0; background:#22C1D6; transform:rotate(-45deg); box-shadow:0 4px 10px rgba(0,0,0,.22); display:flex; align-items:center; justify-content:center"><div style="width:9px; height:15px; background:#FFF; transform:rotate(45deg); clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div>
+          <span style="font:700 10px 'Plus Jakarta Sans'; color:#5F5749; text-shadow:0 0 4px #F6F1E6">Shell Recharge</span>
+        </div>
+        <div style="position:absolute; left:250px; top:504px; display:flex; flex-direction:column; align-items:center; gap:4px">
+          <div style="width:26px; height:26px; border-radius:50% 50% 50% 0; background:#8B5CF6; transform:rotate(-45deg); box-shadow:0 4px 10px rgba(0,0,0,.22); display:flex; align-items:center; justify-content:center"><div style="width:8px; height:8px; border-radius:50%; background:#FFF; transform:rotate(45deg)"></div></div>
+          <span style="font:600 9.5px 'Plus Jakarta Sans'; color:#5F5749; text-shadow:0 0 4px #F6F1E6">Otowatt 60 kW</span>
+        </div>
+        <div style="position:absolute; left:56px; top:334px; display:flex; flex-direction:column; align-items:center; gap:4px">
+          <div style="width:26px; height:26px; border-radius:50% 50% 50% 0; background:#1BA98A; transform:rotate(-45deg); box-shadow:0 4px 10px rgba(0,0,0,.22); display:flex; align-items:center; justify-content:center"><div style="width:8px; height:8px; border-radius:50%; background:#FFF; transform:rotate(45deg)"></div></div>
+          <span style="font:600 9.5px 'Plus Jakarta Sans'; color:#5F5749; text-shadow:0 0 4px #F6F1E6">Estasyon 100 kW</span>
+        </div>
+        <div style="position:absolute; left:96px; top:514px; display:flex; flex-direction:column; align-items:center; gap:4px">
+          <div style="width:26px; height:26px; border-radius:50% 50% 50% 0; background:#E8467C; transform:rotate(-45deg); box-shadow:0 4px 10px rgba(0,0,0,.22); display:flex; align-items:center; justify-content:center"><div style="width:8px; height:8px; border-radius:50%; background:#FFF; transform:rotate(45deg)"></div></div>
+          <span style="font:600 9.5px 'Plus Jakarta Sans'; color:#5F5749; text-shadow:0 0 4px #F6F1E6">E4 ŞARJ 60 kW</span>
+        </div>
+        <div style="position:absolute; left:226px; top:582px; display:flex; flex-direction:column; align-items:center; gap:4px">
+          <div style="width:26px; height:26px; border-radius:50% 50% 50% 0; background:#F0862B; transform:rotate(-45deg); box-shadow:0 4px 10px rgba(0,0,0,.22); display:flex; align-items:center; justify-content:center"><div style="width:8px; height:8px; border-radius:50%; background:#FFF; transform:rotate(45deg)"></div></div>
+          <span style="font:600 9.5px 'Plus Jakarta Sans'; color:#5F5749; text-shadow:0 0 4px #F6F1E6">ZES 400 kW</span>
+        </div>
+        <div style="position:absolute; left:330px; top:672px; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:11px; height:11px; border-radius:50%; background:#93AAB4; border:2px solid #FFF; box-shadow:0 1px 3px rgba(0,0,0,.25)"></div><span style="font:600 9.5px 'Plus Jakarta Sans'; color:#7A7266; text-shadow:0 0 4px #F6F1E6">Trugo 120 kW</span></div>
+        <div style="position:absolute; left:78px; top:672px; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:11px; height:11px; border-radius:50%; background:#93AAB4; border:2px solid #FFF; box-shadow:0 1px 3px rgba(0,0,0,.25)"></div><span style="font:600 9.5px 'Plus Jakarta Sans'; color:#7A7266; text-shadow:0 0 4px #F6F1E6">Otowatt 90 kW</span></div>
+        <div style="position:absolute; left:168px; top:396px"><div style="position:absolute; inset:-5px; border-radius:50%; background:#22C1D6; animation:blip 2.4s ease-out infinite"></div><div style="width:16px; height:16px; border-radius:50%; background:#1B7FD1; border:3px solid #FFF; box-shadow:0 2px 6px rgba(0,0,0,.3)"></div></div>
+
+        <!-- floating chrome -->
+        <div style="position:relative; z-index:3; padding:10px 14px 0; display:flex; align-items:center; gap:10px">
+          <div style="flex:1; height:46px; border-radius:23px; background:rgba(255,255,255,.92); backdrop-filter:blur(16px); box-shadow:0 6px 20px rgba(90,80,60,.22); display:flex; align-items:center; gap:10px; padding:0 16px">
+            <div style="width:15px; height:15px; border:2px solid #8A8172; border-radius:50%; position:relative"><div style="position:absolute; right:-5px; bottom:-4px; width:7px; height:2px; background:#8A8172; transform:rotate(45deg)"></div></div>
+            <span style="font-size:14.5px; color:#8A8172">İstasyon veya konum ara</span>
+          </div>
+          <div style="width:46px; height:46px; border-radius:23px; background:rgba(255,255,255,.92); backdrop-filter:blur(16px); box-shadow:0 6px 20px rgba(90,80,60,.22); display:flex; align-items:center; justify-content:center; position:relative">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2C3A40" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 8.5 17 15.5 12 19.5 12 4.5 17 8.5 7 15.5"></polyline></svg>
+            <span style="position:absolute; right:9px; top:9px; width:8px; height:8px; border-radius:50%; background:#6DBE4B; border:2px solid #FFF"></span>
+          </div>
+          <div style="width:46px; height:46px; border-radius:23px; background:rgba(255,255,255,.92); backdrop-filter:blur(16px); box-shadow:0 6px 20px rgba(90,80,60,.22); display:flex; align-items:center; justify-content:center"><div style="width:32px; height:32px; border-radius:50%; background:#E9E2D2; border:1px solid #D5CBB4; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#0E8FA0">AK</div></div>
+        </div>
+
+        <div style="position:absolute; left:14px; top:104px; z-index:3; width:184px; background:rgba(12,26,34,.93); backdrop-filter:blur(10px); border:1px solid rgba(53,82,94,.9); border-radius:14px; padding:4px; box-shadow:0 12px 28px rgba(60,52,38,.35); display:flex; flex-direction:column">
+          <div style="display:flex; align-items:center; gap:7px; padding:5px 7px">
+            <span style="width:7px; height:7px; border-radius:50%; background:#22C1D6; flex:none"></span>
+            <span style="flex:1; min-width:0; font-size:11.5px; font-weight:700; color:#E6F2F5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Shell Recharge</span>
+            <span style="font:600 10.5px 'Plus Jakarta Sans'; color:#E6F2F5">450 m</span>
+            <span style="font:600 10.5px 'Plus Jakarta Sans'; color:#6DBE4B; width:34px; text-align:right">~15₺</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:7px; padding:5px 7px">
+            <span style="width:7px; height:7px; border-radius:50%; background:#8B5CF6; flex:none"></span>
+            <span style="flex:1; min-width:0; font-size:11.5px; font-weight:700; color:#E6F2F5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Otowatt</span>
+            <span style="font:600 10.5px 'Plus Jakarta Sans'; color:#E6F2F5">842 m</span>
+            <span style="font:600 10.5px 'Plus Jakarta Sans'; color:#93AAB4; width:34px; text-align:right">~14₺</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:7px; padding:5px 7px">
+            <span style="width:7px; height:7px; border-radius:50%; background:#1BA98A; flex:none"></span>
+            <span style="flex:1; min-width:0; font-size:11.5px; font-weight:700; color:#E6F2F5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Estasyon</span>
+            <span style="font:600 10.5px 'Plus Jakarta Sans'; color:#E6F2F5">1.2 km</span>
+            <span style="font:600 10.5px 'Plus Jakarta Sans'; color:#93AAB4; width:34px; text-align:right">~12₺</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:7px; padding:5px 7px">
+            <span style="width:7px; height:7px; border-radius:50%; background:#E8467C; flex:none"></span>
+            <span style="flex:1; min-width:0; font-size:11.5px; font-weight:700; color:#E6F2F5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">E4 ŞARJ</span>
+            <span style="font:600 10.5px 'Plus Jakarta Sans'; color:#E6F2F5">1.5 km</span>
+            <span style="font:600 10.5px 'Plus Jakarta Sans'; color:#FF6B6B; width:34px; text-align:right">~18₺</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:7px; padding:5px 7px">
+            <span style="width:7px; height:7px; border-radius:50%; background:#F0862B; flex:none"></span>
+            <span style="flex:1; min-width:0; font-size:11.5px; font-weight:700; color:#E6F2F5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">ZES</span>
+            <span style="font:600 10.5px 'Plus Jakarta Sans'; color:#E6F2F5">1.7 km</span>
+            <span style="font:600 10.5px 'Plus Jakarta Sans'; color:#93AAB4; width:34px; text-align:right">~15₺</span>
+          </div>
+        </div>
+
+        <div style="position:absolute; right:14px; bottom:186px; z-index:3; width:46px; border-radius:23px; background:rgba(255,255,255,.92); backdrop-filter:blur(16px); box-shadow:0 6px 20px rgba(90,80,60,.22); display:flex; flex-direction:column; align-items:center">
+          <div style="width:46px; height:46px; display:flex; align-items:center; justify-content:center"><div style="width:14px; height:14px; border:2px solid #0E8FA0; border-radius:50%; position:relative"><div style="position:absolute; inset:3px; background:#0E8FA0; border-radius:50%"></div></div></div>
+          <div style="width:26px; height:1px; background:#E6DFCE"></div>
+          <div onClick="{{ toggleAc }}" style="width:46px; height:38px; display:flex; align-items:center; justify-content:center; cursor:pointer">
+            <div style="{{ acStyle }}">AC</div>
+          </div>
+          <div style="width:26px; height:1px; background:#E6DFCE"></div>
+          <div onClick="{{ toggleDc }}" style="width:46px; height:38px; display:flex; align-items:center; justify-content:center; cursor:pointer">
+            <div style="{{ dcStyle }}">DC</div>
+          </div>
+          <div style="width:26px; height:1px; background:#E6DFCE"></div>
+          <div style="width:46px; height:46px; display:flex; align-items:center; justify-content:center"><div style="width:15px; height:13px; background:#5F5749; clip-path:polygon(0 0,100% 0,60% 45%,60% 100%,40% 86%,40% 45%)"></div></div>
+          <div style="width:26px; height:1px; background:#E6DFCE"></div>
+          <div style="width:46px; height:46px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px">
+            <div style="width:16px; height:2px; border-radius:1px; background:#5F5749"></div>
+            <div style="width:16px; height:2px; border-radius:1px; background:#5F5749"></div>
+            <div style="width:16px; height:2px; border-radius:1px; background:#5F5749"></div>
+          </div>
+        </div>
+
+        <!-- sheet -->
+        <div style="margin-top:auto; position:relative; z-index:4; background:#10222C; border-radius:26px 26px 0 0; padding:10px 0 0; box-shadow:0 -16px 44px rgba(60,52,38,.28)">
+          <div style="width:36px; height:4px; border-radius:2px; background:#35525E; margin:0 auto 12px"></div>
+          <div style="padding:0 20px 14px; display:flex; align-items:center; gap:14px">
+            <div style="width:38px; height:38px; flex:none; border-radius:13px; background:rgba(34,193,214,.16); display:flex; align-items:center; justify-content:center"><div style="width:10px; height:17px; background:#22C1D6; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div>
+            <div style="flex:1; min-width:0"><div style="font-size:15px; font-weight:800; color:#E6F2F5">Shell Recharge · Etiler</div><div style="margin-top:2px; font-size:12px; color:#93AAB4">180 kW DC · CCS2 · 8 şarj noktası</div></div>
+            <div style="height:38px; padding:0 14px; border-radius:13px; background:#22C1D6; color:#04222A; font-size:13.5px; font-weight:800; display:flex; align-items:center">Yol tarifi</div>
+          </div>
+          <div style="background:#0E1F28; border-top:1px solid #1A303C; height:70px; display:flex; align-items:center">
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; border-radius:15px; background:rgba(109,190,75,.18); display:flex; align-items:center; justify-content:center"><div style="width:10px; height:17px; background:#6DBE4B; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div><span style="font-size:11.5px; font-weight:700; color:#6DBE4B">Şarj</span></div>
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#93AAB4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19c0-7 5-11 12-11"></path><polyline points="12.5 4.5 16.5 8 12.5 11.5"></polyline></svg></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">Yolculuklar</span></div>
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><div style="width:17px; height:17px; border:2px solid #93AAB4; border-radius:50%; position:relative"><div style="position:absolute; left:6px; top:2px; width:2px; height:6px; background:#93AAB4; transform-origin:bottom; transform:rotate(40deg)"></div></div></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">OBD</span></div>
+          </div>
+          <div style="height:20px; background:#0E1F28; display:flex; align-items:center; justify-content:center"><div style="width:110px; height:4px; border-radius:2px; background:#35525E"></div></div>
+        </div>
+      </div>
+    </div>
+
+    
+    <!-- ═══ 2 · İSTASYON ALT KARTI ═══ -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#22C1D6"></span><span lang="tr" style="font:700 12px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#E6F2F5">Şarj — İstasyon kartı</span></div>
+      <div data-screen-label="İstasyon kartı" style="width:412px; height:915px; background:#F6F1E6; border:1px solid #35525E; border-radius:34px; overflow:hidden; position:relative; display:flex; flex-direction:column; box-shadow:0 36px 80px rgba(0,0,0,.6)">
+        <div style="position:relative; z-index:6; height:32px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font:600 12px 'Plus Jakarta Sans',sans-serif; color:#E6F2F5; background:#0A161D">
+          <span>1:03</span><div style="width:22px;height:11px;border:1.5px solid #93AAB4;border-radius:3px;padding:1.5px;display:flex"><div style="width:78%;background:#E6F2F5;border-radius:1px"></div></div>
+        </div>
+        <div style="flex:1; position:relative; overflow:hidden; background:#F6F1E6">
+          <div style="position:absolute; left:-70px; top:-40px; width:250px; height:250px; background:#B9D9EB"></div>
+          <div style="position:absolute; left:130px; top:80px; width:180px; height:110px; background:#B9D9EB; border-radius:0 0 70% 40%"></div>
+          <div style="position:absolute; left:36px; top:392px; width:140px; height:100px; background:#DCE8D0; border-radius:45% 55% 50% 45%"></div>
+          <div style="position:absolute; left:250px; top:300px; width:150px; height:110px; background:#DCE8D0; border-radius:55% 40% 45% 60%"></div>
+          <div style="position:absolute; left:-40px; top:230px; width:520px; height:10px; background:#FFF; box-shadow:0 0 0 1px #E6DFCE; transform:rotate(-6deg)"></div>
+          <div style="position:absolute; left:-40px; top:410px; width:520px; height:8px; background:#FFF; box-shadow:0 0 0 1px #E6DFCE; transform:rotate(4deg)"></div>
+          <div style="position:absolute; left:150px; top:-20px; width:7px; height:700px; background:#FFF; box-shadow:0 0 0 1px #E6DFCE; transform:rotate(8deg)"></div>
+          <div style="position:absolute; left:320px; top:-20px; width:5px; height:700px; background:#FFF; box-shadow:0 0 0 1px #E6DFCE; transform:rotate(-6deg)"></div>
+          <div style="position:absolute; left:44px; top:352px; font:600 17px 'Plus Jakarta Sans'; color:#8A8172; letter-spacing:1.5px">İZMİR</div>
+          <div style="position:absolute; left:196px; top:246px; font:500 10px 'Plus Jakarta Sans'; color:#A39A88; transform:rotate(-6deg)">Liman Caddesi</div>
+          <div style="position:absolute; left:56px; top:430px; font:500 10px 'Plus Jakarta Sans'; color:#A39A88">Kültürpark</div>
+          <div style="position:absolute; left:36px; top:120px; font:500 10px 'Plus Jakarta Sans'; color:#93A9B4">İzmir Körfezi</div>
+
+          <div style="position:absolute; left:132px; top:322px; width:80px; height:5px; border-radius:3px; background:#22C1D6; transform:rotate(-46deg); transform-origin:left"></div>
+          <div style="position:absolute; left:186px; top:230px; display:flex; flex-direction:column; align-items:center; gap:4px">
+            <div style="width:32px; height:32px; border-radius:50% 50% 50% 0; background:#22C1D6; transform:rotate(-45deg); box-shadow:0 4px 10px rgba(0,0,0,.24); display:flex; align-items:center; justify-content:center"><div style="width:9px; height:15px; background:#FFF; transform:rotate(45deg); clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div>
+            <span style="font:700 10px 'Plus Jakarta Sans'; color:#5F5749; text-shadow:0 0 4px #F6F1E6">Shell Recharge</span>
+          </div>
+          <div style="position:absolute; left:124px; top:314px"><div style="width:16px; height:16px; border-radius:50%; background:#1B7FD1; border:3px solid #FFF; box-shadow:0 2px 6px rgba(0,0,0,.3)"></div></div>
+
+          <div style="position:absolute; left:0; right:0; top:12px; padding:0 14px; display:flex; align-items:center; gap:10px">
+            <div style="flex:1; height:46px; border-radius:23px; background:rgba(255,255,255,.92); backdrop-filter:blur(16px); box-shadow:0 6px 20px rgba(90,80,60,.22); display:flex; align-items:center; gap:10px; padding:0 16px">
+              <div style="width:15px; height:15px; border:2px solid #8A8172; border-radius:50%; position:relative"><div style="position:absolute; right:-5px; bottom:-4px; width:7px; height:2px; background:#8A8172; transform:rotate(45deg)"></div></div>
+              <span style="font-size:14.5px; color:#8A8172">İstasyon veya konum ara</span>
+            </div>
+            <div style="width:46px; height:46px; border-radius:23px; background:rgba(255,255,255,.92); backdrop-filter:blur(16px); box-shadow:0 6px 20px rgba(90,80,60,.22); display:flex; align-items:center; justify-content:center; position:relative">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2C3A40" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 8.5 17 15.5 12 19.5 12 4.5 17 8.5 7 15.5"></polyline></svg>
+              <span style="position:absolute; right:9px; top:9px; width:8px; height:8px; border-radius:50%; background:#6DBE4B; border:2px solid #FFF"></span>
+            </div>
+            <div style="width:46px; height:46px; border-radius:23px; background:rgba(255,255,255,.92); backdrop-filter:blur(16px); box-shadow:0 6px 20px rgba(90,80,60,.22); display:flex; align-items:center; justify-content:center"><div style="width:32px; height:32px; border-radius:50%; background:#E9E2D2; border:1px solid #D5CBB4; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#0E8FA0">AK</div></div>
+          </div>
+
+          <div style="position:absolute; left:0; right:0; bottom:0; background:#10222C; border-top:1px solid #35525E; border-radius:26px 26px 0 0; padding:12px 18px 20px; box-shadow:0 -18px 44px rgba(0,0,0,.4)">
+            <div style="display:flex; align-items:flex-start; gap:12px">
+              <div style="flex:1">
+                <div style="font-size:18px; font-weight:800; color:#E6F2F5; letter-spacing:-.2px">Shell Recharge Etiler Otopark</div>
+                <div style="margin-top:4px; font-size:12.5px; color:#93AAB4">8 şarj noktası kayıtlı</div>
+              </div>
+              <div style="width:30px; height:30px; border-radius:15px; background:#1A303C; display:flex; align-items:center; justify-content:center; position:relative"><div style="position:absolute; width:12px; height:2px; background:#93AAB4; transform:rotate(45deg)"></div><div style="position:absolute; width:12px; height:2px; background:#93AAB4; transform:rotate(-45deg)"></div></div>
+            </div>
+            <div style="margin-top:14px; display:flex; gap:6px; flex-wrap:wrap">
+              <span style="font:700 11px 'Plus Jakarta Sans'; color:#22C1D6; background:rgba(34,193,214,.12); border-radius:8px; padding:5px 9px">180 kW DC</span>
+              <span style="font:600 11px 'Plus Jakarta Sans'; color:#E6F2F5; background:#16323D; border-radius:8px; padding:5px 9px">CCS2</span>
+              <span style="font:600 11px 'Plus Jakarta Sans'; color:#E6F2F5; background:#16323D; border-radius:8px; padding:5px 9px">Tip 2</span>
+              <span style="font:600 11px 'Plus Jakarta Sans'; color:#93AAB4; background:#16323D; border-radius:8px; padding:5px 9px">Shell Recharge</span>
+            </div>
+            <div style="margin-top:12px; font-size:12.5px; color:#93AAB4; line-height:1.5">Nispetiye Cad. No:12, Etiler / Beşiktaş, İstanbul</div>
+            <div style="margin-top:14px; padding:12px 14px; border:1px solid #35525E; border-radius:16px; background:#0F2531">
+              <div style="display:flex; align-items:baseline; gap:8px">
+                <span style="font:700 17px 'Plus Jakarta Sans'; color:#E6F2F5">~13,50–15,99 ₺</span>
+                <span style="font-size:12px; color:#93AAB4">/kWh</span>
+                <span style="margin-left:auto; font:600 11px 'Plus Jakarta Sans'; color:#93AAB4; background:#16323D; border-radius:7px; padding:3px 8px">değişken</span>
+              </div>
+              <div style="margin-top:6px; font-size:11.5px; color:#93AAB4">Shell Recharge tarifesi · 25.07.2026</div>
+              <div style="margin-top:8px; font-size:11px; color:#7E949E; line-height:1.5">İşletmecinin yayımladığı fiyat. Üyelik, kampanya ve lokasyona göre değişebilir.</div>
+            </div>
+            <div style="margin-top:14px; height:50px; border-radius:16px; background:#22C1D6; color:#04222A; font-size:15px; font-weight:800; display:flex; align-items:center; justify-content:center">Yol tarifi</div>
+          </div>
+        </div>
+        <div style="flex:none; background:#0E1F28; border-top:1px solid #1A303C; height:70px; display:flex; align-items:center">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; border-radius:15px; background:rgba(109,190,75,.18); display:flex; align-items:center; justify-content:center"><div style="width:10px; height:17px; background:#6DBE4B; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div><span style="font-size:11.5px; font-weight:700; color:#6DBE4B">Şarj</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#93AAB4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19c0-7 5-11 12-11"></path><polyline points="12.5 4.5 16.5 8 12.5 11.5"></polyline></svg></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">Yolculuklar</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><div style="width:17px; height:17px; border:2px solid #93AAB4; border-radius:50%; position:relative"><div style="position:absolute; left:6px; top:2px; width:2px; height:6px; background:#93AAB4; transform-origin:bottom; transform:rotate(40deg)"></div></div></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">OBD</span></div>
+        </div>
+        <div style="flex:none; height:20px; background:#0E1F28; display:flex; align-items:center; justify-content:center"><div style="width:110px; height:4px; border-radius:2px; background:#35525E"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ 3 · LİSTE ═══ -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#22C1D6"></span><span lang="tr" style="font:700 12px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#E6F2F5">Şarj — Liste</span></div>
+      <div data-screen-label="Şarj Liste" style="width:412px; height:915px; background:#0A161D; border:1px solid #35525E; border-radius:34px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 36px 80px rgba(0,0,0,.6)">
+        <div style="height:32px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font:600 12px 'Plus Jakarta Sans',sans-serif; color:#E6F2F5">
+          <span>1:03</span><div style="width:22px;height:11px;border:1.5px solid #93AAB4;border-radius:3px;padding:1.5px;display:flex"><div style="width:78%;background:#E6F2F5;border-radius:1px"></div></div>
+        </div>
+        <div style="height:56px; flex:none; display:flex; align-items:center; padding:0 18px; gap:16px">
+          <span style="flex:1; font-size:21px; font-weight:800; color:#E6F2F5">Şarj</span>
+          <div style="position:relative; width:22px; height:22px; display:flex; align-items:center; justify-content:center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E6F2F5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 8.5 17 15.5 12 19.5 12 4.5 17 8.5 7 15.5"></polyline></svg>
+            <span style="position:absolute; right:-3px; top:-2px; width:8px; height:8px; border-radius:50%; background:#6DBE4B; border:2px solid #0A161D"></span>
+          </div>
+          <div style="width:30px; height:30px; border-radius:50%; background:#17303B; border:1px solid #35525E; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800; letter-spacing:.2px; color:#22C1D6">AK</div>
+        </div>
+        <div style="flex:none; padding:0 14px 12px; display:flex; align-items:center; gap:8px">
+          <div style="height:38px; padding:0 13px 0 11px; border-radius:12px; border:1px solid #35525E; display:flex; align-items:center; gap:7px">
+            <svg width="17" height="17" viewBox="0 0 20 20" fill="none" style="display:block">
+              <path d="M2.6 4.9 7.4 3v12.1L2.6 17V4.9Z" stroke="#E6F2F5" stroke-width="1.4" stroke-linejoin="round"/>
+              <path d="M7.4 3l5.2 2v12.1l-5.2-2V3Z" stroke="#E6F2F5" stroke-width="1.4" stroke-linejoin="round"/>
+              <path d="M12.6 5 17.4 3v12.1L12.6 17.1V5Z" stroke="#E6F2F5" stroke-width="1.4" stroke-linejoin="round"/>
+            </svg>
+            <span style="font-size:12.5px; font-weight:700; color:#E6F2F5">Harita</span>
+          </div>
+          <span style="flex:1; font:700 13px 'Plus Jakarta Sans'; color:#93AAB4">271 yer</span>
+          <div style="height:38px; padding:0 12px; border-radius:12px; background:rgba(34,193,214,.14); border:1px solid rgba(34,193,214,.4); display:flex; align-items:center; font-size:12.5px; font-weight:700; color:#22C1D6">En yakın</div>
+          <div style="width:38px; height:38px; border-radius:12px; border:1px solid #35525E; display:flex; align-items:center; justify-content:center"><div style="width:14px; height:12px; background:#93AAB4; clip-path:polygon(0 0,100% 0,60% 45%,60% 100%,40% 86%,40% 45%)"></div></div>
+          <div style="width:38px; height:38px; border-radius:12px; background:rgba(34,193,214,.14); border:1px solid rgba(34,193,214,.4); display:flex; align-items:center; justify-content:center"><div style="width:9px; height:15px; background:#22C1D6; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div>
+        </div>
+        <div style="flex:1; overflow:hidden; padding:0 14px; display:flex; flex-direction:column; gap:10px">
+          <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px">
+            <div style="font-size:15px; font-weight:700; color:#E6F2F5">Sabancı Kültür Merkezi Otoparkı</div>
+            <div style="margin-top:4px; font-size:12px; color:#93AAB4">EPSIS · 30 kW · DC · CCS2, Tip 2</div>
+            <div style="margin-top:2px; font-size:12px; color:#7E949E">Konak Mah. Mithatpaşa Cad. No:4, İzmir</div>
+            <div style="margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+              <span style="font:700 11px 'Plus Jakarta Sans'; color:#E6F2F5; background:#16323D; border-radius:7px; padding:4px 8px">4.0 km</span>
+              <span style="font:600 11px 'Plus Jakarta Sans'; color:#93AAB4; background:#16323D; border-radius:7px; padding:4px 8px">2 şarj noktası</span>
+              <span style="font:700 11px 'Plus Jakarta Sans'; color:#6DBE4B; background:rgba(109,190,75,.12); border-radius:7px; padding:4px 8px">~10,50 ₺ · ucuz</span>
+            </div>
+          </div>
+          <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px">
+            <div style="font-size:15px; font-weight:700; color:#E6F2F5">Otowatt Oğuzlar Plaza</div>
+            <div style="margin-top:4px; font-size:12px; color:#93AAB4">Otowatt · 60 kW · DC · CCS2</div>
+            <div style="margin-top:2px; font-size:12px; color:#7E949E">Oğuzlar Mah. 1387 Sok. No:9, İzmir</div>
+            <div style="margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+              <span style="font:700 11px 'Plus Jakarta Sans'; color:#E6F2F5; background:#16323D; border-radius:7px; padding:4px 8px">842 m</span>
+              <span style="font:600 11px 'Plus Jakarta Sans'; color:#93AAB4; background:#16323D; border-radius:7px; padding:4px 8px">4 şarj noktası</span>
+              <span style="font:700 11px 'Plus Jakarta Sans'; color:#93AAB4; background:#16323D; border-radius:7px; padding:4px 8px">~14 ₺ · ortalama</span>
+            </div>
+          </div>
+          <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px">
+            <div style="font-size:15px; font-weight:700; color:#E6F2F5">ZES İsmet Kaptan</div>
+            <div style="margin-top:4px; font-size:12px; color:#93AAB4">ZES · 400 kW · DC · CCS2, CHAdeMO</div>
+            <div style="margin-top:2px; font-size:12px; color:#7E949E">İsmet Kaptan Mah. Şair Eşref Blv., İzmir</div>
+            <div style="margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+              <span style="font:700 11px 'Plus Jakarta Sans'; color:#E6F2F5; background:#16323D; border-radius:7px; padding:4px 8px">1.7 km</span>
+              <span style="font:600 11px 'Plus Jakarta Sans'; color:#93AAB4; background:#16323D; border-radius:7px; padding:4px 8px">6 şarj noktası</span>
+              <span style="font:700 11px 'Plus Jakarta Sans'; color:#93AAB4; background:#16323D; border-radius:7px; padding:4px 8px">~13-16 ₺ · değişken</span>
+            </div>
+          </div>
+          <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px">
+            <div style="font-size:15px; font-weight:700; color:#E6F2F5">E4 ŞARJ Akdeniz Otopark</div>
+            <div style="margin-top:4px; font-size:12px; color:#93AAB4">E4 ŞARJ · 60 kW · DC · CCS2</div>
+            <div style="margin-top:2px; font-size:12px; color:#7E949E">Akdeniz Mah. Cumhuriyet Blv. No:21, İzmir</div>
+            <div style="margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+              <span style="font:700 11px 'Plus Jakarta Sans'; color:#E6F2F5; background:#16323D; border-radius:7px; padding:4px 8px">1.5 km</span>
+              <span style="font:600 11px 'Plus Jakarta Sans'; color:#93AAB4; background:#16323D; border-radius:7px; padding:4px 8px">2 şarj noktası</span>
+              <span style="font:700 11px 'Plus Jakarta Sans'; color:#FF6B6B; background:rgba(255,107,107,.12); border-radius:7px; padding:4px 8px">~18 ₺ · pahalı</span>
+            </div>
+          </div>
+          <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px; opacity:.6">
+            <div style="font-size:15px; font-weight:700; color:#E6F2F5">Trugo Bornova Meydan</div>
+            <div style="margin-top:4px; font-size:12px; color:#93AAB4">Trugo · 120 kW · DC · CCS2</div>
+          </div>
+        </div>
+        <div style="flex:none; background:#0E1F28; border-top:1px solid #1A303C; height:70px; display:flex; align-items:center">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; border-radius:15px; background:rgba(109,190,75,.18); display:flex; align-items:center; justify-content:center"><div style="width:10px; height:17px; background:#6DBE4B; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div><span style="font-size:11.5px; font-weight:700; color:#6DBE4B">Şarj</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#93AAB4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19c0-7 5-11 12-11"></path><polyline points="12.5 4.5 16.5 8 12.5 11.5"></polyline></svg></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">Yolculuklar</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><div style="width:17px; height:17px; border:2px solid #93AAB4; border-radius:50%; position:relative"><div style="position:absolute; left:6px; top:2px; width:2px; height:6px; background:#93AAB4; transform-origin:bottom; transform:rotate(40deg)"></div></div></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">OBD</span></div>
+        </div>
+        <div style="flex:none; height:20px; background:#0E1F28; display:flex; align-items:center; justify-content:center"><div style="width:110px; height:4px; border-radius:2px; background:#35525E"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ 4 · ŞARJ AĞI DİYALOĞU ═══ -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#22C1D6"></span><span lang="tr" style="font:700 12px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#E6F2F5">Şarj ağı seçimi</span></div>
+      <div data-screen-label="Şarj ağı" style="width:412px; height:915px; background:#0A161D; border:1px solid #35525E; border-radius:34px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 36px 80px rgba(0,0,0,.6)">
+        <div style="position:relative; z-index:6; height:32px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font:600 12px 'Plus Jakarta Sans',sans-serif; color:#E6F2F5; background:#0A161D">
+          <span>1:03</span><div style="width:22px;height:11px;border:1.5px solid #93AAB4;border-radius:3px;padding:1.5px;display:flex"><div style="width:78%;background:#E6F2F5;border-radius:1px"></div></div>
+        </div>
+        <div style="flex:1; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center">
+        <div style="position:absolute; inset:0; background:#F6F1E6"></div>
+        <div style="position:absolute; inset:0; background-image:linear-gradient(#EDE6D6 1px,transparent 1px),linear-gradient(90deg,#EDE6D6 1px,transparent 1px); background-size:48px 48px"></div>
+        <div style="position:absolute; inset:0; background:rgba(5,13,18,.72)"></div>
+        <div style="position:relative; width:352px; background:#10222C; border:1px solid #35525E; border-radius:26px; padding:20px 0 14px; box-shadow:0 30px 60px rgba(0,0,0,.6)">
+          <div style="padding:0 20px">
+            <div style="font-size:20px; font-weight:800; color:#E6F2F5">Şarj ağı</div>
+            <div style="margin-top:6px; font-size:12.5px; color:#93AAB4; line-height:1.5">3 ağ seçili — harita ve rota önerileri yalnızca bunlara bakıyor.</div>
+          </div>
+          <div style="margin-top:14px; display:flex; flex-direction:column; max-height:430px; overflow:hidden">
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 20px; background:rgba(34,193,214,.07)"><span style="width:10px;height:10px;border-radius:50%;background:#2FA85B"></span><span style="flex:1; font-size:14px; font-weight:700; color:#E6F2F5">ZES</span><span style="font:600 12px 'Plus Jakarta Sans'; color:#93AAB4">1518</span><div style="width:20px; height:20px; border-radius:6px; background:#22C1D6; display:flex; align-items:center; justify-content:center"><div style="width:9px; height:5px; border-left:2px solid #04222A; border-bottom:2px solid #04222A; transform:rotate(-45deg); margin-top:-2px"></div></div></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 20px; background:rgba(34,193,214,.07)"><span style="width:10px;height:10px;border-radius:50%;background:#1E3A8A"></span><span style="flex:1; font-size:14px; font-weight:700; color:#E6F2F5">Trugo</span><span style="font:600 12px 'Plus Jakarta Sans'; color:#93AAB4">1192</span><div style="width:20px; height:20px; border-radius:6px; background:#22C1D6; display:flex; align-items:center; justify-content:center"><div style="width:9px; height:5px; border-left:2px solid #04222A; border-bottom:2px solid #04222A; transform:rotate(-45deg); margin-top:-2px"></div></div></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 20px"><span style="width:10px;height:10px;border-radius:50%;background:#F0862B"></span><span style="flex:1; font-size:14px; font-weight:700; color:#E6F2F5">Voltrun</span><span style="font:600 12px 'Plus Jakarta Sans'; color:#93AAB4">1051</span><div style="width:20px; height:20px; border-radius:6px; border:2px solid #35525E"></div></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 20px; background:rgba(34,193,214,.07)"><span style="width:10px;height:10px;border-radius:50%;background:#22C1D6"></span><span style="flex:1; font-size:14px; font-weight:700; color:#E6F2F5">WAT Mobilite</span><span style="font:600 12px 'Plus Jakarta Sans'; color:#93AAB4">887</span><div style="width:20px; height:20px; border-radius:6px; background:#22C1D6; display:flex; align-items:center; justify-content:center"><div style="width:9px; height:5px; border-left:2px solid #04222A; border-bottom:2px solid #04222A; transform:rotate(-45deg); margin-top:-2px"></div></div></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 20px"><span style="width:10px;height:10px;border-radius:50%;background:#D93A3A"></span><span style="flex:1; font-size:14px; font-weight:700; color:#E6F2F5">Eşarj</span><span style="font:600 12px 'Plus Jakarta Sans'; color:#93AAB4">720</span><div style="width:20px; height:20px; border-radius:6px; border:2px solid #35525E"></div></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 20px"><span style="width:10px;height:10px;border-radius:50%;background:#8B5CF6"></span><span style="flex:1; font-size:14px; font-weight:700; color:#E6F2F5">Otopriz</span><span style="font:600 12px 'Plus Jakarta Sans'; color:#93AAB4">480</span><div style="width:20px; height:20px; border-radius:6px; border:2px solid #35525E"></div></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 20px"><span style="width:10px;height:10px;border-radius:50%;background:#1BA98A"></span><span style="flex:1; font-size:14px; font-weight:700; color:#E6F2F5">Otowatt</span><span style="font:600 12px 'Plus Jakarta Sans'; color:#93AAB4">356</span><div style="width:20px; height:20px; border-radius:6px; border:2px solid #35525E"></div></div>
+            <div style="padding:10px 20px 0; font-size:11.5px; color:#7E949E">toplam 613 marka</div>
+          </div>
+          <div style="margin-top:14px; padding:0 20px; display:flex; gap:10px">
+            <div style="flex:1; height:46px; border-radius:14px; border:1px solid #35525E; color:#E6F2F5; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center">Hepsi</div>
+            <div style="flex:1; height:46px; border-radius:14px; background:#22C1D6; color:#04222A; font-size:14px; font-weight:800; display:flex; align-items:center; justify-content:center">Uygula</div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ 5 · SEFERLER ═══ -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#6DBE4B"></span><span lang="tr" style="font:700 12px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#E6F2F5">Yolculuklar</span></div>
+      <div data-screen-label="Yolculuklar" style="width:412px; height:915px; background:#0A161D; border:1px solid #35525E; border-radius:34px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 36px 80px rgba(0,0,0,.6)">
+        <div style="height:32px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font:600 12px 'Plus Jakarta Sans',sans-serif; color:#E6F2F5"><span>1:03</span><div style="width:22px;height:11px;border:1.5px solid #93AAB4;border-radius:3px;padding:1.5px;display:flex"><div style="width:78%;background:#E6F2F5;border-radius:1px"></div></div></div>
+        <div style="height:56px; flex:none; display:flex; align-items:center; padding:0 18px; gap:16px">
+          <span style="flex:1; font-size:21px; font-weight:800; color:#E6F2F5">Yolculuklar</span>
+          <div style="width:8px; height:8px; border-radius:50%; background:#FFB74D"></div>
+          <div style="width:30px; height:30px; border-radius:50%; background:#17303B; border:1px solid #35525E; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800; letter-spacing:.2px; color:#22C1D6">AK</div>
+        </div>
+        <div style="flex:1; overflow:hidden; padding:0 16px; display:flex; flex-direction:column; gap:14px">
+          <div style="background:rgba(255,183,77,.12); border:1px solid rgba(255,183,77,.4); border-radius:16px; padding:12px 14px; display:flex; align-items:center; gap:12px">
+            <div style="width:30px; height:30px; flex:none; border-radius:10px; background:rgba(255,183,77,.18); display:flex; align-items:center; justify-content:center; font:800 15px 'Plus Jakarta Sans'; color:#FFB74D">!</div>
+            <div style="flex:1; font-size:12.5px; color:#E6F2F5; line-height:1.45">Yolculuk kaydına başlamadan önce adaptöre bağlan.</div>
+            <span style="font-size:12.5px; font-weight:800; color:#FFB74D">Bağlan</span>
+          </div>
+          <div style="display:flex; gap:10px">
+            <div style="flex:1; height:52px; border-radius:16px; background:#22C1D6; color:#04222A; font-size:15px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:8px"><span style="width:10px;height:10px;border-radius:50%;background:#04222A"></span>Kaydı başlat</div>
+            <div style="width:52px; height:52px; border-radius:16px; border:1px solid #35525E; display:flex; align-items:center; justify-content:center"><div style="width:14px; height:14px; border:2px solid #93AAB4; border-top:0; border-left:0; transform:rotate(45deg) translate(-2px,-2px)"></div></div>
+          </div>
+          <div style="display:flex; align-items:baseline; justify-content:space-between">
+            <span style="font-size:16px; font-weight:800; color:#E6F2F5">Kayıtlı yolculuklar</span>
+            <span style="font:600 12px 'Plus Jakarta Sans'; color:#93AAB4">7 kayıt</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px">
+            <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px">
+              <div style="display:flex; align-items:baseline; justify-content:space-between"><span style="font-size:14.5px; font-weight:700; color:#E6F2F5">31 Tem 2026 · 08:12</span><span style="font:700 13px 'Plus Jakarta Sans'; color:#22C1D6">42,6 km</span></div>
+              <div style="margin-top:10px; display:flex; gap:18px">
+                <div><div style="font-size:11px; color:#93AAB4">Süre</div><div style="font:700 14px 'Plus Jakarta Sans'; color:#E6F2F5">48 dk</div></div>
+                <div><div style="font-size:11px; color:#93AAB4">Ort. hız</div><div style="font:700 14px 'Plus Jakarta Sans'; color:#E6F2F5">53 km/h</div></div>
+                <div><div style="font-size:11px; color:#93AAB4">Örnek</div><div style="font:700 14px 'Plus Jakarta Sans'; color:#E6F2F5">2.884</div></div>
+              </div>
+              <div style="margin-top:12px; display:flex; align-items:flex-end; gap:2px; height:34px">
+                <div style="flex:1;height:20%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:44%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:62%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:52%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:78%;background:#0E8FA0;border-radius:2px"></div><div style="flex:1;height:96%;background:#22C1D6;border-radius:2px"></div><div style="flex:1;height:84%;background:#22C1D6;border-radius:2px"></div><div style="flex:1;height:60%;background:#0E8FA0;border-radius:2px"></div><div style="flex:1;height:38%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:26%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:48%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:30%;background:#1E3F4C;border-radius:2px"></div>
+              </div>
+            </div>
+            <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px; display:flex; align-items:center; gap:12px">
+              <div style="flex:1"><div style="font-size:14.5px; font-weight:700; color:#E6F2F5">30 Tem 2026 · 18:40</div><div style="margin-top:3px; font-size:12px; color:#93AAB4">1 sa 12 dk · ort. 46 km/h</div></div>
+              <span style="font:700 13px 'Plus Jakarta Sans'; color:#E6F2F5">55,1 km</span>
+            </div>
+            <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px; display:flex; align-items:center; gap:12px">
+              <div style="flex:1"><div style="font-size:14.5px; font-weight:700; color:#E6F2F5">29 Tem 2026 · 07:55</div><div style="margin-top:3px; font-size:12px; color:#93AAB4">22 dk · ort. 38 km/h</div></div>
+              <span style="font:700 13px 'Plus Jakarta Sans'; color:#E6F2F5">13,9 km</span>
+            </div>
+            <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px; display:flex; align-items:center; gap:12px; opacity:.6">
+              <div style="flex:1"><div style="font-size:14.5px; font-weight:700; color:#E6F2F5">28 Tem 2026 · 21:03</div><div style="margin-top:3px; font-size:12px; color:#93AAB4">9 dk · ort. 31 km/h</div></div>
+              <span style="font:700 13px 'Plus Jakarta Sans'; color:#E6F2F5">4,7 km</span>
+            </div>
+          </div>
+          <div style="height:48px; border-radius:16px; border:1px solid #35525E; color:#E6F2F5; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center">CSV olarak dışa aktar</div>
+        </div>
+        <div style="flex:none; background:#0E1F28; border-top:1px solid #1A303C; height:70px; display:flex; align-items:center">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><div style="width:10px; height:17px; background:#93AAB4; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">Şarj</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; border-radius:15px; background:rgba(109,190,75,.18); display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6DBE4B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19c0-7 5-11 12-11"></path><polyline points="12.5 4.5 16.5 8 12.5 11.5"></polyline></svg></div><span style="font-size:11.5px; font-weight:700; color:#6DBE4B">Yolculuklar</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><div style="width:17px; height:17px; border:2px solid #93AAB4; border-radius:50%; position:relative"><div style="position:absolute; left:6px; top:2px; width:2px; height:6px; background:#93AAB4; transform-origin:bottom; transform:rotate(40deg)"></div></div></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">OBD</span></div>
+        </div>
+        <div style="flex:none; height:20px; background:#0E1F28; display:flex; align-items:center; justify-content:center"><div style="width:110px; height:4px; border-radius:2px; background:#35525E"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ 6 · OBD / GÖSTERGE ═══ -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#22C1D6"></span><span lang="tr" style="font:700 12px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#E6F2F5">OBD — Gösterge</span></div>
+      <div data-screen-label="OBD Gösterge" style="width:412px; height:915px; background:#0A161D; border:1px solid #35525E; border-radius:34px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 36px 80px rgba(0,0,0,.6)">
+        <div style="height:32px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font:600 12px 'Plus Jakarta Sans',sans-serif; color:#E6F2F5"><span>1:03</span><div style="width:22px;height:11px;border:1.5px solid #93AAB4;border-radius:3px;padding:1.5px;display:flex"><div style="width:78%;background:#E6F2F5;border-radius:1px"></div></div></div>
+        <div style="height:56px; flex:none; display:flex; align-items:center; padding:0 18px; gap:16px">
+          <span style="flex:1; font-size:21px; font-weight:800; color:#E6F2F5">OBD</span>
+          <div style="display:flex; align-items:center; gap:7px; height:28px; padding:0 11px; border-radius:14px; background:rgba(109,190,75,.12); border:1px solid rgba(109,190,75,.35)"><span style="width:7px;height:7px;border-radius:50%;background:#6DBE4B"></span><span style="font-size:11.5px; font-weight:700; color:#6DBE4B">Bağlı</span></div>
+          <div style="width:30px; height:30px; border-radius:50%; background:#17303B; border:1px solid #35525E; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800; letter-spacing:.2px; color:#22C1D6">AK</div>
+        </div>
+        <div style="flex:none; margin:0 16px 14px; height:40px; background:#10222C; border:1px solid #35525E; border-radius:14px; padding:4px; display:flex; gap:4px">
+          <div style="flex:1; border-radius:10px; background:#22C1D6; color:#04222A; font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center">Gösterge</div>
+          <div style="flex:1; border-radius:10px; color:#93AAB4; font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:center">Performans</div>
+          <div style="flex:1; border-radius:10px; color:#93AAB4; font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:center">Arıza</div>
+        </div>
+        <div style="flex:1; overflow:hidden; padding:0 16px; display:flex; flex-direction:column; gap:12px">
+          <div style="background:linear-gradient(165deg,#122934,#0F2028); border:1px solid #35525E; border-radius:26px; padding:18px; display:flex; flex-direction:column; align-items:center">
+            <div style="position:relative; width:232px; height:232px">
+              <div style="position:absolute; inset:0; border-radius:50%; background:conic-gradient(from 135deg, #22C1D6 0deg 118deg, #16323D 118deg 270deg, transparent 270deg); -webkit-mask:radial-gradient(closest-side,transparent 80%,#000 81%); mask:radial-gradient(closest-side,transparent 80%,#000 81%)"></div>
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center">
+                <span style="font:500 11px 'Plus Jakarta Sans'; color:#93AAB4; letter-spacing:.18em">HIZ</span>
+                <div style="display:flex; align-items:baseline; gap:6px"><span style="font:700 68px 'Plus Jakarta Sans'; color:#E6F2F5; letter-spacing:-4px; line-height:1.05">68</span><span style="font:600 15px 'Plus Jakarta Sans'; color:#22C1D6">km/h</span></div>
+                <span style="margin-top:8px; font:600 11px 'Plus Jakarta Sans'; color:#93AAB4; background:#16323D; border-radius:8px; padding:4px 10px">maks 112 km/h</span>
+              </div>
+            </div>
+            <div style="margin-top:4px; width:100%; display:flex; justify-content:space-between; font:500 10.5px 'Plus Jakarta Sans'; color:#7E949E"><span>0</span><span>90</span><span>180</span></div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
+            <div style="background:#10222C; border:1px solid #35525E; border-radius:18px; padding:13px">
+              <div lang="tr" style="font-size:10.5px; font-weight:700; color:#93AAB4; letter-spacing:.09em; text-transform:uppercase">Şarj (SoC)</div>
+              <div style="margin-top:5px; display:flex; align-items:baseline; gap:4px"><span style="font:700 24px 'Plus Jakarta Sans'; color:#22C1D6">64</span><span style="font-size:12px; color:#93AAB4">%</span></div>
+              <div style="margin-top:9px; height:5px; border-radius:3px; background:#16323D; overflow:hidden"><div style="width:64%; height:100%; background:#22C1D6"></div></div>
+            </div>
+            <div style="background:#10222C; border:1px solid #35525E; border-radius:18px; padding:13px">
+              <div lang="tr" style="font-size:10.5px; font-weight:700; color:#93AAB4; letter-spacing:.09em; text-transform:uppercase">Modül voltajı</div>
+              <div style="margin-top:5px; display:flex; align-items:baseline; gap:4px"><span style="font:700 24px 'Plus Jakarta Sans'; color:#E6F2F5">12,4</span><span style="font-size:12px; color:#93AAB4">V</span></div>
+              <div style="margin-top:9px; font-size:11px; color:#6DBE4B; font-weight:600">Sağlıklı</div>
+            </div>
+            <div style="background:#10222C; border:1px solid #35525E; border-radius:18px; padding:13px">
+              <div lang="tr" style="font-size:10.5px; font-weight:700; color:#93AAB4; letter-spacing:.09em; text-transform:uppercase">Devir</div>
+              <div style="margin-top:5px; display:flex; align-items:baseline; gap:4px"><span style="font:700 24px 'Plus Jakarta Sans'; color:#E6F2F5">1.180</span><span style="font-size:12px; color:#93AAB4">rpm</span></div>
+              <div style="margin-top:9px; height:5px; border-radius:3px; background:#16323D; overflow:hidden"><div style="width:22%; height:100%; background:#0E8FA0"></div></div>
+            </div>
+            <div style="background:#10222C; border:1px solid #35525E; border-radius:18px; padding:13px">
+              <div lang="tr" style="font-size:10.5px; font-weight:700; color:#93AAB4; letter-spacing:.09em; text-transform:uppercase">Dış sıcaklık</div>
+              <div style="margin-top:5px; display:flex; align-items:baseline; gap:4px"><span style="font:700 24px 'Plus Jakarta Sans'; color:#E6F2F5">31</span><span style="font-size:12px; color:#93AAB4">°C</span></div>
+              <div style="margin-top:9px; font-size:11px; color:#93AAB4">Soğutma sıvısı 42 °C</div>
+            </div>
+          </div>
+          <div style="font-size:11.5px; color:#7E949E; line-height:1.5">Görünen ölçüler Ayarlar → Gösterge PID'leri altından seçilir.</div>
+        </div>
+        <div style="flex:none; background:#0E1F28; border-top:1px solid #1A303C; height:70px; display:flex; align-items:center">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><div style="width:10px; height:17px; background:#93AAB4; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">Şarj</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#93AAB4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19c0-7 5-11 12-11"></path><polyline points="12.5 4.5 16.5 8 12.5 11.5"></polyline></svg></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">Yolculuklar</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; border-radius:15px; background:rgba(109,190,75,.18); display:flex; align-items:center; justify-content:center"><div style="width:17px; height:17px; border:2px solid #6DBE4B; border-radius:50%; position:relative"><div style="position:absolute; left:6px; top:2px; width:2px; height:6px; background:#6DBE4B; transform-origin:bottom; transform:rotate(40deg)"></div></div></div><span style="font-size:11.5px; font-weight:700; color:#6DBE4B">OBD</span></div>
+        </div>
+        <div style="flex:none; height:20px; background:#0E1F28; display:flex; align-items:center; justify-content:center"><div style="width:110px; height:4px; border-radius:2px; background:#35525E"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ 7 · OBD / PERFORMANS ═══ -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#FFB74D"></span><span lang="tr" style="font:700 12px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#E6F2F5">OBD — Performans</span></div>
+      <div data-screen-label="OBD Performans" style="width:412px; height:915px; background:#0A161D; border:1px solid #35525E; border-radius:34px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 36px 80px rgba(0,0,0,.6)">
+        <div style="height:32px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font:600 12px 'Plus Jakarta Sans',sans-serif; color:#E6F2F5"><span>1:03</span><div style="width:22px;height:11px;border:1.5px solid #93AAB4;border-radius:3px;padding:1.5px;display:flex"><div style="width:78%;background:#E6F2F5;border-radius:1px"></div></div></div>
+        <div style="height:56px; flex:none; display:flex; align-items:center; padding:0 18px; gap:16px">
+          <span style="flex:1; font-size:21px; font-weight:800; color:#E6F2F5">OBD</span>
+          <div style="display:flex; align-items:center; gap:7px; height:28px; padding:0 11px; border-radius:14px; background:rgba(109,190,75,.12); border:1px solid rgba(109,190,75,.35)"><span style="width:7px;height:7px;border-radius:50%;background:#6DBE4B"></span><span style="font-size:11.5px; font-weight:700; color:#6DBE4B">Bağlı</span></div>
+          <div style="width:30px; height:30px; border-radius:50%; background:#17303B; border:1px solid #35525E; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800; letter-spacing:.2px; color:#22C1D6">AK</div>
+        </div>
+        <div style="flex:none; margin:0 16px 14px; height:40px; background:#10222C; border:1px solid #35525E; border-radius:14px; padding:4px; display:flex; gap:4px">
+          <div style="flex:1; border-radius:10px; color:#93AAB4; font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:center">Gösterge</div>
+          <div style="flex:1; border-radius:10px; background:#22C1D6; color:#04222A; font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center">Performans</div>
+          <div style="flex:1; border-radius:10px; color:#93AAB4; font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:center">Arıza</div>
+        </div>
+        <div style="flex:1; overflow:hidden; padding:0 16px; display:flex; flex-direction:column; gap:12px">
+          <div style="background:rgba(255,183,77,.12); border:1px solid rgba(255,183,77,.4); border-radius:16px; padding:13px 14px">
+            <div style="font-size:13px; font-weight:800; color:#FFB74D">Yalnızca pist</div>
+            <div style="margin-top:5px; font-size:12px; color:#E6F2F5; line-height:1.5">Yalnızca kapalı yol veya pistte kullan. Ölçümü başlat, sonra gözünü yola çevir.</div>
+          </div>
+          <div style="background:linear-gradient(165deg,#122934,#0F2028); border:1px solid #35525E; border-radius:24px; padding:20px; display:flex; flex-direction:column; align-items:center">
+            <span style="font:700 11px 'Plus Jakarta Sans'; color:#6DBE4B; letter-spacing:.22em">RUNNING</span>
+            <div style="margin-top:6px; font:700 62px 'Plus Jakarta Sans'; color:#E6F2F5; letter-spacing:-3px; line-height:1">4,82<span style="font-size:22px; color:#93AAB4">s</span></div>
+            <div style="margin-top:16px; width:100%; display:flex; gap:10px">
+              <div style="flex:1; background:#0F2531; border:1px solid #35525E; border-radius:14px; padding:10px; text-align:center"><div style="font-size:10.5px; color:#93AAB4; font-weight:600">ANLIK</div><div style="margin-top:3px; font:700 19px 'Plus Jakarta Sans'; color:#22C1D6">86</div><div style="font-size:10px; color:#93AAB4">km/h</div></div>
+              <div style="flex:1; background:#0F2531; border:1px solid #35525E; border-radius:14px; padding:10px; text-align:center"><div style="font-size:10.5px; color:#93AAB4; font-weight:600">MAKS</div><div style="margin-top:3px; font:700 19px 'Plus Jakarta Sans'; color:#E6F2F5">112</div><div style="font-size:10px; color:#93AAB4">km/h</div></div>
+              <div style="flex:1; background:#0F2531; border:1px solid #35525E; border-radius:14px; padding:10px; text-align:center"><div style="font-size:10.5px; color:#93AAB4; font-weight:600">MESAFE</div><div style="margin-top:3px; font:700 19px 'Plus Jakarta Sans'; color:#E6F2F5">148</div><div style="font-size:10px; color:#93AAB4">m</div></div>
+            </div>
+          </div>
+          <div style="background:#10222C; border:1px solid rgba(34,193,214,.4); border-radius:20px; padding:16px; display:flex; align-items:center; gap:14px">
+            <div style="flex:1"><div style="font-size:12px; color:#93AAB4; font-weight:600">0-100 km/h</div><div style="margin-top:2px; font:700 30px 'Plus Jakarta Sans'; color:#22C1D6; letter-spacing:-1px">5,14 <span style="font-size:15px; color:#93AAB4">s</span></div></div>
+            <div style="text-align:right"><div style="font-size:11.5px; color:#93AAB4">En iyi</div><div style="font:700 16px 'Plus Jakarta Sans'; color:#6DBE4B">4,96 s</div></div>
+          </div>
+          <div style="height:48px; border-radius:16px; border:1px solid #35525E; color:#E6F2F5; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center">Kronometreyi sıfırla</div>
+          <div style="font-size:11.5px; color:#7E949E">Kalkış kendiliğinden algılanır — dur ve bas, yeter.</div>
+          <div style="font-size:15px; font-weight:800; color:#E6F2F5">Ölçüm geçmişi</div>
+          <div style="display:flex; flex-direction:column; gap:8px">
+            <div style="border:1px solid #35525E; background:#10222C; border-radius:16px; padding:12px 14px; display:flex; align-items:center; gap:12px"><span style="flex:1; font-size:13px; color:#93AAB4">31 Tem · 08:20</span><span style="font:700 14px 'Plus Jakarta Sans'; color:#E6F2F5">4,96 s</span><span style="font-size:16px; color:#7E949E">×</span></div>
+            <div style="border:1px solid #35525E; background:#10222C; border-radius:16px; padding:12px 14px; display:flex; align-items:center; gap:12px"><span style="flex:1; font-size:13px; color:#93AAB4">27 Tem · 19:02</span><span style="font:700 14px 'Plus Jakarta Sans'; color:#E6F2F5">5,08 s</span><span style="font-size:16px; color:#7E949E">×</span></div>
+          </div>
+        </div>
+        <div style="flex:none; background:#0E1F28; border-top:1px solid #1A303C; height:70px; display:flex; align-items:center">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><div style="width:10px; height:17px; background:#93AAB4; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">Şarj</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#93AAB4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19c0-7 5-11 12-11"></path><polyline points="12.5 4.5 16.5 8 12.5 11.5"></polyline></svg></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">Yolculuklar</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; border-radius:15px; background:rgba(109,190,75,.18); display:flex; align-items:center; justify-content:center"><div style="width:17px; height:17px; border:2px solid #6DBE4B; border-radius:50%; position:relative"><div style="position:absolute; left:6px; top:2px; width:2px; height:6px; background:#6DBE4B; transform-origin:bottom; transform:rotate(40deg)"></div></div></div><span style="font-size:11.5px; font-weight:700; color:#6DBE4B">OBD</span></div>
+        </div>
+        <div style="flex:none; height:20px; background:#0E1F28; display:flex; align-items:center; justify-content:center"><div style="width:110px; height:4px; border-radius:2px; background:#35525E"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ 8 · OBD / ARIZA ═══ -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#FF6B6B"></span><span lang="tr" style="font:700 12px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#E6F2F5">OBD — Arıza</span></div>
+      <div data-screen-label="OBD Arıza" style="width:412px; height:915px; background:#0A161D; border:1px solid #35525E; border-radius:34px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 36px 80px rgba(0,0,0,.6)">
+        <div style="height:32px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font:600 12px 'Plus Jakarta Sans',sans-serif; color:#E6F2F5"><span>1:03</span><div style="width:22px;height:11px;border:1.5px solid #93AAB4;border-radius:3px;padding:1.5px;display:flex"><div style="width:78%;background:#E6F2F5;border-radius:1px"></div></div></div>
+        <div style="height:56px; flex:none; display:flex; align-items:center; padding:0 18px; gap:16px">
+          <span style="flex:1; font-size:21px; font-weight:800; color:#E6F2F5">OBD</span>
+          <div style="display:flex; align-items:center; gap:7px; height:28px; padding:0 11px; border-radius:14px; background:rgba(109,190,75,.12); border:1px solid rgba(109,190,75,.35)"><span style="width:7px;height:7px;border-radius:50%;background:#6DBE4B"></span><span style="font-size:11.5px; font-weight:700; color:#6DBE4B">Bağlı</span></div>
+          <div style="width:30px; height:30px; border-radius:50%; background:#17303B; border:1px solid #35525E; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800; letter-spacing:.2px; color:#22C1D6">AK</div>
+        </div>
+        <div style="flex:none; margin:0 16px 14px; height:40px; background:#10222C; border:1px solid #35525E; border-radius:14px; padding:4px; display:flex; gap:4px">
+          <div style="flex:1; border-radius:10px; color:#93AAB4; font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:center">Gösterge</div>
+          <div style="flex:1; border-radius:10px; color:#93AAB4; font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:center">Performans</div>
+          <div style="flex:1; border-radius:10px; background:#22C1D6; color:#04222A; font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center">Arıza</div>
+        </div>
+        <div style="flex:1; overflow:hidden; padding:0 16px; display:flex; flex-direction:column; gap:12px">
+          <div style="background:#10222C; border:1px solid #35525E; border-radius:20px; padding:16px">
+            <div style="display:flex; align-items:center; gap:10px">
+              <span style="font-size:15px; font-weight:800; color:#E6F2F5; flex:1">12V akü</span>
+              <span style="font:800 10.5px 'Plus Jakarta Sans'; letter-spacing:.1em; color:#6DBE4B; background:rgba(109,190,75,.14); border:1px solid rgba(109,190,75,.35); border-radius:7px; padding:4px 9px">SAĞLIKLI</span>
+            </div>
+            <div style="margin-top:10px; display:flex; align-items:flex-end; gap:12px">
+              <span style="font:700 32px 'Plus Jakarta Sans'; color:#E6F2F5; letter-spacing:-1px">12,42 <span style="font-size:15px; color:#93AAB4">V</span></span>
+              <span style="flex:1; font-size:11.5px; color:#93AAB4; padding-bottom:6px">12 oturumda haftada −0,015 V</span>
+            </div>
+            <div style="margin-top:12px; display:flex; align-items:flex-end; gap:3px; height:38px">
+              <div style="flex:1;height:72%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:78%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:70%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:66%;background:#1E3F4C;border-radius:2px"></div><div style="flex:1;height:74%;background:#0E8FA0;border-radius:2px"></div><div style="flex:1;height:64%;background:#0E8FA0;border-radius:2px"></div><div style="flex:1;height:60%;background:#22C1D6;border-radius:2px"></div><div style="flex:1;height:58%;background:#22C1D6;border-radius:2px"></div>
+            </div>
+            <div style="margin-top:12px; font-size:13px; font-weight:800; color:#22C1D6">Eğilim →</div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <div style="flex:1; height:50px; border-radius:16px; background:#22C1D6; color:#04222A; font-size:14.5px; font-weight:800; display:flex; align-items:center; justify-content:center">Kodları oku</div>
+            <div style="flex:1; height:50px; border-radius:16px; border:1px solid rgba(255,107,107,.5); color:#FF6B6B; font-size:14.5px; font-weight:700; display:flex; align-items:center; justify-content:center">Kodları sil</div>
+          </div>
+          <div style="background:#10222C; border:1px solid #35525E; border-radius:20px; padding:16px">
+            <div style="display:flex; align-items:center; gap:10px">
+              <span style="flex:1; font-size:15px; font-weight:800; color:#E6F2F5">Muayene kontrolü</span>
+              <span style="font:600 11px 'Plus Jakarta Sans'; color:#93AAB4">9/11 hazır</span>
+            </div>
+            <div style="margin-top:12px; display:flex; flex-direction:column; gap:9px">
+              <div style="display:flex; align-items:center; gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#6DBE4B"></span><span style="flex:1; font-size:13px; color:#E6F2F5">Tekleme</span><span style="font-size:11.5px; color:#6DBE4B; font-weight:600">Hazır görünüyor</span></div>
+              <div style="display:flex; align-items:center; gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#6DBE4B"></span><span style="flex:1; font-size:13px; color:#E6F2F5">Yakıt sistemi</span><span style="font-size:11.5px; color:#6DBE4B; font-weight:600">Hazır görünüyor</span></div>
+              <div style="display:flex; align-items:center; gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#6DBE4B"></span><span style="flex:1; font-size:13px; color:#E6F2F5">Bileşenler</span><span style="font-size:11.5px; color:#6DBE4B; font-weight:600">Hazır görünüyor</span></div>
+              <div style="display:flex; align-items:center; gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#FFB74D"></span><span style="flex:1; font-size:13px; color:#E6F2F5">Katalizör</span><span style="font-size:11.5px; color:#FFB74D; font-weight:600">Hazır değil</span></div>
+              <div style="display:flex; align-items:center; gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#FFB74D"></span><span style="flex:1; font-size:13px; color:#E6F2F5">Buharlaşma sistemi</span><span style="font-size:11.5px; color:#FFB74D; font-weight:600">Hazır değil</span></div>
+              <div style="display:flex; align-items:center; gap:10px"><span style="width:7px;height:7px;border-radius:50%;background:#6DBE4B"></span><span style="flex:1; font-size:13px; color:#E6F2F5">Oksijen sensörü</span><span style="font-size:11.5px; color:#6DBE4B; font-weight:600">Hazır görünüyor</span></div>
+              <div style="font-size:12px; color:#7E949E">+5 monitör daha</div>
+            </div>
+          </div>
+          <div style="background:#10222C; border:1px solid rgba(255,107,107,.45); border-radius:20px; padding:14px; display:flex; gap:12px; align-items:flex-start">
+            <div style="width:34px; height:34px; flex:none; border-radius:11px; background:rgba(255,107,107,.14); display:flex; align-items:center; justify-content:center; font:800 15px 'Plus Jakarta Sans'; color:#FF6B6B">!</div>
+            <div style="flex:1">
+              <div style="display:flex; align-items:center; gap:8px"><span style="font-size:14px; font-weight:700; color:#E6F2F5">Kayıtlı kodlar</span><span style="font:700 10px 'Plus Jakarta Sans'; color:#FF6B6B; border:1px solid rgba(255,107,107,.45); border-radius:6px; padding:2px 6px">P0AFA</span></div>
+              <div style="margin-top:4px; font-size:12px; color:#93AAB4; line-height:1.45">Batarya soğutma pompası düşük performans.</div>
+            </div>
+          </div>
+          <div style="height:48px; border-radius:16px; border:1px solid #35525E; color:#E6F2F5; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center">Komut konsolu</div>
+        </div>
+        <div style="flex:none; background:#0E1F28; border-top:1px solid #1A303C; height:70px; display:flex; align-items:center">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><div style="width:10px; height:17px; background:#93AAB4; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">Şarj</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#93AAB4" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19c0-7 5-11 12-11"></path><polyline points="12.5 4.5 16.5 8 12.5 11.5"></polyline></svg></div><span style="font-size:11.5px; font-weight:600; color:#93AAB4">Yolculuklar</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px"><div style="width:60px; height:30px; border-radius:15px; background:rgba(109,190,75,.18); display:flex; align-items:center; justify-content:center"><div style="width:17px; height:17px; border:2px solid #6DBE4B; border-radius:50%; position:relative"><div style="position:absolute; left:6px; top:2px; width:2px; height:6px; background:#6DBE4B; transform-origin:bottom; transform:rotate(40deg)"></div></div></div><span style="font-size:11.5px; font-weight:700; color:#6DBE4B">OBD</span></div>
+        </div>
+        <div style="flex:none; height:20px; background:#0E1F28; display:flex; align-items:center; justify-content:center"><div style="width:110px; height:4px; border-radius:2px; background:#35525E"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ 9 · BAĞLAN ═══ -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#22C1D6"></span><span lang="tr" style="font:700 12px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#E6F2F5">Bağlan</span></div>
+      <div data-screen-label="Bağlan" style="width:412px; height:915px; background:#0A161D; border:1px solid #35525E; border-radius:34px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 36px 80px rgba(0,0,0,.6)">
+        <div style="height:32px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font:600 12px 'Plus Jakarta Sans',sans-serif; color:#E6F2F5"><span>1:03</span><div style="width:22px;height:11px;border:1.5px solid #93AAB4;border-radius:3px;padding:1.5px;display:flex"><div style="width:78%;background:#E6F2F5;border-radius:1px"></div></div></div>
+        <div style="height:56px; flex:none; display:flex; align-items:center; padding:0 18px; gap:14px">
+          <div style="width:20px; height:20px; position:relative"><div style="position:absolute; left:2px; top:4px; width:12px; height:12px; border-left:2px solid #E6F2F5; border-bottom:2px solid #E6F2F5; transform:rotate(45deg)"></div><div style="position:absolute; left:2px; top:9px; width:16px; height:2px; background:#E6F2F5"></div></div>
+          <span style="flex:1; font-size:21px; font-weight:800; color:#E6F2F5">Bağlan</span>
+          <div style="width:30px; height:30px; border-radius:50%; background:#17303B; border:1px solid #35525E; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:800; letter-spacing:.2px; color:#22C1D6">AK</div>
+        </div>
+        <div style="flex:1; overflow:hidden; padding:0 16px; display:flex; flex-direction:column; gap:14px">
+          <div style="background:linear-gradient(165deg,#122934,#0F2028); border:1px solid rgba(255,183,77,.4); border-radius:22px; padding:20px; display:flex; align-items:center; gap:16px">
+            <div style="width:56px; height:56px; flex:none; border-radius:20px; background:rgba(255,183,77,.14); display:flex; align-items:center; justify-content:center; position:relative">
+              <div style="position:absolute; inset:0; border-radius:20px; border:2px solid rgba(255,183,77,.5); animation:blip 2s ease-out infinite"></div>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFB74D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 8.5 17 15.5 12 19.5 12 4.5 17 8.5 7 15.5"></polyline></svg>
+            </div>
+            <div style="flex:1"><div style="font-size:18px; font-weight:800; color:#E6F2F5">Bağlanıyor…</div><div style="margin-top:4px; font-size:12.5px; color:#93AAB4">OBDII · 00:1D:A5:68:98:8B</div></div>
+          </div>
+          <div style="display:flex; gap:10px">
+            <div style="flex:1; height:50px; border-radius:16px; background:#22C1D6; color:#04222A; font-size:14.5px; font-weight:800; display:flex; align-items:center; justify-content:center">Taramayı durdur</div>
+            <div style="flex:1; height:50px; border-radius:16px; border:1px solid #35525E; color:#E6F2F5; font-size:14.5px; font-weight:700; display:flex; align-items:center; justify-content:center">Eşleşmişler</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px"><span style="font-size:15px; font-weight:800; color:#E6F2F5; flex:1">Bulunan adaptörler</span><span style="font:600 12px 'Plus Jakarta Sans'; color:#22C1D6">Taranıyor…</span></div>
+          <div style="display:flex; flex-direction:column; gap:10px">
+            <div style="border:1px solid rgba(34,193,214,.45); background:#0F2531; border-radius:18px; padding:14px; display:flex; align-items:center; gap:12px">
+              <div style="width:38px; height:38px; border-radius:13px; background:rgba(34,193,214,.14); display:flex; align-items:center; justify-content:center"><div style="width:9px; height:15px; background:#22C1D6; clip-path:polygon(60% 0,0 58%,42% 58%,32% 100%,100% 40%,52% 40%)"></div></div>
+              <div style="flex:1"><div style="font-size:14.5px; font-weight:700; color:#E6F2F5">OBDII</div><div style="margin-top:3px; font-size:11.5px; color:#22C1D6">· OBD adaptörüne benziyor</div></div>
+            </div>
+            <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px; display:flex; align-items:center; gap:12px">
+              <div style="width:38px; height:38px; border-radius:13px; background:#16323D"></div>
+              <div style="flex:1"><div style="font-size:14.5px; font-weight:700; color:#E6F2F5">V-LINK</div><div style="margin-top:3px; font-size:11.5px; color:#93AAB4">· OBD adaptörüne benziyor</div></div>
+            </div>
+            <div style="border:1px solid #35525E; background:#10222C; border-radius:18px; padding:14px; display:flex; align-items:center; gap:12px; opacity:.65">
+              <div style="width:38px; height:38px; border-radius:13px; background:#16323D"></div>
+              <div style="flex:1"><div style="font-size:14.5px; font-weight:700; color:#E6F2F5">JBL Flip 6</div></div>
+            </div>
+          </div>
+          <div style="margin-top:auto; margin-bottom:16px; background:#10222C; border:1px solid #35525E; border-radius:18px; padding:14px">
+            <div style="font-size:12.5px; color:#93AAB4; line-height:1.5">Bluetooth kapalıysa ya da izin verilmemişse adaptör bulunamaz.</div>
+            <div style="margin-top:10px; height:42px; border-radius:13px; border:1px solid #35525E; color:#E6F2F5; font-size:13.5px; font-weight:700; display:flex; align-items:center; justify-content:center">Uygulama ayarlarını aç</div>
+          </div>
+        </div>
+        <div style="flex:none; height:20px; background:#0E1F28; display:flex; align-items:center; justify-content:center"><div style="width:110px; height:4px; border-radius:2px; background:#35525E"></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ 10 · AYARLAR ═══ -->
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div style="display:flex; align-items:center; gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#93AAB4"></span><span lang="tr" style="font:700 12px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#E6F2F5">Ayarlar</span></div>
+      <div data-screen-label="Ayarlar" style="width:412px; height:915px; background:#0A161D; border:1px solid #35525E; border-radius:34px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 36px 80px rgba(0,0,0,.6)">
+        <div style="height:32px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 20px; font:600 12px 'Plus Jakarta Sans',sans-serif; color:#E6F2F5"><span>1:03</span><div style="width:22px;height:11px;border:1.5px solid #93AAB4;border-radius:3px;padding:1.5px;display:flex"><div style="width:78%;background:#E6F2F5;border-radius:1px"></div></div></div>
+        <div style="height:56px; flex:none; display:flex; align-items:center; padding:0 18px; gap:14px">
+          <div style="width:20px; height:20px; position:relative"><div style="position:absolute; left:2px; top:4px; width:12px; height:12px; border-left:2px solid #E6F2F5; border-bottom:2px solid #E6F2F5; transform:rotate(45deg)"></div><div style="position:absolute; left:2px; top:9px; width:16px; height:2px; background:#E6F2F5"></div></div>
+          <span style="flex:1; font-size:21px; font-weight:800; color:#E6F2F5">Profil</span>
+        </div>
+        <div style="flex:1; overflow:hidden; padding:0 16px; display:flex; flex-direction:column; gap:16px">
+          <div style="display:flex; align-items:center; gap:14px; padding:2px 4px">
+            <div style="width:56px; height:56px; border-radius:50%; background:#17303B; border:1px solid #35525E; display:flex; align-items:center; justify-content:center; font-size:19px; font-weight:800; color:#22C1D6; flex:none">AK</div>
+            <div style="flex:1; min-width:0">
+              <div style="font-size:16.5px; font-weight:800; color:#E6F2F5">Ahmet Kaya</div>
+              <div style="margin-top:4px; font-size:12.5px; color:#93AAB4">Renault Megane E-Tech · 60 kWh</div>
+            </div>
+          </div>
+          <div style="background:linear-gradient(165deg,#122934,#0F2028); border:1px solid rgba(34,193,214,.4); border-radius:20px; padding:16px">
+            <div style="display:flex; align-items:center; gap:10px"><span style="flex:1; font-size:14px; font-weight:800; color:#E6F2F5">Güncelleme hazır</span><span style="font:600 11px 'Plus Jakarta Sans'; color:#93AAB4">v2.4.1 → v2.5.0</span></div>
+            <div style="margin-top:12px; display:flex; gap:10px">
+              <div style="flex:1; height:42px; border-radius:13px; background:#22C1D6; color:#04222A; font-size:13.5px; font-weight:800; display:flex; align-items:center; justify-content:center">İndir</div>
+              <div style="flex:1; height:42px; border-radius:13px; border:1px solid #35525E; color:#E6F2F5; font-size:13.5px; font-weight:700; display:flex; align-items:center; justify-content:center">Şimdi kontrol et</div>
+            </div>
+            <div style="margin-top:12px; display:flex; align-items:center; gap:12px"><span style="flex:1; font-size:13px; color:#E6F2F5">Açılışta kontrol et</span><div style="width:44px; height:26px; box-sizing:border-box; align-items:center; border-radius:13px; background:#22C1D6; padding:3px; display:flex; justify-content:flex-end"><div style="width:20px; height:20px; border-radius:50%; background:#04222A"></div></div></div>
+          </div>
+
+          <div lang="tr" style="font:700 11px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#22C1D6">Birimler</div>
+          <div style="height:42px; background:#10222C; border:1px solid #35525E; border-radius:13px; padding:4px; display:flex; gap:4px">
+            <div style="flex:1; border-radius:9px; background:#22C1D6; color:#04222A; font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center">km/h</div>
+            <div style="flex:1; border-radius:9px; color:#93AAB4; font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:center">mph</div>
+          </div>
+
+          <div lang="tr" style="font:700 11px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#22C1D6">Adaptör & otomasyon</div>
+          <div style="background:#10222C; border:1px solid #35525E; border-radius:18px; overflow:hidden">
+            <div style="display:flex; align-items:center; gap:12px; padding:14px"><span style="flex:1; font-size:14px; color:#E6F2F5">Açılışta bağlan</span><div style="width:44px; height:26px; box-sizing:border-box; align-items:center; border-radius:13px; background:#22C1D6; padding:3px; display:flex; justify-content:flex-end"><div style="width:20px; height:20px; border-radius:50%; background:#04222A"></div></div></div>
+            <div style="height:1px; background:#1A303C"></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:14px"><span style="flex:1; font-size:14px; color:#E6F2F5">Yolculukları otomatik kaydet</span><div style="width:44px; height:26px; box-sizing:border-box; align-items:center; border-radius:13px; background:#35525E; padding:3px; display:flex"><div style="width:20px; height:20px; border-radius:50%; background:#93AAB4"></div></div></div>
+          </div>
+
+          <div lang="tr" style="font:700 11px 'Plus Jakarta Sans'; letter-spacing:.07em; text-transform:uppercase; color:#22C1D6">Şarj istasyonları</div>
+          <div style="background:#10222C; border:1px solid #35525E; border-radius:18px; overflow:hidden">
+            <div style="display:flex; align-items:center; gap:12px; padding:14px"><span style="flex:1; font-size:14px; color:#E6F2F5">Sadece DC</span><div style="width:44px; height:26px; box-sizing:border-box; align-items:center; border-radius:13px; background:#22C1D6; padding:3px; display:flex; justify-content:flex-end"><div style="width:20px; height:20px; border-radius:50%; background:#04222A"></div></div></div>
+            <div style="height:1px; background:#1A303C"></div>
+            <div style="padding:14px"><div style="display:flex; align-items:baseline; gap:8px"><span style="flex:1; font-size:14px; color:#E6F2F5">Minimum güç</span><span style="font:700 13px 'Plus Jakarta Sans'; color:#22C1D6">50 kW</span></div><div style="margin-top:10px; height:4px; border-radius:2px; background:#16323D; position:relative"><div style="width:28%; height:100%; background:#22C1D6; border-radius:2px"></div><div style="position:absolute; left:28%; top:-7px; width:18px; height:18px; border-radius:50%; background:#22C1D6; margin-left:-9px"></div></div></div>
+            <div style="height:1px; background:#1A303C"></div>
+            <div style="display:flex; align-items:center; gap:12px; padding:14px"><div style="flex:1"><div style="font-size:14px; color:#E6F2F5">Kaynak senkronizasyonu</div><div style="margin-top:3px; font-size:11.5px; color:#93AAB4">Son: 25.07.2026 · 5.412 kayıt</div></div><span style="font-size:13px; font-weight:800; color:#22C1D6">Yenile</span></div>
+          </div>
+
+          <div style="background:#10222C; border:1px solid #35525E; border-radius:18px; padding:14px">
+            <div style="font-size:14px; font-weight:700; color:#E6F2F5">Gizlilik</div>
+            <div style="margin-top:5px; font-size:12px; color:#93AAB4; line-height:1.5">Hiçbir araç verisi cihazdan çıkmıyor. Hesap, reklam, analitik yok.</div>
+          </div>
+        </div>
+        <div style="flex:none; height:20px; background:#0E1F28; display:flex; align-items:center; justify-content:center"><div style="width:110px; height:4px; border-radius:2px; background:#35525E"></div></div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { ac: true, dc: true };
+  chip(on) {
+    return "width:30px; height:22px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-family:'Plus Jakarta Sans',sans-serif; font-size:11px; font-weight:600; letter-spacing:.4px; transition:all .15s; "
+      + (on ? "background:#0E8FA0; color:#FFFDF6; box-shadow:0 1px 4px rgba(14,143,160,.4)"
+            : "background:rgba(95,87,73,.08); color:#9A9280");
+  }
+  renderVals() {
+    return {
+      acStyle: this.chip(this.state.ac),
+      dcStyle: this.chip(this.state.dc),
+      toggleAc: () => this.setState(s => ({ ac: !s.ac })),
+      toggleDc: () => this.setState(s => ({ dc: !s.dc })),
+    };
+  }
+}
+</script>
+</body>
+</html>
