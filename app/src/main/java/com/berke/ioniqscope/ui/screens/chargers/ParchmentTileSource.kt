@@ -63,7 +63,13 @@ class ParchmentTileSource(
             val g = (argb shr 8) and 0xFF
             val b = argb and 0xFF
 
+            val chroma = maxOf(r, g, b) - minOf(r, g, b)
             val out = when {
+                // Type first, and told apart from water by how saturated it is rather
+                // than by hue or brightness, which both overlap. Positron's labels are
+                // #AFBAC2 over #73909C — chroma 19 and 41 — while its water sits at 8
+                // to 13. The gap is clean and it is the only thing that separates them.
+                chroma >= LABEL_CHROMA && b > r -> label(maxOf(r, g, b))
                 near(r, g, b, WATER_SRC, WATER_TOLERANCE) -> WATER
                 near(r, g, b, PARK_SRC, PARK_TOLERANCE) -> PARK
                 // Everything else is neutral or type, and separated by brightness —
@@ -76,7 +82,19 @@ class ParchmentTileSource(
         return Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
     }
 
-    /** True when a pixel is within [TOLERANCE] of a known Positron fill, per channel. */
+    /**
+     * A label pixel in the design's colours, keeping its own weight.
+     *
+     * Positron draws type from a dark core out to a lighter body, and mapping the whole
+     * range onto one colour would flatten the anti-aliasing and leave every name looking
+     * bitmapped. The two ends map to the design's two; everything between follows.
+     */
+    private fun label(level: Int): Int {
+        val t = ((level - LABEL_DARK) / (LABEL_LIGHT - LABEL_DARK).toFloat()).coerceIn(0f, 1f)
+        return blend(0x5F5749, 0xA39A88, t)
+    }
+
+    /** True when a pixel is within the given tolerance of a Positron fill, per channel. */
     private fun near(r: Int, g: Int, b: Int, target: Triple<Int, Int, Int>, tolerance: Int) =
         Math.abs(r - target.first) <= tolerance &&
             Math.abs(g - target.second) <= tolerance &&
@@ -107,6 +125,13 @@ class ParchmentTileSource(
          */
         const val WATER_TOLERANCE = 10
         const val PARK_TOLERANCE = 6
+
+        /** Above this a blue-grey pixel is type. Water never reaches it. */
+        const val LABEL_CHROMA = 16
+
+        /** The brightness of the darkest and lightest type Positron draws. */
+        const val LABEL_DARK = 150
+        const val LABEL_LIGHT = 200
 
         val WATER = 0xB9D9EB and 0xFFFFFF
         val PARK = 0xDCE8D0 and 0xFFFFFF
