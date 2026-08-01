@@ -6,14 +6,17 @@ import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
@@ -25,6 +28,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,6 +44,7 @@ import com.berke.ioniqscope.connection.ConnectionState
 import com.berke.ioniqscope.data.TripEntity
 import com.berke.ioniqscope.data.defaultTripFileName
 import com.berke.ioniqscope.service.TripLoggingService
+import com.berke.ioniqscope.data.TripSpeedSummary
 import com.berke.ioniqscope.ui.components.Banner
 import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.EmptyState
@@ -50,8 +55,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -65,6 +72,11 @@ class TripLogViewModel(private val services: ServiceLocator) : ViewModel() {
 
     val trips: StateFlow<List<TripEntity>> = dao.observeTrips()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Speed figures keyed by trip, so a card can be drawn without its own query. */
+    val speeds: StateFlow<Map<Long, TripSpeedSummary>> = dao.observeSpeedSummaries()
+        .map { rows -> rows.associateBy { it.tripId } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private val _exportResult = MutableStateFlow<String?>(null)
     val exportResult: StateFlow<String?> = _exportResult.asStateFlow()
@@ -110,6 +122,7 @@ fun TripLogScreen(
     val connection by vm.connectionState.collectAsStateWithLifecycle()
     val activeTripId by vm.activeTripId.collectAsStateWithLifecycle()
     val trips by vm.trips.collectAsStateWithLifecycle()
+    val speeds by vm.speeds.collectAsStateWithLifecycle()
     val exportResult by vm.exportResult.collectAsStateWithLifecycle()
 
     val connected = connection is ConnectionState.Connected
@@ -133,7 +146,7 @@ fun TripLogScreen(
         if (!connected && !logging) {
             Banner(
                 title = "Bağlı değil",
-                text = "Sefer kaydına başlamadan önce adaptöre bağlan.",
+                text = "Yolculuk kaydına başlamadan önce adaptöre bağlan.",
                 tone = BannerTone.Warning,
                 modifier = Modifier.padding(top = 12.dp),
                 actionLabel = "Bağlan",
@@ -141,67 +154,77 @@ fun TripLogScreen(
             )
         }
 
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            )
+        // The one action this screen exists for, given the width it deserves, with
+        // what it is doing said underneath rather than in a card around it.
+        Row(
+            Modifier.fillMaxWidth().padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    if (logging) "Recording" else "Kayıt yok",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (logging) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    if (logging) {
-                        "Göstergenin sorguladığı her ölçüm kaydediliyor. Ekran kapalıyken de sürer."
-                    } else {
-                        "Göstergenin sorguladığı ne varsa, zaman damgalı olarak yalnızca bu telefona kaydeder."
+            if (logging) {
+                Button(
+                    onClick = { vm.stop(context) },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    ),
+                    modifier = Modifier.weight(1f).height(52.dp)
+                ) { Text("Kaydı durdur") }
+            } else {
+                Button(
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            vm.start(context)
+                        }
                     },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (logging) {
-                    Button(
-                        onClick = { vm.stop(context) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) { Text("Kaydı durdur") }
-                } else {
-                    Button(
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                vm.start(context)
-                            }
-                        },
-                        enabled = connected
-                    ) { Text("Kaydı başlat") }
-                }
+                    enabled = connected,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.weight(1f).height(52.dp)
+                ) { Text("Kaydı başlat") }
             }
         }
+
+        Text(
+            if (logging) {
+                "Göstergenin sorguladığı her ölçüm kaydediliyor. Ekran kapalıyken de sürer."
+            } else {
+                "Göstergenin sorguladığı ne varsa, zaman damgalı olarak yalnızca bu " +
+                    "telefona kaydeder."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         exportResult?.let {
             Banner(
                 text = it,
-                tone = if (it.startsWith("Dışa aktarma başarısız")) BannerTone.Error else BannerTone.Success
+                tone = if (it.startsWith("Dışa aktarma başarısız")) BannerTone.Error
+                else BannerTone.Success
             )
         }
 
-        HorizontalDivider()
-        SectionLabel("Kayıtlı seferler")
+        Row(
+            Modifier.fillMaxWidth().padding(top = 4.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("Kayıtlı yolculuklar", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "${trips.size} kayıt",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         if (trips.isEmpty()) {
-            EmptyState("Henüz kayıtlı sefer yok.")
+            EmptyState("Henüz kayıtlı yolculuk yok.")
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(trips, key = { it.id }) { trip ->
                     TripRow(
                         trip = trip,
+                        speed = speeds[trip.id],
                         isActive = trip.id == activeTripId,
                         onOpen = { onOpenTrip(trip.id) },
                         onExport = {
@@ -217,50 +240,88 @@ fun TripLogScreen(
     }
 }
 
+/** A label over its value, which is how the design stacks a statistic. */
+@Composable
+private fun TripStat(label: String, value: String) {
+    Column {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(value, style = MaterialTheme.typography.titleSmall)
+    }
+}
+
 @Composable
 private fun TripRow(
     trip: TripEntity,
+    speed: TripSpeedSummary?,
     isActive: Boolean,
     onOpen: () -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        ),
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = scheme.surfaceContainer,
+        border = BorderStroke(1.dp, scheme.outline),
         // Tapping a finished trip opens its detail view; an in-progress one has
         // nothing settled to show yet.
-        onClick = { if (!isActive) onOpen() }
+        onClick = { if (!isActive) onOpen() },
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(Modifier.weight(1f)) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     tripFormatter.format(Instant.ofEpochMilli(trip.startedAtEpochMs)),
-                    style = MaterialTheme.typography.titleSmall
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f)
                 )
-                val duration = trip.endedAtEpochMs?.let { it - trip.startedAtEpochMs }
-                Text(
-                    buildString {
-                        if (isActive) append("kaydediliyor…")
-                        else if (duration != null) append(formatDuration(duration))
-                        else append("beklenmedik şekilde bitti")
-                        if (trip.sampleCount > 0) append("  ·  ${trip.sampleCount} ölçüm")
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                if (isActive) {
+                    Text(
+                        "kaydediliyor…",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = scheme.primary
+                    )
+                }
+            }
+
+            val duration = trip.endedAtEpochMs?.let { it - trip.startedAtEpochMs }
+            Row(
+                Modifier.padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                TripStat(
+                    "Süre",
+                    when {
+                        isActive -> "sürüyor"
+                        duration != null -> formatDuration(duration)
+                        // A trip with no end was cut off by a crash or a kill; it is
+                        // not a trip of unknown length, it is one that never finished.
+                        else -> "yarım kaldı"
+                    }
                 )
+                // Absent rather than zero: a trip logged without the speed PID selected
+                // has no average speed, and 0 km/h is a different claim about it.
+                speed?.let {
+                    TripStat("Ort. hız", "${it.averageSpeed.roundToInt()} km/h")
+                    TripStat("En yüksek", "${it.topSpeed.roundToInt()} km/h")
+                }
+                TripStat("Örnek", trip.sampleCount.toString())
             }
-            IconButton(onClick = onExport, enabled = !isActive) {
-                Icon(Icons.Filled.Download, contentDescription = "CSV olarak dışa aktar")
-            }
-            IconButton(onClick = onDelete, enabled = !isActive) {
-                Icon(Icons.Filled.Delete, contentDescription = "Seferi sil")
+
+            Row(
+                Modifier.fillMaxWidth().padding(top = 6.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                IconButton(onClick = onExport, enabled = !isActive) {
+                    Icon(Icons.Filled.Download, contentDescription = "CSV olarak dışa aktar")
+                }
+                IconButton(onClick = onDelete, enabled = !isActive) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Yolculuğu sil")
+                }
             }
         }
     }

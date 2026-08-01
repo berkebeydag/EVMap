@@ -130,3 +130,10 @@ data class OperatorCount(
     val name: String,
     val stations: Int
 )
+
+/** What the speed samples of one trip add up to. Absent when none were logged. */
+data class TripSpeedSummary(
+    val tripId: Long,
+    val averageSpeed: Double,
+    val topSpeed: Double
+)

@@ -253,6 +253,23 @@ interface TripDao {
     suspend fun trip(id: Long): TripEntity?
 
     /** Column set for the CSV header, in a stable order. */
+    /**
+     * Average and top speed per trip, in one pass over the samples.
+     *
+     * One query for the whole list rather than one per row: the log is a LazyColumn and
+     * a query per card would fire as the user scrolls, on the main thread's timing, for
+     * a number that is the same every time it is asked.
+     *
+     * Trips with no speed samples simply do not appear in the result, which the caller
+     * reads as "not known" rather than as zero — a trip logged without the speed PID
+     * selected has no average speed, and 0 km/h is a different claim.
+     */
+    @Query(
+        "SELECT trip_id AS tripId, AVG(value) AS averageSpeed, MAX(value) AS topSpeed " +
+            "FROM trip_samples WHERE pid_key = 'speed' GROUP BY trip_id"
+    )
+    fun observeSpeedSummaries(): Flow<List<TripSpeedSummary>>
+
     @Query("SELECT DISTINCT pid_key FROM trip_samples WHERE trip_id = :tripId ORDER BY pid_key")
     suspend fun pidKeys(tripId: Long): List<String>
 
