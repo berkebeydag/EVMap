@@ -58,12 +58,22 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     val visible: StateFlow<List<ChargerListItem>> = _visible.asStateFlow()
 
     /**
-     * The same records collapsed to one entry per physical place.
+     * How many stations in view the filters are hiding.
      *
-     * Both the map and the list use this rather than the raw rows: the sources
-     * publish a separate record per socket, so a single car park would otherwise
-     * appear as five map markers and five identical list entries.
+     * Filters that hide things silently are indistinguishable from missing data. A
+     * DC-only default plus a forgotten network filter turned 72 stations around Çeşme
+     * into 5, and from the map that looked exactly like the app not knowing about
+     * them — which is the one thing a charging map cannot afford to look like.
      */
+    private val _hiddenNearby = MutableStateFlow(0)
+    val hiddenNearby: StateFlow<Int> = _hiddenNearby.asStateFlow()
+
+    /** Puts everything back: every network, and AC alongside DC. */
+    fun clearFilters() = viewModelScope.launch {
+        services.settings.setChargersOperators(emptySet())
+        services.settings.setChargersDcOnly(false)
+    }
+
     /**
      * Whether the list answers "what is near" or "what is cheap".
      *
@@ -76,6 +86,13 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     fun setSortByPrice(enabled: Boolean) { _sortByPrice.value = enabled }
 
+    /**
+     * The same records collapsed to one entry per physical place, in the order asked for.
+     *
+     * Both the map and the list use this rather than the raw rows: the sources publish
+     * a separate record per socket, so a single car park would otherwise appear as five
+     * map markers and five identical list entries.
+     */
     val sites: StateFlow<List<ChargerSite>> = combine(_visible, _sortByPrice) { items, byPrice ->
         val grouped = groupIntoSites(items)
         if (byPrice) {
@@ -229,6 +246,10 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
             }
             loadedBox = padded
             _visible.value = prepared
+            // What the filters are keeping off the screen. Counted for the viewport
+            // the user is actually looking at rather than the padded query, or the
+            // number would describe ground they cannot see.
+            _hiddenNearby.value = (repo.countInBounds(box) - prepared.size).coerceAtLeast(0)
         }
     }
 
