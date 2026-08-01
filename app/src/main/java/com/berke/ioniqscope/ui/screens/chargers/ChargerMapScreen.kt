@@ -5,15 +5,19 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -362,7 +366,10 @@ fun ChargerMapScreen(services: ServiceLocator) {
         //
         // One surface holding three buttons rather than three floating circles: it
         // reads as a single control, and it takes noticeably less of the map.
-        Surface(
+        // Hidden while a site is open. The sheet reaches both edges now, so the stack
+        // would be sitting on top of the thing the user just asked to read — and every
+        // control on it acts on the map behind, which is not what is being looked at.
+        if (selected == null) Surface(
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
             shadowElevation = 3.dp,
@@ -428,14 +435,16 @@ fun ChargerMapScreen(services: ServiceLocator) {
             )
         }
 
+        // Flush to the bottom and to both edges, as a sheet rather than a floating
+        // card. It used to be inset with the button stack squeezed alongside it, which
+        // left a strip of map down each side too narrow to see anything through and
+        // put a column of controls over the thing the user had just asked to read.
         selected?.let { site ->
             SelectedSiteCard(
                 site = site,
                 onNavigate = { openInMaps(context, site) },
                 onDismiss = { selected = null },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(start = 12.dp, end = 76.dp, bottom = 12.dp)
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
     }
@@ -810,7 +819,17 @@ private fun BrandFilterDialog(
     )
 }
 
-/** Details for the tapped site, over the map rather than on a new screen. */
+/**
+ * The tapped site, as the design lays it out.
+ *
+ * Structured rather than described. It used to be a sentence — operator, power, type,
+ * connectors, address, all run together — which is quick to write and slow to read: to
+ * find out whether your cable fits you had to parse a paragraph. The facts are chips
+ * now, in the order they are asked in: how fast, what fits, whose it is.
+ *
+ * Price keeps a box of its own because it is the one number here that is an estimate,
+ * and the box is what stops it being read with the same confidence as the kW.
+ */
 @Composable
 private fun SelectedSiteCard(
     site: ChargerSite,
@@ -818,65 +837,163 @@ private fun SelectedSiteCard(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val scheme = MaterialTheme.colorScheme
     Surface(
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-        shadowElevation = 4.dp,
+        // Square along the bottom: it is anchored to the screen edge, and rounding a
+        // corner that touches nothing only shows the map through the gap.
+        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+        color = scheme.surfaceContainer,
+        shadowElevation = 12.dp,
         modifier = modifier.fillMaxWidth()
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Text(
-                site.name ?: site.operator ?: UNBRANDED,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            // The socket count belongs here, not on the map: the map answers "where
-            // can I charge", this answers "what will I find when I get there".
-            chargePointSummary(site)?.let {
+        Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 18.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        site.name ?: site.operator ?: UNBRANDED,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    chargePointSummary(site)?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 3.dp)
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Kapat",
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            FlowRow(
+                Modifier.padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // The speed leads and is the only chip in the accent colour: it is the
+                // one fact that decides whether this stop is twenty minutes or a whole
+                // evening, and the rest only qualify it.
+                powerChip(site)?.let { FactChip(it, accent = true) }
+                site.connectors?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
+                    ?.distinct()?.forEach { FactChip(connectorName(it)) }
+                site.operator?.let { FactChip(it, muted = true) }
+            }
+
+            site.address?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     it,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp)
                 )
             }
-            Text(
-                describe(site),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            // The one place with room to say what the number actually is. Shown
-            // compactly in two other places, and a price quoted twice over without
-            // ever being explained is a price the user is entitled to think is theirs.
+
             formatTariff(site, short = false)?.let { price ->
-                Text(
-                    "$price · ${priceVerdict(site) ?: ""}".trimEnd(' ', '·') +
-                        " · ${site.operator} tarifesi, $AS_OF",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = priceColour(site),
-                    modifier = Modifier.padding(top = 6.dp)
-                )
-                Text(
-                    "İşletmecinin yayımladığı fiyat. Üyelik, kampanya ve lokasyona " +
-                        "göre değişebilir.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Row(
-                Modifier.padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(onClick = onNavigate) {
-                    Icon(Icons.Filled.Navigation, contentDescription = null,
-                        modifier = Modifier.size(18.dp))
-                    Text("Yol tarifi", modifier = Modifier.padding(start = 6.dp))
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = scheme.surfaceContainerLow,
+                    border = BorderStroke(1.dp, scheme.outline),
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp)
+                ) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(price, style = MaterialTheme.typography.titleSmall)
+                            priceVerdict(site)?.let {
+                                Spacer(Modifier.weight(1f))
+                                FactChip(it, muted = true)
+                            }
+                        }
+                        Text(
+                            "${site.operator} tarifesi · $AS_OF",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = scheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                        Text(
+                            "İşletmecinin yayımladığı fiyat. Üyelik, kampanya ve " +
+                                "lokasyona göre değişebilir.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = scheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
                 }
-                TextButton(onClick = onDismiss) { Text("Kapat") }
+            }
+
+            Button(
+                onClick = onNavigate,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 14.dp)
+                    .height(50.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Navigation,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text("Yol tarifi", modifier = Modifier.padding(start = 8.dp))
             }
         }
     }
+}
+
+/** One fact, boxed. Accent for the speed, muted for what only qualifies it. */
+@Composable
+private fun FactChip(text: String, accent: Boolean = false, muted: Boolean = false) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (accent) scheme.primary.copy(alpha = 0.12f) else scheme.surfaceContainerHigh
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            color = when {
+                accent -> scheme.primary
+                muted -> scheme.onSurfaceVariant
+                else -> scheme.onSurface
+            },
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+        )
+    }
+}
+
+/** "180 kW DC", or nothing where the source never published a rating. */
+private fun powerChip(site: ChargerSite): String? {
+    val kw = site.maxPowerKw?.takeIf { it > 0 } ?: return null
+    val power = if (kw % 1.0 == 0.0) "${kw.toInt()} kW"
+    else String.format(Locale.US, "%.1f kW", kw)
+    return when (site.isDc) {
+        true -> "$power DC"
+        false -> "$power AC"
+        null -> power
+    }
+}
+
+/**
+ * The socket type as a driver would say it.
+ *
+ * The bundle carries IEC's own spelling — IEC62196Type2CCS — which is correct, precise,
+ * and written on no cable and in no car's manual. Anything unrecognised is passed
+ * through as it came rather than guessed at.
+ */
+private fun connectorName(raw: String): String = when (raw) {
+    "IEC62196Type2CCS" -> "CCS2"
+    "IEC62196Type2Outlet" -> "Tip 2"
+    "IEC62196Type2CableAttached" -> "Tip 2 kablolu"
+    "Chademo" -> "CHAdeMO"
+    else -> raw
 }
 
 /**
