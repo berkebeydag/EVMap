@@ -87,10 +87,6 @@ class ChargerRepository(
         dcOnly, minPowerKw, operators.isEmpty(), operators.orPlaceholder(), limit
     )
 
-    /** Everything in the box, filters ignored — the denominator for "5 of 72". */
-    suspend fun countInBounds(box: BoundingBox): Int =
-        dao.countInBounds(box.minLat, box.maxLat, box.minLon, box.maxLon)
-
     /** Every network with a station, most first. Drives the brand filter's list. */
     val operators: Flow<List<OperatorCount>> = dao.observeOperators()
 

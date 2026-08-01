@@ -110,24 +110,6 @@ interface ChargingStationDao {
     ): List<ChargingStationEntity>
 
     /**
-     * How many stations are in a box before any filter touches them.
-     *
-     * A count rather than the rows: this exists only to answer "how much is being
-     * hidden", and building sixteen thousand objects to arrive at a number nobody
-     * reads individually would cost more than everything else the map does.
-     */
-    @Query(
-        "SELECT COUNT(*) FROM charging_stations " +
-            "WHERE lat BETWEEN :minLat AND :maxLat AND lon BETWEEN :minLon AND :maxLon"
-    )
-    suspend fun countInBounds(
-        minLat: Double,
-        maxLat: Double,
-        minLon: Double,
-        maxLon: Double
-    ): Int
-
-    /**
      * Every network, most stations first.
      *
      * Ordered by how many each one has because that is the order they are useful in:

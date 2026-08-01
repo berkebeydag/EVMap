@@ -113,7 +113,6 @@ fun ChargerMapScreen(services: ServiceLocator) {
     // whenever the screen left composition with the list open.
     val showList by vm.listMode.collectAsStateWithLifecycle()
     val sortByPrice by vm.sortByPrice.collectAsStateWithLifecycle()
-    val hiddenNearby by vm.hiddenNearby.collectAsStateWithLifecycle()
     var searching by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<ChargerSite?>(null) }
     /** Where something outside the map wants it, and how close to sit when it arrives. */
@@ -340,19 +339,6 @@ fun ChargerMapScreen(services: ServiceLocator) {
 
             locationNote(location, following)?.let {
                 Banner(text = it, tone = BannerTone.Warning)
-            }
-
-            // A filter that hides things quietly is indistinguishable from an app that
-            // does not know about them. Around Çeşme a DC-only default plus a network
-            // filter left five of seventy-two stations on screen, and the map gave no
-            // sign which of the two it was.
-            if (hiddenNearby > 0) {
-                Banner(
-                    text = "Filtreler bu bölgede $hiddenNearby istasyonu gizliyor.",
-                    tone = BannerTone.Info,
-                    actionLabel = "Filtreleri temizle",
-                    onAction = { vm.clearFilters() }
-                )
             }
 
             // Up here with everything else that describes the map, rather than in the
