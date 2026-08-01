@@ -252,9 +252,9 @@ class ChargerOverlay(
         for (bucket in buckets.values) {
             if (bucket.size == 1) {
                 val (point, site) = bucket.first()
-                drawSitePin(
+                drawDot(
                     canvas, point.x.toFloat(), point.y.toFloat(),
-                    big = site.isDc == true, color = brandColor(site.operator)
+                    radiusFor(site), brandColor(site.operator)
                 )
                 singleTargets += point to site
             } else {
@@ -436,7 +436,7 @@ class ChargerOverlay(
             if (drawn >= MAX_LABELS) return
             val name = labelFor(site) ?: continue
             if (place(canvas, name, point.x.toFloat(),
-                    point.y + brand.textSize * 0.9f)) drawn++
+                    point.y + radiusFor(site) + brand.textSize)) drawn++
         }
     }
 

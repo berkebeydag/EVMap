@@ -58,8 +58,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import android.graphics.ColorMatrix
-import android.graphics.ColorMatrixColorFilter
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -1094,7 +1092,7 @@ private fun ChargerMap(
             tileDownloadMaxQueueSize = 80
         }
         MapView(context).apply {
-            setTileSource(CARTO_POSITRON)
+            setTileSource(CARTO_PARCHMENT)
             setMultiTouchControls(true)
             // Without this the raster tiles are blitted 1:1 onto a ~3x density
             // screen, which is why the map read as a low-resolution image pasted in.
@@ -1102,16 +1100,6 @@ private fun ChargerMap(
             zoomController.setVisibility(
                 org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER
             )
-            // Parchment, from a basemap nobody serves in parchment.
-            //
-            // The design asks for warm cream land, sand-coloured roads and slightly
-            // bluer water. No key-free raster provider publishes that, and the one
-            // warm basemap on offer — Voyager — was moved away from on purpose for
-            // its yellow arterials. So the tiles are recoloured on the way to the
-            // screen instead: saturation up, which pulls the grey-blue water towards
-            // the blue the design wants, then a warm scale that turns the near-white
-            // land to cream. One matrix, applied by the GPU, costing nothing per frame.
-            overlayManager.tilesOverlay.setColorFilter(PARCHMENT)
             controller.setZoom(6.2)
             controller.setCenter(TURKEY_CENTRE)
             overlays.add(overlay)
@@ -1354,37 +1342,14 @@ private const val CARTO_ATTRIBUTION = "© OpenStreetMap contributors © CARTO"
  * Same provider, same terms, same attribution, and no key or account either way.
  */
 /**
- * Warms the basemap to the parchment the design calls for.
+ * Positron, repainted to parchment as each tile is decoded.
  *
- * Two steps in one matrix. Saturation is lifted first, because the land is nearly
- * neutral and barely moves while the water — the only saturated thing on a Positron
- * tile — becomes the blue the design wants. Then the channels are scaled apart:
- * red held, green eased, blue pulled down, which is what turns #FAFAF8 land into
- * #F6F1E6 cream and the white roads into sand.
- *
- * Applied to the tiles alone. The markers, routes and labels are drawn by our own
- * overlay above it and keep their own colours, which is the point — warming those
- * too would take the brand colours with it.
+ * The recolour is per pixel rather than a colour filter, for the reason set out in
+ * [ParchmentTileSource]: one linear transform cannot warm the land, cool the water and
+ * leave the type alone at the same time.
  */
-private val PARCHMENT = ColorMatrixColorFilter(
-    ColorMatrix().apply {
-        setSaturation(1.35f)
-        postConcat(
-            ColorMatrix(
-                floatArrayOf(
-                    1.00f, 0f, 0f, 0f, 0f,
-                    0f, 0.975f, 0f, 0f, 0f,
-                    0f, 0f, 0.92f, 0f, 0f,
-                    0f, 0f, 0f, 1f, 0f
-                )
-            )
-        )
-    }
-)
-
-private val CARTO_POSITRON = XYTileSource(
-    "carto-positron",
-    0, 20, 512, "@2x.png",
+private val CARTO_PARCHMENT = ParchmentTileSource(
+    "carto-parchment",
     arrayOf(
         "https://a.basemaps.cartocdn.com/rastertiles/light_all/",
         "https://b.basemaps.cartocdn.com/rastertiles/light_all/",
