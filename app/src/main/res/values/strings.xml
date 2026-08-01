@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">IoniqScope</string>
+    <string name="app_name">Şarj Bul</string>
 
     <!-- Navigation -->
     <string name="nav_connect">Bağlan</string>
@@ -13,6 +13,7 @@
     <string name="nav_aux_battery">12V akü</string>
     <string name="nav_trip_detail">Sefer</string>
     <string name="nav_obd">OBD</string>
+    <string name="nav_battery">Batarya</string>
     <string name="back">Geri</string>
 
     <!-- Connection status, announced from the top-bar icon -->
@@ -28,7 +29,7 @@
       being true when the charger map arrived, so the claim is now the narrower one
       that is actually kept: vehicle data stays on the phone.
     -->
-    <string name="perm_body">IoniqScope, OBD-II adaptörünü bulup onunla konuşmak için Bluetooth erişimine ihtiyaç duyuyor. Araçtan okunan hiçbir veri telefondan çıkmıyor; internet yalnızca harita ve şarj istasyonları için kullanılıyor.</string>
+    <string name="perm_body">Şarj Bul, OBD-II adaptörünü bulup onunla konuşmak için Bluetooth erişimine ihtiyaç duyuyor. Araçtan okunan hiçbir veri telefondan çıkmıyor; internet yalnızca harita ve şarj istasyonları için kullanılıyor.</string>
     <string name="perm_location_note">Android 11 ve öncesinde, Bluetooth LE cihazlarını taramak için sistem konum izni istiyor. O izin yalnızca tarama için gerekli; konumun haritada seni göstermek ve istasyonları mesafeye göre sıralamak dışında bir yerde kullanılmıyor.</string>
     <string name="perm_grant">İzin ver</string>
     <string name="perm_denied_settings">İzin reddedildi. Adaptör taraması için sistem ayarlarından açman gerekiyor.</string>

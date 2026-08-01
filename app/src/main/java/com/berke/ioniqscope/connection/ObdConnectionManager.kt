@@ -3,6 +3,7 @@ package com.berke.ioniqscope.connection
 import android.content.Context
 import android.os.SystemClock
 import com.berke.ioniqscope.data.AdapterType
+import com.berke.ioniqscope.obd.BatteryReading
 import com.berke.ioniqscope.obd.BleScanner
 import com.berke.ioniqscope.obd.BleTransport
 import com.berke.ioniqscope.obd.ClassicBtTransport
@@ -10,6 +11,10 @@ import com.berke.ioniqscope.obd.DtcReader
 import com.berke.ioniqscope.obd.Elm327
 import com.berke.ioniqscope.obd.ObdEngine
 import com.berke.ioniqscope.obd.Pid
+import com.berke.ioniqscope.obd.UdsReader
+import com.berke.ioniqscope.obd.VehicleProfile
+import com.berke.ioniqscope.obd.intAt
+import com.berke.ioniqscope.obd.uintAt
 import com.berke.ioniqscope.obd.ReadinessReader
 import com.berke.ioniqscope.obd.ReadinessReport
 import com.berke.ioniqscope.obd.Transport
@@ -309,6 +314,45 @@ class ObdConnectionManager(
     suspend fun sendRaw(command: String): Result<String> =
         exclusive { elm -> elm.command(command.trim().uppercase()) }
 
+    /**
+     * Reads a profile's battery identifiers and decodes them, keeping the raw text.
+     *
+     * The raw answer comes back alongside the numbers on purpose. Every offset in a
+     * [VehicleProfile] is a claim about where a value sits inside sixty bytes, and a
+     * wrong claim does not throw — it returns a number that looks like the others. The
+     * only way to tell a right offset from a wrong one is to put the bytes and the
+     * reading side by side and check them against what the car itself displays, so
+     * this hands back both and lets the screen insist on that.
+     *
+     * Exclusive, like the DTC reads: it moves the adapter onto the battery ECU, and a
+     * poll landing between the header change and the answer would be asking the wrong
+     * computer. The broadcast header is restored on the way out.
+     */
+    suspend fun readBattery(profile: VehicleProfile): Result<BatteryReading> {
+        val queries = profile.battery
+            ?: return Result.failure(IllegalStateException("Bu araç profilinde batarya sorgusu yok"))
+        return exclusive { elm ->
+            elm.command("ATSH${queries.ecuHeader}")
+            val values = LinkedHashMap<String, Double>()
+            val transcript = StringBuilder()
+            try {
+                for (read in queries.reads) {
+                    val raw = elm.command(read.identifier)
+                    transcript.append(read.identifier).append(NEWLINE).append(raw.trim()).append(BLANK_LINE)
+                    val payload = UdsReader.payloadOf(raw, read.identifier) ?: continue
+                    for (value in read.values) {
+                        val bytes = if (value.signed) payload.intAt(value.at, value.length)
+                        else payload.uintAt(value.at, value.length)
+                        bytes?.let { values[value.key] = it * value.scale }
+                    }
+                }
+            } finally {
+                elm.command("ATSH7DF")
+            }
+            BatteryReading(values, transcript.toString().trim())
+        }
+    }
+
     /** Puts the adapter back on the functional broadcast address (normal PID polling). */
     suspend fun restoreDefaultHeader(): Result<String> = sendRaw("ATSH 7DF")
 
@@ -326,5 +370,9 @@ class ObdConnectionManager(
         const val RECONNECT_BACKOFF_MS = 2_000L
         const val IN_FLIGHT_SETTLE_MS = 150L
         const val MAX_LOG_LINES = 300
+
+        /** Kept as constants so the transcript reads the same on every platform. */
+        private const val NEWLINE = "\n"
+        private const val BLANK_LINE = "\n\n"
     }
 }

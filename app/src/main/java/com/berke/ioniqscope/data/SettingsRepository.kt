@@ -59,7 +59,12 @@ data class AppSettings(
     /** Where the app looks for newer builds. Empty disables updates. */
     val updateShareLink: String = DEFAULT_UPDATE_MANIFEST,
     /** Look for a new build when the app opens. */
-    val autoCheckUpdates: Boolean = true
+    val autoCheckUpdates: Boolean = true,
+    /**
+     * Which car is plugged in. Generic reads only the standard set, which is what
+     * every car supports; a platform adds its own battery queries on top.
+     */
+    val vehicleProfileId: String = "generic"
 )
 
 /**
@@ -94,6 +99,7 @@ class SettingsRepository(private val context: Context) {
         val chargersMinPowerKw = intPreferencesKey("chargers_min_power_kw")
         val updateShareLink = stringPreferencesKey("update_share_link")
         val autoCheckUpdates = booleanPreferencesKey("auto_check_updates")
+        val vehicleProfile = stringPreferencesKey("vehicle_profile")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -118,7 +124,8 @@ class SettingsRepository(private val context: Context) {
             // work on a fresh install without anyone having to paste a URL in.
             // Setting it to something else still wins; clearing it turns updates off.
             updateShareLink = p[Keys.updateShareLink] ?: DEFAULT_UPDATE_MANIFEST,
-            autoCheckUpdates = p[Keys.autoCheckUpdates] ?: true
+            autoCheckUpdates = p[Keys.autoCheckUpdates] ?: true,
+            vehicleProfileId = p[Keys.vehicleProfile] ?: "generic"
         )
     }
 
@@ -155,6 +162,8 @@ class SettingsRepository(private val context: Context) {
     suspend fun setUpdateShareLink(link: String) = edit {
         it[Keys.updateShareLink] = link.trim()
     }
+
+    suspend fun setVehicleProfile(id: String) = edit { it[Keys.vehicleProfile] = id }
 
     suspend fun setAutoCheckUpdates(enabled: Boolean) = edit {
         it[Keys.autoCheckUpdates] = enabled

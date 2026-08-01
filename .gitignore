@@ -22,3 +22,7 @@ tools/__pycache__/
 sarjistasyonlari_tr.json
 tomtom_tr*.json
 .tomtom_sweep_state.json
+
+# Design reference material kept locally. Nothing here is part of the app, and it
+# is 25 MB of it, which a public repository does not need in its history.
+design-md/

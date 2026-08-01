@@ -322,16 +322,15 @@ fun SettingsScreen(services: ServiceLocator) {
         )
 
         HorizontalDivider()
-        SectionLabel("Ioniq 6 batarya verisi")
-        Banner(
-            title = "Bilerek eklenmedi",
-            text = "Şarj durumu, HV batarya voltajı/akımı, kW cinsinden güç ve hücre " +
-                "sıcaklıkları standart OBD-II PID'leri değil; üreticiye özel UDS " +
-                "istekleri gerektiriyorlar. Hiçbiri gömülü gelmiyor, çünkü bir DID " +
-                "tahmin edip yanıtı yanlış çözmek sana inandırıcı ama yanlış sayılar " +
-                "gösterirdi. Doğrulanmış değerleri (EVNotify, Car Scanner Ioniq " +
-                "profili) ver, EgmpPids'e düşsünler.",
-            tone = BannerTone.Info
+        SectionLabel("Araç")
+        Text(
+            "Hız, 12V ve dış sıcaklık her arabada standart OBD-II ile okunur — araç " +
+                "seçmesen de çalışır. Batarya şarjı ve sağlığı standart değil; her " +
+                "platformun kendi sorgusu, kendi bayt düzeni var. Seçim OBD > Batarya " +
+                "sekmesinde ve orada ham cevapla birlikte doğrulanabiliyor.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
         )
 
         HorizontalDivider()

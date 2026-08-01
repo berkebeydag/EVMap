@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.ui.nav.ObdSection
 import com.berke.ioniqscope.ui.screens.dashboard.DashboardScreen
@@ -42,7 +42,12 @@ fun ObdScreen(services: ServiceLocator, onConnect: () -> Unit, onOpen: (String) 
     var section by rememberSaveable { mutableStateOf(ObdSection.Dashboard) }
 
     Column(Modifier.fillMaxSize()) {
-        PrimaryTabRow(selectedTabIndex = section.ordinal) {
+        // Scrollable now that there are four: fixed tabs squeeze four Turkish words
+        // into a phone width by shrinking them until none of them can be read.
+        androidx.compose.material3.PrimaryScrollableTabRow(
+            selectedTabIndex = section.ordinal,
+            edgePadding = 0.dp
+        ) {
             ObdSection.entries.forEach { entry ->
                 Tab(
                     selected = section == entry,
@@ -61,6 +66,7 @@ fun ObdScreen(services: ServiceLocator, onConnect: () -> Unit, onOpen: (String) 
         when (section) {
             ObdSection.Dashboard -> DashboardScreen(services, onConnect)
             ObdSection.Performance -> PerformanceScreen(services, onConnect)
+            ObdSection.Battery -> BatteryScreen(services, onConnect)
             ObdSection.Diagnostics -> DiagnosticsScreen(
                 services = services,
                 onConnect = onConnect,

@@ -2,6 +2,7 @@ package com.berke.ioniqscope.ui.nav
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Warning
@@ -21,5 +22,6 @@ enum class ObdSection(
 ) {
     Dashboard(R.string.nav_dashboard, Icons.Filled.Speed),
     Performance(R.string.nav_performance, Icons.Filled.Timer),
-    Diagnostics(R.string.nav_diagnostics, Icons.Filled.Warning)
+    Diagnostics(R.string.nav_diagnostics, Icons.Filled.Warning),
+    Battery(R.string.nav_battery, Icons.Filled.BatteryChargingFull)
 }
