@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Map
@@ -37,7 +40,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
@@ -206,65 +208,59 @@ fun ChargerMapScreen(services: ServiceLocator) {
     if (showList) {
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().padding(12.dp),
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                FilledTonalIconButton(onClick = { vm.setListMode(false) }) {
-                    Icon(Icons.Filled.Map, contentDescription = "Haritayı göster")
+                // Labelled rather than an icon alone: this is the way back to the map,
+                // and the one control here whose meaning is a destination.
+                HeaderPill(onClick = { vm.setListMode(false) }) {
+                    Icon(
+                        Icons.Filled.Map,
+                        contentDescription = null,
+                        modifier = Modifier.size(17.dp)
+                    )
+                    Text(
+                        "Harita",
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(start = 7.dp)
+                    )
                 }
-                // Places, not sockets. One row was one socket back when the sources
-                // were taken raw; the bundle now merges them, so a row is a place you
-                // can drive to and the socket count lives on the row itself.
-                // One quantity, always: how many places are in the list below. It
-                // briefly said "271 DC yer" with the filter on and "16104 kayıtlı yer"
-                // with it off — the nearby count and the whole database, swapping
-                // places under the same label.
+                // One quantity in both states: how many places are in the list below.
                 Text(
                     "${sites.size} yer",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                // The reason the prices are there. Sorting by them is the difference
-                // between showing a driver a price and helping them act on it.
-                TextButton(
-                    onClick = { vm.setSortByPrice(!sortByPrice) },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
+                )
+                HeaderPill(
+                    active = sortByPrice,
+                    onClick = { vm.setSortByPrice(!sortByPrice) }
                 ) {
                     Text(
                         if (sortByPrice) "En ucuz" else "En yakın",
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
-                // The brand filter belongs here too. Both filters apply to this list;
-                // being able to change only one of them from it is the asymmetry the
-                // AC/DC switch was added to fix in the first place.
-                FilledTonalIconButton(
-                    onClick = { pickingBrands = true },
-                    colors = if (settings.chargersOperators.isNotEmpty()) {
-                        IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else IconButtonDefaults.filledTonalIconButtonColors()
+                HeaderPill(
+                    active = settings.chargersOperators.isNotEmpty(),
+                    onClick = { pickingBrands = true }
                 ) {
-                    Icon(Icons.Filled.FilterAlt, contentDescription = "Şarj ağını seç")
+                    Icon(
+                        Icons.Filled.FilterAlt,
+                        contentDescription = "Şarj ağını seç",
+                        modifier = Modifier.size(17.dp)
+                    )
                 }
-                // The same switch as the map's, because the list is the same question
-                // asked a different way and a filter that only exists on one of them
-                // is a filter you cannot trust either of them about.
-                FilledTonalIconButton(
-                    onClick = { vm.setDcOnly(!settings.chargersDcOnly) },
-                    colors = if (settings.chargersDcOnly) {
-                        IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else IconButtonDefaults.filledTonalIconButtonColors()
+                HeaderPill(
+                    active = settings.chargersDcOnly,
+                    onClick = { vm.setDcOnly(!settings.chargersDcOnly) }
                 ) {
                     Icon(
                         Icons.Filled.Bolt,
                         contentDescription = if (settings.chargersDcOnly)
-                            "AC istasyonları da göster" else "Yalnızca DC göster"
+                            "AC istasyonları da göster" else "Yalnızca DC göster",
+                        modifier = Modifier.size(17.dp)
                     )
                 }
             }
@@ -760,7 +756,7 @@ private fun BrandFilterDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                LazyColumn(Modifier.padding(top = 8.dp)) {
+                LazyColumn(Modifier.padding(top = 10.dp)) {
                     items(operators, key = { it.name }) { operator ->
                         val isOn = operator.name in picked
                         Row(
@@ -770,12 +766,21 @@ private fun BrandFilterDialog(
                                     picked = if (isOn) picked - operator.name
                                     else picked + operator.name
                                 }
-                                .padding(vertical = 10.dp),
+                                // Chosen rows carry a wash of the accent. With twenty
+                                // networks on screen a tick alone is easy to lose, and
+                                // the question being answered is "which ones", which is
+                                // read off the shape of the list rather than row by row.
+                                .background(
+                                    if (isOn) MaterialTheme.colorScheme.primary
+                                        .copy(alpha = 0.07f)
+                                    else Color.Transparent
+                                )
+                                .padding(vertical = 12.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // The same colour the map draws this network in, so the
-                            // filter and the map are read as one thing.
+                            // The colour the map draws this network in, so the filter
+                            // and the map are read as one thing.
                             Box(
                                 Modifier
                                     .size(10.dp)
@@ -796,10 +801,37 @@ private fun BrandFilterDialog(
                             )
                             Text(
                                 operator.stations.toString(),
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Checkbox(checked = isOn, onCheckedChange = null)
+                            // A filled square rather than Material's checkbox: at this
+                            // size the stock control brings its own padding and ripple
+                            // and pushes the count off the row.
+                            Box(
+                                Modifier
+                                    .size(20.dp)
+                                    .background(
+                                        if (isOn) MaterialTheme.colorScheme.primary
+                                        else Color.Transparent,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .border(
+                                        1.5.dp,
+                                        if (isOn) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outline,
+                                        RoundedCornerShape(6.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isOn) {
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -948,20 +980,28 @@ private fun SelectedSiteCard(
 
 /** One fact, boxed. Accent for the speed, muted for what only qualifies it. */
 @Composable
-private fun FactChip(text: String, accent: Boolean = false, muted: Boolean = false) {
+private fun FactChip(
+    text: String,
+    accent: Boolean = false,
+    muted: Boolean = false,
+    cheap: Boolean = false,
+    dear: Boolean = false
+) {
     val scheme = MaterialTheme.colorScheme
+    val tint = when {
+        cheap -> scheme.secondary
+        dear -> scheme.error
+        accent -> scheme.primary
+        else -> null
+    }
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = if (accent) scheme.primary.copy(alpha = 0.12f) else scheme.surfaceContainerHigh
+        color = tint?.copy(alpha = 0.12f) ?: scheme.surfaceContainerHigh
     ) {
         Text(
             text,
             style = MaterialTheme.typography.labelSmall,
-            color = when {
-                accent -> scheme.primary
-                muted -> scheme.onSurfaceVariant
-                else -> scheme.onSurface
-            },
+            color = tint ?: if (muted) scheme.onSurfaceVariant else scheme.onSurface,
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
         )
     }
@@ -1225,51 +1265,96 @@ private fun ChargerList(sites: List<ChargerSite>, onNavigate: (ChargerSite) -> U
 
 @Composable
 private fun ChargerRow(site: ChargerSite, onNavigate: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        ),
-        onClick = onNavigate
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = scheme.surfaceContainer,
+        border = BorderStroke(1.dp, scheme.outline),
+        onClick = onNavigate,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(
                 site.name ?: site.operator ?: UNBRANDED,
-                style = MaterialTheme.typography.titleSmall
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
+            // What it is, on one line, in the order it is asked: whose, how fast, what
+            // fits. The connectors are named the way they are written on a cable.
             Text(
                 describe(site),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                site.distanceMetres?.let {
-                    Text(
-                        formatDistance(it),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+            site.address?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant.copy(alpha = 0.78f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            // The three things you compare rows by, boxed so the eye can run down a
+            // column of them instead of reading each line.
+            FlowRow(
+                Modifier.padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                site.distanceMetres?.let { FactChip(formatDistance(it)) }
                 site.chargePoints?.takeIf { it > 1 }?.let {
-                    Text(
-                        "$it şarj noktası",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    FactChip("$it şarj noktası", muted = true)
                 }
-                // The network's published rate. Exact figures here, where there is
-                // room for a range and for the "~" that says this is what the network
-                // charges rather than what this socket will bill.
-                formatTariff(site, short = false)?.let {
-                    Text(
-                        it + (priceVerdict(site)?.let { verdict -> " · $verdict" } ?: ""),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = priceColour(site)
+                formatTariff(site, short = false)?.let { price ->
+                    val verdict = priceVerdict(site)
+                    FactChip(
+                        if (verdict == null) price else "$price · $verdict",
+                        cheap = ChargerTariffs.levelFor(site.operator, site.isDc)
+                            == ChargerTariffs.Level.Cheap,
+                        dear = ChargerTariffs.levelFor(site.operator, site.isDc)
+                            == ChargerTariffs.Level.Expensive,
+                        muted = true
                     )
                 }
             }
         }
+    }
+}
+
+/**
+ * One control in the list's header.
+ *
+ * A rounded square with a hairline rather than a filled circle, so a row of them reads
+ * as one set of controls rather than as five unrelated buttons. Active ones take the
+ * accent as a tint and a border rather than a solid fill: half of them are toggles that
+ * spend most of their life on, and a row of solid blocks would outshout the list.
+ */
+@Composable
+private fun HeaderPill(
+    active: Boolean = false,
+    onClick: () -> Unit,
+    content: @Composable RowScope.() -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (active) scheme.primary.copy(alpha = 0.14f) else Color.Transparent,
+        border = BorderStroke(
+            1.dp,
+            if (active) scheme.primary.copy(alpha = 0.4f) else scheme.outline
+        ),
+        contentColor = if (active) scheme.primary else scheme.onSurface,
+        onClick = onClick
+    ) {
+        Row(
+            Modifier.height(38.dp).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
     }
 }
 
@@ -1283,8 +1368,12 @@ private fun describe(site: ChargerSite): String = buildString {
         false -> append(" · AC")
         null -> append(" · tip bilinmiyor")
     }
-    site.connectors?.let { append("\n$it") }
-    site.address?.let { append("\n$it") }
+    // Named as they are written on a cable, and on one line — the address has a line
+    // of its own on the card now, in its own weight.
+    site.connectors?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
+        ?.distinct()?.joinToString(", ", transform = ::connectorName)
+        ?.takeIf { it.isNotEmpty() }
+        ?.let { append(" · $it") }
 }
 
 private fun formatDistance(metres: Double): String =
