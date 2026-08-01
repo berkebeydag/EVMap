@@ -112,6 +112,7 @@ fun ChargerMapScreen(services: ServiceLocator) {
     // The view model owns this. Remembering it here as well let the two disagree
     // whenever the screen left composition with the list open.
     val showList by vm.listMode.collectAsStateWithLifecycle()
+    val sortByPrice by vm.sortByPrice.collectAsStateWithLifecycle()
     var searching by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<ChargerSite?>(null) }
     /** Where something outside the map wants it, and how close to sit when it arrives. */
@@ -217,9 +218,19 @@ fun ChargerMapScreen(services: ServiceLocator) {
                 // places under the same label.
                 Text(
                     "${sites.size} yer",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.weight(1f)
+                    style = MaterialTheme.typography.bodySmall
                 )
+                // The reason the prices are there. Sorting by them is the difference
+                // between showing a driver a price and helping them act on it.
+                TextButton(
+                    onClick = { vm.setSortByPrice(!sortByPrice) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        if (sortByPrice) "En ucuz" else "En yakın",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
                 // The brand filter belongs here too. Both filters apply to this list;
                 // being able to change only one of them from it is the asymmetry the
                 // AC/DC switch was added to fix in the first place.
@@ -618,7 +629,7 @@ private fun RouteLegend(
                             Text(
                                 it,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.secondary
+                                color = priceColour(entry.site)
                             )
                         }
                     }
@@ -646,6 +657,34 @@ private fun formatTariff(site: ChargerSite, short: Boolean): String? {
     val figure = if (band.varies) "${money(band.from)}-${money(band.to)}" else money(band.from)
     return "~$figure ₺" + if (short) "" else "/kWh"
 }
+
+/**
+ * Where this site's price sits against the rest of the market.
+ *
+ * A number without this is not a decision. Someone choosing a cheap stop cannot read
+ * "13,49 ₺" unless they carry the national average around with them, and cannot read
+ * "12,99-16,49 ₺" at all — which is the whole complaint the verdict answers. So the
+ * ranges stay, and get a word saying what they mean.
+ */
+private fun priceVerdict(site: ChargerSite): String? =
+    when (ChargerTariffs.levelFor(site.operator, site.isDc)) {
+        ChargerTariffs.Level.Cheap -> "ucuz"
+        ChargerTariffs.Level.Average -> "ortalama"
+        ChargerTariffs.Level.Expensive -> "pahalı"
+        // Not a hedge. ZES prints DC-1 and DC-2 and Aksa prints Tarife 1 and Tarife 2,
+        // and neither says which applies where — so "it depends" is the true answer,
+        // and it still separates a gamble from a stop that is certainly 12,90.
+        ChargerTariffs.Level.Variable -> "değişken"
+        null -> null
+    }
+
+@Composable
+private fun priceColour(site: ChargerSite) =
+    when (ChargerTariffs.levelFor(site.operator, site.isDc)) {
+        ChargerTariffs.Level.Cheap -> MaterialTheme.colorScheme.secondary
+        ChargerTariffs.Level.Expensive -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
 /** A charge rating as a driver reads it, or nothing when nobody published one. */
 private fun formatPower(kw: Double?): String? {
@@ -809,9 +848,10 @@ private fun SelectedSiteCard(
             // ever being explained is a price the user is entitled to think is theirs.
             formatTariff(site, short = false)?.let { price ->
                 Text(
-                    "$price · ${site.operator} tarifesi, $AS_OF",
+                    "$price · ${priceVerdict(site) ?: ""}".trimEnd(' ', '·') +
+                        " · ${site.operator} tarifesi, $AS_OF",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = priceColour(site),
                     modifier = Modifier.padding(top = 6.dp)
                 )
                 Text(
@@ -1106,9 +1146,9 @@ private fun ChargerRow(site: ChargerSite, onNavigate: () -> Unit) {
                 // charges rather than what this socket will bill.
                 formatTariff(site, short = false)?.let {
                     Text(
-                        it,
+                        it + (priceVerdict(site)?.let { verdict -> " · $verdict" } ?: ""),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.secondary
+                        color = priceColour(site)
                     )
                 }
             }

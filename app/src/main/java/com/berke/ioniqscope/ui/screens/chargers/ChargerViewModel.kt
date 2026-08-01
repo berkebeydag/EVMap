@@ -8,6 +8,7 @@ import com.berke.ioniqscope.charging.BoundingBox
 import com.berke.ioniqscope.charging.contains
 import com.berke.ioniqscope.charging.paddedBy
 import com.berke.ioniqscope.charging.ChargerRepository
+import com.berke.ioniqscope.charging.ChargerTariffs
 import com.berke.ioniqscope.charging.ChargerSource
 import com.berke.ioniqscope.charging.Route
 import com.berke.ioniqscope.charging.RouteService
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -62,8 +64,32 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
      * publish a separate record per socket, so a single car park would otherwise
      * appear as five map markers and five identical list entries.
      */
-    val sites: StateFlow<List<ChargerSite>> = _visible
-        .map { items -> groupIntoSites(items).sortedBy { it.distanceMetres ?: Double.MAX_VALUE } }
+    /**
+     * Whether the list answers "what is near" or "what is cheap".
+     *
+     * Two different questions, and the second one is why the prices are there at all —
+     * a price you cannot sort by is a price you have to compare in your head against
+     * every other row.
+     */
+    private val _sortByPrice = MutableStateFlow(false)
+    val sortByPrice: StateFlow<Boolean> = _sortByPrice.asStateFlow()
+
+    fun setSortByPrice(enabled: Boolean) { _sortByPrice.value = enabled }
+
+    val sites: StateFlow<List<ChargerSite>> = combine(_visible, _sortByPrice) { items, byPrice ->
+        val grouped = groupIntoSites(items)
+        if (byPrice) {
+            // Sites with no published tariff go last rather than first: an unknown
+            // price is not a cheap one, and burying the known ones under it would
+            // make the sort useless exactly where it is meant to help.
+            grouped.sortedWith(
+                compareBy(
+                    { ChargerTariffs.worstCase(it.operator, it.isDc) ?: Double.MAX_VALUE },
+                    { it.distanceMetres ?: Double.MAX_VALUE }
+                )
+            )
+        } else grouped.sortedBy { it.distanceMetres ?: Double.MAX_VALUE }
+    }
         // Off the main thread. `viewModelScope` is Dispatchers.Main.immediate, so
         // without this the grouping and the sort — a full pass and an n-log-n pass
         // over as many as 16,000 stations at country zoom — ran on the UI thread

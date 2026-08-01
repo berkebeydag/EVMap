@@ -67,6 +67,58 @@ object ChargerTariffs {
         "ToraŞarj" to Tariff(one(9.99), one(13.49))
     )
 
+    /**
+     * What the market charges, so a number can be read as dear or cheap.
+     *
+     * A price on its own is not a decision. "12,99-16,49 ₺" tells a driver looking for
+     * a cheap stop nothing at all, and neither does "13,49 ₺" unless they happen to
+     * carry the national average in their head. Measured across the networks in this
+     * table as published on [AS_OF].
+     */
+    const val MARKET_AC = 9.91
+    const val MARKET_DC = 13.64
+
+    /** How a network's price sits against the rest of them. */
+    enum class Level { Cheap, Average, Expensive, Variable }
+
+    /**
+     * A band either side of the average wide enough that a few kuruş is not called a
+     * difference. Below it is cheap, above it dear, inside it the same as everyone.
+     */
+    private const val DEAD_ZONE = 0.05
+
+    /**
+     * Where a site's network sits — and [Level.Variable] when it genuinely cannot be
+     * said, because the operator quotes a range crossing both edges.
+     *
+     * ZES prints DC-1 and DC-2, Aksa prints Tarife 1 and Tarife 2, and neither says
+     * anywhere which applies where. So "variable" is not a hedge: it is the honest
+     * answer, and a useful one — it separates a stop that might cost anything from one
+     * that is certainly 12,90.
+     */
+    fun levelFor(operator: String?, isDc: Boolean?): Level? {
+        val band = bandFor(operator, isDc) ?: return null
+        val market = if (isDc == false) MARKET_AC else MARKET_DC
+        val cheapUnder = market * (1 - DEAD_ZONE)
+        val dearOver = market * (1 + DEAD_ZONE)
+        return when {
+            band.to <= cheapUnder -> Level.Cheap
+            band.from >= dearOver -> Level.Expensive
+            band.varies && band.from < cheapUnder && band.to > dearOver -> Level.Variable
+            else -> Level.Average
+        }
+    }
+
+    /**
+     * The figure to sort by when the question is "where is cheap".
+     *
+     * The top of the range, not the bottom. Someone sorting by price is trying not to
+     * overpay, and ordering by the best case would put a stop that might cost 16,49 ₺
+     * above one that is certainly 12,90 ₺ — which is the opposite of what they asked
+     * for. The range stays on screen, so taking the gamble is still their call.
+     */
+    fun worstCase(operator: String?, isDc: Boolean?): Double? = bandFor(operator, isDc)?.to
+
     fun forOperator(operator: String?): Tariff? = operator?.let(table::get)
 
     /**
