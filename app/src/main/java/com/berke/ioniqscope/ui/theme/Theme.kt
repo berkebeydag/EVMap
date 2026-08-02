@@ -11,7 +11,9 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import com.berke.ioniqscope.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -99,23 +101,112 @@ private val LightColors = lightColorScheme(
     error = Color(0xFFBA1A1A)
 )
 
+/**
+ * The design's own typeface, bundled rather than fetched.
+ *
+ * Plus Jakarta Sans, which is what the design is set in. Carried in the APK — 324 KB
+ * across five weights — because a downloadable font arrives after the first frame, and
+ * a dashboard that reflows a second after it opens is worse than one that never
+ * changed. It is under the SIL Open Font Licence, so shipping it is the intended use.
+ *
+ * Five weights, not two. The design leans on the difference between 600 and 700 and
+ * again between 700 and 800 to separate a label from a value from a heading, and
+ * synthesising those from one weight is what makes text look approximately right and
+ * never quite right.
+ */
+private val Jakarta = FontFamily(
+    Font(R.font.jakarta_400, FontWeight.Normal),
+    Font(R.font.jakarta_500, FontWeight.Medium),
+    Font(R.font.jakarta_600, FontWeight.SemiBold),
+    Font(R.font.jakarta_700, FontWeight.Bold),
+    Font(R.font.jakarta_800, FontWeight.ExtraBold)
+)
+
+/**
+ * The scale, taken from the design rather than from Material's defaults.
+ *
+ * Material's own scale is built for a different density of information: its bodyMedium
+ * is 14sp where this design sets its card text at 12.5, and its titles run larger and
+ * lighter than these do. Left at the defaults, every screen came out roomier and
+ * softer than the thing it was copying, which is most of why they did not look alike
+ * even once the colours matched.
+ *
+ * Sizes are in sp so they still answer to the system font setting; only the relations
+ * between them are fixed.
+ */
 private val AppTypography = Typography(
+    // The dial's readout. Tight tracking, because at this size default spacing pulls
+    // three digits apart into three separate things.
     displayLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Light,
-        fontSize = 72.sp,
-        lineHeight = 76.sp
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.Bold,
+        fontSize = 60.sp,
+        lineHeight = 62.sp,
+        letterSpacing = (-3).sp
     ),
+    // A screen's own name.
     headlineMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 26.sp
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 21.sp,
+        letterSpacing = (-0.3).sp
     ),
+    headlineSmall = TextStyle(
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp
+    ),
+    // A sheet's heading.
+    titleMedium = TextStyle(
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 18.sp,
+        letterSpacing = (-0.2).sp
+    ),
+    // A card's heading, and the value on a tile.
+    titleSmall = TextStyle(
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.Bold,
+        fontSize = 15.sp
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.5.sp,
+        lineHeight = 20.sp
+    ),
+    // What a card says about itself.
+    bodyMedium = TextStyle(
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.Normal,
+        fontSize = 13.sp,
+        lineHeight = 18.sp
+    ),
+    bodySmall = TextStyle(
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.5.sp,
+        lineHeight = 17.sp
+    ),
+    // Buttons and the pills along a header.
     labelLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
-        letterSpacing = 0.6.sp
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 13.sp,
+        letterSpacing = 0.1.sp
+    ),
+    labelMedium = TextStyle(
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.Bold,
+        fontSize = 12.5.sp
+    ),
+    // Chips, counts, and anything set in capitals — which gets the tracking that
+    // makes capitals readable rather than the tracking that suits lower case.
+    labelSmall = TextStyle(
+        fontFamily = Jakarta,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 11.sp,
+        letterSpacing = 0.4.sp
     )
 )
 
