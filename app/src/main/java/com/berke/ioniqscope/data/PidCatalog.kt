@@ -16,23 +16,19 @@ object PidCatalog {
 
     data class Entry(
         val pid: Pid,
-        /** Honest caveat shown in Settings; null means "expected to work". */
+        /** Honest caveat shown in Settings; null means "the car's own answer decides". */
         val caveat: String? = null
     )
 
-    private val standard = listOf(
-        Entry(StandardPids.speed),
-        Entry(StandardPids.moduleVolt),
-        Entry(StandardPids.ambientTemp),
-        Entry(
-            StandardPids.rpm,
-            "Ioniq 6'da içten yanmalı motor yok; bu PID genellikle desteklenmez."
-        ),
-        Entry(
-            StandardPids.coolant,
-            "Elektrikli araçta termal döngüler üreticiye özel PID'lerin arkasında; yanıt vermeyebilir."
-        )
-    )
+    /**
+     * Every standard PID the app can decode.
+     *
+     * These used to be five, hand-picked, each with a written guess about whether an
+     * EV would answer it. The guesses are gone: the car is asked at connect and its own
+     * answer is what Settings shows, so the list can be the whole standard set without
+     * filling the screen with things that will silently return nothing.
+     */
+    private val standard = StandardPids.all.map { Entry(it) }
 
     /** Standard PIDs plus whatever verified E-GMP PIDs have been added. */
     val all: List<Entry> get() = standard + EgmpPids.set.map { Entry(it) }
@@ -50,4 +46,16 @@ object PidCatalog {
      * definition of "the speed PID" in the app.
      */
     val speed: Pid = StandardPids.speed
+
+    /**
+     * Whether the connected car said it answers this PID.
+     *
+     * Null means nobody has asked yet — which is not the same as "no", and is drawn
+     * differently for exactly that reason.
+     */
+    fun supportedBy(pid: Pid, reported: Set<String>): Boolean? {
+        if (reported.isEmpty()) return null
+        val number = StandardPids.numberOf(pid) ?: return null
+        return number.toString() in reported
+    }
 }

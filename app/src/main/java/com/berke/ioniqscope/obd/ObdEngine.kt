@@ -144,7 +144,20 @@ fun extractDataBytes(raw: String, request: String): IntArray {
     return dataHex.chunked(2).mapNotNull { it.toIntOrNull(16) }.toIntArray()
 }
 
-/** Standart OBD-II PID'leri (bunlar ISO standardı, EV'de bir kısmı çalışır). */
+/**
+ * The standard OBD-II PIDs, which is to say the ones every car has to answer.
+ *
+ * This is the part of the app that works on any car, and it is worth being clear about
+ * what "any car" buys: these are SAE J1979 mode 01 PIDs, defined by the standard rather
+ * than by a manufacturer, so a Zoe and an Ioniq and a diesel Passat all answer them the
+ * same way. Everything richer than this — cell temperatures, pack voltage, real state of
+ * health — is behind manufacturer-specific UDS identifiers and lives in VehicleProfile.
+ *
+ * Which of these a given car actually answers varies, and is not guessable: an EV has no
+ * coolant loop to report and a petrol car has no hybrid battery. That is not worked
+ * around with a list of assumptions per brand — the car is asked, once, at connect. See
+ * [SupportedPidReader].
+ */
 object StandardPids {
     val speed        = Pid("speed", "Hız", "010D", "km/h") { d -> d[0].toDouble() }
     val rpm          = Pid("rpm", "Devir", "010C", "rpm") { d -> (256 * d[0] + d[1]) / 4.0 }
@@ -153,17 +166,94 @@ object StandardPids {
     val moduleVolt   = Pid("mvolt", "Modül voltajı (12V)", "0142", "V") { d -> (256 * d[0] + d[1]) / 1000.0 }
     val ambientTemp  = Pid("ambient", "Dış sıcaklık", "0146", "°C") { d -> d[0] - 40.0 }
 
-    val defaultSet = listOf(speed, moduleVolt, ambientTemp)
+    /**
+     * The one standard PID that is about the traction battery.
+     *
+     * J1979 calls it "hybrid battery pack remaining life" and it is the closest thing to
+     * a manufacturer-independent state of charge that exists. Cars disagree about what
+     * they put in it — some report charge, some report health — so it is labelled for
+     * what the standard calls it rather than for what we would like it to be.
+     */
+    val hybridBattery = Pid("hvbatt", "Batarya (standart)", "015B", "%") { d -> d[0] * 100.0 / 255.0 }
+
+    val load         = Pid("load", "Motor yükü", "0104", "%") { d -> d[0] * 100.0 / 255.0 }
+    val intakeTemp   = Pid("intake", "Emme havası", "010F", "°C") { d -> d[0] - 40.0 }
+    val throttle     = Pid("throttle", "Gaz kelebeği", "0111", "%") { d -> d[0] * 100.0 / 255.0 }
+    val pedal        = Pid("pedal", "Gaz pedalı", "0149", "%") { d -> d[0] * 100.0 / 255.0 }
+    val runTime      = Pid("runtime", "Çalışma süresi", "011F", "s") { d -> (256 * d[0] + d[1]).toDouble() }
+    val distanceMil  = Pid("dist_mil", "Arıza ışığıyla yol", "0121", "km") { d -> (256 * d[0] + d[1]).toDouble() }
+    val distanceClr  = Pid("dist_clr", "Kod silmeden beri", "0131", "km") { d -> (256 * d[0] + d[1]).toDouble() }
+    val baro         = Pid("baro", "Hava basıncı", "0133", "kPa") { d -> d[0].toDouble() }
+    val oilTemp      = Pid("oil", "Yağ sıcaklığı", "015C", "°C") { d -> d[0] - 40.0 }
+    val fuelLevel    = Pid("fuel", "Yakıt seviyesi", "012F", "%") { d -> d[0] * 100.0 / 255.0 }
+
+    /** Every standard PID the app knows how to decode, in the order they read best. */
+    val all = listOf(
+        speed, hybridBattery, moduleVolt, ambientTemp, pedal, throttle, load,
+        rpm, runTime, distanceClr, distanceMil, baro, intakeTemp, coolant,
+        oilTemp, fuelLevel
+    )
+
+    val defaultSet = listOf(speed, hybridBattery, moduleVolt, ambientTemp)
+
+    /** The mode-01 PID number a definition asks for, e.g. 0x0D for `010D`. */
+    fun numberOf(pid: Pid): Int? =
+        pid.request.takeIf { it.length == 4 && it.startsWith("01") }
+            ?.substring(2)
+            ?.toIntOrNull(16)
 }
 
-/*
- * Hyundai Ioniq 6 / E-GMP EV'ye özel PID'ler (SoC, HV batarya V/A, hücre sıcaklıkları)
- * BURAYA GELECEK. Bunlar standart değil — belirli ECU header'ına (ATSH...)
- * UDS sorgusu gerekiyor. Örn:
- *   engine.setHeader("6xx")
- *   engine.command("22 xxxx")   // 22 = ReadDataByIdentifier
- * Exact ECU adresi + DID'leri DOĞRULANMIŞ topluluk kaynağından (EVNotify repo, Car Scanner Ioniq profili) alınmalı (uydurma yok).
+/**
+ * Asks the car which of the standard PIDs it actually answers.
+ *
+ * Mode 01 has four PIDs whose entire job is this: 0100, 0120, 0140 and 0160 each return
+ * a 32-bit mask saying which of the next 32 PIDs are supported, and the top bit of each
+ * says whether it is worth asking for the next range. So one to four questions replace
+ * every assumption about what a given car supports.
+ *
+ * This is the difference between an app that works on the cars somebody thought to write
+ * a profile for and one that works on whatever is plugged in. A car that reports no
+ * hybrid battery PID simply does not offer it; one that does gets it whether or not
+ * anyone has heard of the model.
+ *
+ * A car that refuses the question at all returns an empty set, and the caller is
+ * expected to treat that as "unknown", not as "supports nothing" — a wrong empty answer
+ * that hid the speed reading would be worse than asking for a PID and getting NO DATA.
  */
+class SupportedPidReader(private val elm: Elm327) {
+
+    suspend fun read(): Set<Int> {
+        val supported = mutableSetOf<Int>()
+        var base = 0x00
+        while (base <= 0x60) {
+            val mask = queryMask(base) ?: break
+            for (bit in 0 until 32) {
+                // Bit 31 is PID base+1, bit 0 is PID base+32 — the mask is written
+                // most-significant-first, which is the opposite of how it reads.
+                if ((mask shr (31 - bit)) and 1 == 1) supported += base + bit + 1
+            }
+            // The last bit of each range says whether the next range exists at all.
+            if (mask and 1 == 0) break
+            base += 0x20
+        }
+        return supported
+    }
+
+    private suspend fun queryMask(base: Int): Int? {
+        val command = "01" + base.toString(16).uppercase().padStart(2, '0')
+        val raw = elm.command(command).uppercase()
+        if (raw.contains("NO DATA") || raw.contains("UNABLE") || raw.contains("?")) return null
+        val hex = raw.filter { it.isDigit() || it in 'A'..'F' }
+        // The reply echoes 41 then the PID number, then four bytes of mask.
+        val marker = "41" + base.toString(16).uppercase().padStart(2, '0')
+        val at = hex.indexOf(marker)
+        if (at < 0) return null
+        val payload = hex.drop(at + 4).take(8)
+        if (payload.length < 8) return null
+        return payload.toLongOrNull(16)?.toInt()
+    }
+}
+
 object EgmpPids {
     // val stateOfCharge = Pid("soc", "Şarj (SoC)", "22XXXX", "%") { d -> ... }
     val set: List<Pid> = emptyList()

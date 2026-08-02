@@ -71,6 +71,22 @@ class ConnectViewModel(private val services: ServiceLocator) : ViewModel() {
         _scan.value = _scan.value.copy(isScanning = false)
     }
 
+    fun setEndpoint(host: String, port: Int) = viewModelScope.launch {
+        services.settings.setAdapterEndpoint(host, port)
+    }
+
+    /**
+     * Connects to a WiFi adapter, which has nothing to scan for.
+     *
+     * The address doubles as host and port because that is what the connection manager
+     * remembers and reconnects to — one field, so auto-connect works the same way for
+     * every adapter type rather than WiFi being a special case that forgets itself.
+     */
+    fun connectWifi() {
+        val s = settings.value
+        manager.connect("${s.adapterHost}:${s.adapterPort}", "ELM327 WiFi", AdapterType.WIFI)
+    }
+
     fun connect(device: DiscoveredDevice) {
         stopScan()
         viewModelScope.launch {

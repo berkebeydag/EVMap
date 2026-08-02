@@ -3,6 +3,9 @@ package com.berke.ioniqscope.connection
 import android.content.Context
 import android.os.SystemClock
 import com.berke.ioniqscope.data.AdapterType
+import com.berke.ioniqscope.data.SettingsRepository
+import com.berke.ioniqscope.obd.SupportedPidReader
+import com.berke.ioniqscope.obd.WifiTransport
 import com.berke.ioniqscope.obd.BatteryReading
 import com.berke.ioniqscope.obd.BleScanner
 import com.berke.ioniqscope.obd.BleTransport
@@ -66,7 +69,8 @@ private sealed interface PollMode {
  */
 class ObdConnectionManager(
     private val appContext: Context,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val settings: SettingsRepository
 ) {
 
     private val scanner = BleScanner(appContext)
@@ -122,24 +126,40 @@ class ObdConnectionManager(
         tearDown()
         _adapterLog.value = emptyList()
 
-        val device = scanner.deviceFor(request.address)
-        if (device == null) {
+        // WiFi has no device to look up: the address is a host and port, and the
+        // adapter is reachable or it is not. Resolving it through the Bluetooth
+        // scanner would fail on a phone with Bluetooth switched off, which has
+        // nothing to do with whether the dongle is there.
+        val device = if (request.type == AdapterType.WIFI) null
+        else scanner.deviceFor(request.address)
+
+        if (device == null && request.type != AdapterType.WIFI) {
             _connectionState.value = ConnectionState.Failed(
                 "Bluetooth kullanılamıyor ya da ${request.address} geçerli bir adres değil."
             )
             return
         }
 
-        _connectionState.value = ConnectionState.Connecting("Bluetooth bağlantısı açılıyor…", attempt)
+        _connectionState.value = ConnectionState.Connecting(
+            if (request.type == AdapterType.WIFI) "Adaptöre bağlanılıyor…"
+            else "Bluetooth bağlantısı açılıyor…",
+            attempt
+        )
 
         val newTransport: Transport = when (request.type) {
             AdapterType.BLE -> BleTransport(
                 context = appContext,
-                device = device,
+                device = device!!,
                 onLog = ::appendLog,
                 onDisconnected = ::onUnexpectedDisconnect
             )
-            AdapterType.CLASSIC -> ClassicBtTransport(device)
+            AdapterType.CLASSIC -> ClassicBtTransport(device!!)
+            AdapterType.WIFI -> {
+                val host = request.address.substringBeforeLast(':')
+                val port = request.address.substringAfterLast(':').toIntOrNull()
+                    ?: WifiTransport.DEFAULT_PORT
+                WifiTransport(host, port)
+            }
         }
         transport = newTransport
 
@@ -163,13 +183,31 @@ class ObdConnectionManager(
         _connectionState.value = ConnectionState.Connecting("ELM327 hazırlanıyor…", attempt)
         appendLog("ELM327 AT dizisi tamamlandı")
 
+        // Ask the car what it answers, once, here — rather than deciding from the make
+        // and model, which the app does not reliably know and which would be a guess
+        // even if it did. A car that refuses the question returns nothing, and nothing
+        // is stored, so the dashboard falls back to trying and reporting NO DATA rather
+        // than to hiding a reading that would have worked.
+        runCatching { SupportedPidReader(newElm).read() }
+            .onSuccess { supported ->
+                if (supported.isNotEmpty()) {
+                    appendLog("Araç ${supported.size} standart PID bildirdi")
+                    settings.setSupportedPids(supported.map { it.toString() }.toSet())
+                } else {
+                    appendLog("Araç desteklenen PID listesi vermedi")
+                }
+            }
+            .onFailure { appendLog("PID listesi okunamadı: ${it.message}") }
+
         dtcReader = DtcReader(newElm)
         engine = ObdEngine(newElm, scope, onSample = ::onSample)
 
         _connectionState.value = ConnectionState.Connected(
-            deviceName = request.name ?: device.address,
-            address = device.address,
-            linkDetail = (newTransport as? BleTransport)?.descriptor ?: "classic BT · SPP"
+            deviceName = request.name ?: request.address,
+            address = request.address,
+            linkDetail = (newTransport as? BleTransport)?.descriptor
+                ?: (newTransport as? WifiTransport)?.descriptor
+                ?: "classic BT · SPP"
         )
     }
 

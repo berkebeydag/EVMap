@@ -40,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -286,18 +287,31 @@ fun SettingsScreen(services: ServiceLocator) {
         HorizontalDivider()
         SectionLabel("Gösterge PID'leri")
         Text(
-            "Göstergenin hangi değerleri sorgulayacağı. Az PID, her birinin daha sık güncellenmesi demek.",
+            if (settings.supportedPids.isEmpty()) {
+                "Göstergenin hangi değerleri sorgulayacağı. Az PID, her birinin daha sık " +
+                    "güncellenmesi demek. Adaptöre bağlanınca araca hangilerini " +
+                    "desteklediği sorulur ve burada işaretlenir."
+            } else {
+                "Araç bağlandığında ${settings.supportedPids.size} standart PID " +
+                    "desteklediğini bildirdi. Desteklemediklerini seçebilirsin ama " +
+                    "cevap gelmez."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         PidCatalog.all.forEach { entry ->
             val checked = entry.pid.key in settings.dashboardPidKeys
+            // What the car said, not what we assumed. Null is "never asked", and is
+            // drawn as nothing rather than as a no — an unasked question and a refusal
+            // are different things and only one of them is the car's fault.
+            val supported = PidCatalog.supportedBy(entry.pid, settings.supportedPids)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { vm.togglePid(entry.pid.key, !checked) }
                     .padding(vertical = 4.dp)
+                    .alpha(if (supported == false) 0.55f else 1f)
             ) {
                 Checkbox(checked = checked, onCheckedChange = { vm.togglePid(entry.pid.key, it) })
                 Column(Modifier.weight(1f)) {
@@ -312,6 +326,19 @@ fun SettingsScreen(services: ServiceLocator) {
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        when (supported) {
+                            true -> Text(
+                                "araçta var",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                            false -> Text(
+                                "araçta yok",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            null -> Unit
+                        }
                     }
                     entry.caveat?.let {
                         Text(

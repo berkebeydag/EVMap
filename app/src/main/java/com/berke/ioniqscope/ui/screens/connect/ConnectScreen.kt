@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -36,6 +37,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,8 +58,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.berke.ioniqscope.R
 import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.connection.ConnectionState
+import com.berke.ioniqscope.data.AdapterType
 import com.berke.ioniqscope.obd.BluetoothAvailability
 import com.berke.ioniqscope.obd.DiscoveredDevice
+import com.berke.ioniqscope.obd.WifiTransport
 import com.berke.ioniqscope.ui.components.Banner
 import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.EmptyState
@@ -162,15 +166,30 @@ private fun ConnectContent(vm: ConnectViewModel) {
     ) {
         ConnectionCard(
             state = connection,
+            adapterType = settings.adapterType,
             onDisconnect = vm::disconnect,
             onReconnectLast = vm::reconnectLast,
             lastDeviceName = settings.lastDeviceName ?: settings.lastDeviceAddress
         )
 
+        // WiFi is a different screen inside the same one. There is nothing to scan
+        // for and no Bluetooth to complain about — the dongle is an address, and the
+        // only question is whether the phone is on its network.
+        if (settings.adapterType == AdapterType.WIFI) {
+            WifiEndpointCard(
+                host = settings.adapterHost,
+                port = settings.adapterPort,
+                connecting = connection is ConnectionState.Connecting,
+                onSave = vm::setEndpoint,
+                onConnect = vm::connectWifi
+            )
+            return@Column
+        }
+
         when (availability) {
             BluetoothAvailability.NoAdapter -> Banner(
                 title = "Bluetooth donanımı yok",
-                text = "Bu cihazda IoniqScope'un kullanabileceği bir Bluetooth donanımı yok.",
+                text = "Bu cihazda Şarj Bul'un kullanabileceği bir Bluetooth donanımı yok.",
                 tone = BannerTone.Error
             )
             BluetoothAvailability.Disabled -> Banner(
@@ -200,7 +219,7 @@ private fun ConnectContent(vm: ConnectViewModel) {
                     modifier = Modifier.weight(1f).height(50.dp)
                 ) {
                     Text(
-                        if (settings.adapterType == com.berke.ioniqscope.data.AdapterType.CLASSIC) {
+                        if (settings.adapterType == AdapterType.CLASSIC) {
                             "Eşleşmişler"
                         } else "Adaptör tara"
                     )
@@ -257,6 +276,7 @@ private fun ConnectContent(vm: ConnectViewModel) {
 @Composable
 private fun ConnectionCard(
     state: ConnectionState,
+    adapterType: AdapterType,
     lastDeviceName: String?,
     onDisconnect: () -> Unit,
     onReconnectLast: () -> Unit
@@ -286,8 +306,11 @@ private fun ConnectionCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        if (state is ConnectionState.Connected) Icons.Filled.BluetoothConnected
-                        else Icons.Filled.Bluetooth,
+                        when {
+                            adapterType == AdapterType.WIFI -> Icons.Filled.Wifi
+                            state is ConnectionState.Connected -> Icons.Filled.BluetoothConnected
+                            else -> Icons.Filled.Bluetooth
+                        },
                         contentDescription = null,
                         tint = accent,
                         modifier = Modifier.size(26.dp)
@@ -308,9 +331,16 @@ private fun ConnectionCard(
                             is ConnectionState.Connected -> "${state.deviceName} · ${state.linkDetail}"
                             is ConnectionState.Connecting -> state.step
                             is ConnectionState.Failed -> state.message
+                            // The instruction has to match the adapter: telling
+                            // somebody with a WiFi dongle to scan for it sends them
+                            // looking for a button that is not on the screen.
                             ConnectionState.Disconnected -> lastDeviceName
                                 ?.let { "Son kullanılan: $it" }
-                                ?: "Başlamak için tarama yap ve OBD-II adaptörünü seç."
+                                ?: if (adapterType == AdapterType.WIFI) {
+                                    "Telefonu adaptörün WiFi ağına bağla, sonra Bağlan'a bas."
+                                } else {
+                                    "Başlamak için tarama yap ve OBD-II adaptörünü seç."
+                                }
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant,
@@ -417,6 +447,73 @@ private fun AdapterLogCard(log: List<String>) {
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Where the WiFi adapter is, and a button to go there.
+ *
+ * The defaults are what nearly every one of these dongles ships with, so for most
+ * people this is a screen they read once and never touch. It is editable because the
+ * ones that differ — 192.168.4.1, port 23 — are otherwise unusable, and because a
+ * hardcoded address that happens to be wrong looks identical to a broken app.
+ */
+@Composable
+private fun WifiEndpointCard(
+    host: String,
+    port: Int,
+    connecting: Boolean,
+    onSave: (String, Int) -> Unit,
+    onConnect: () -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    var hostText by remember(host) { mutableStateOf(host) }
+    var portText by remember(port) { mutableStateOf(port.toString()) }
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = scheme.surfaceContainer,
+        border = BorderStroke(1.dp, scheme.outline),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Adaptör adresi", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = hostText,
+                    onValueChange = { hostText = it },
+                    label = { Text("IP") },
+                    singleLine = true,
+                    modifier = Modifier.weight(2f)
+                )
+                OutlinedTextField(
+                    value = portText,
+                    onValueChange = { portText = it.filter(Char::isDigit).take(5) },
+                    label = { Text("Port") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = {
+                        onSave(hostText, portText.toIntOrNull() ?: WifiTransport.DEFAULT_PORT)
+                        onConnect()
+                    },
+                    enabled = !connecting && hostText.isNotBlank(),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.weight(1f).height(50.dp)
+                ) { Text(if (connecting) "Bağlanılıyor…" else "Bağlan") }
+            }
+            Text(
+                "Telefonun bu adaptörün WiFi ağına bağlı olması gerekiyor. Çoğu dongle " +
+                    "192.168.0.10:35000 kullanır; bazıları 192.168.4.1 ya da 23. portta " +
+                    "olur. Adaptörün ağındayken mobil veri kapanmadığı için harita ve " +
+                    "güncellemeler çalışmayabilir — o normal.",
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant
+            )
         }
     }
 }

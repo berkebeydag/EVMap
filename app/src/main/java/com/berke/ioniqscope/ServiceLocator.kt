@@ -33,7 +33,7 @@ class ServiceLocator private constructor(context: Context) {
     val settings: SettingsRepository by lazy { SettingsRepository(appContext) }
 
     val connectionManager: ObdConnectionManager by lazy {
-        ObdConnectionManager(appContext, appScope)
+        ObdConnectionManager(appContext, appScope, settings)
     }
 
     val csvExporter: CsvExporter by lazy {

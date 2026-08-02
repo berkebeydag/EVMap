@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.berke.ioniqscope.obd.WifiTransport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -22,7 +23,8 @@ enum class SpeedUnit(val label: String, val suffix: String) {
 
 enum class AdapterType(val label: String, val description: String) {
     BLE("Bluetooth LE", "Vgate iCar Pro BLE 4.0 ve diğer GATT adaptörleri"),
-    CLASSIC("Klasik Bluetooth", "RFCOMM / SPP adaptörleri — önce sistem ayarlarından eşleştirilmeli")
+    CLASSIC("Klasik Bluetooth", "RFCOMM / SPP adaptörleri — önce sistem ayarlarından eşleştirilmeli"),
+    WIFI("WiFi", "ELM327 WiFi dongle — önce telefonu adaptörün ağına bağla")
 }
 
 data class AppSettings(
@@ -30,6 +32,15 @@ data class AppSettings(
     val adapterType: AdapterType = AdapterType.BLE,
     val dashboardPidKeys: Set<String> = PidCatalog.defaultKeys,
     val pollIntervalMs: Int = 250,
+    /** Where the WiFi adapter listens. Only read when [adapterType] is WIFI. */
+    val adapterHost: String = WifiTransport.DEFAULT_HOST,
+    val adapterPort: Int = WifiTransport.DEFAULT_PORT,
+    /**
+     * Which mode-01 PID numbers the connected car said it supports, empty when it has
+     * never been asked. Stored so Settings can grey out what this car cannot answer
+     * without needing the adapter plugged in to do it.
+     */
+    val supportedPids: Set<String> = emptySet(),
     val lastDeviceAddress: String? = null,
     val lastDeviceName: String? = null,
     /** Reconnect to the last adapter when the app opens. */
@@ -88,6 +99,9 @@ class SettingsRepository(private val context: Context) {
         val adapterType = stringPreferencesKey("adapter_type")
         val dashboardPids = stringSetPreferencesKey("dashboard_pids")
         val pollInterval = intPreferencesKey("poll_interval_ms")
+        val adapterHost = stringPreferencesKey("adapter_host")
+        val adapterPort = intPreferencesKey("adapter_port")
+        val supportedPids = stringSetPreferencesKey("supported_pids")
         val lastAddress = stringPreferencesKey("last_device_address")
         val lastName = stringPreferencesKey("last_device_name")
         val autoConnect = booleanPreferencesKey("auto_connect")
@@ -112,6 +126,9 @@ class SettingsRepository(private val context: Context) {
             dashboardPidKeys = p[Keys.dashboardPids]?.takeIf { it.isNotEmpty() }
                 ?: PidCatalog.defaultKeys,
             pollIntervalMs = p[Keys.pollInterval] ?: 250,
+            adapterHost = p[Keys.adapterHost] ?: WifiTransport.DEFAULT_HOST,
+            adapterPort = p[Keys.adapterPort] ?: WifiTransport.DEFAULT_PORT,
+            supportedPids = p[Keys.supportedPids] ?: emptySet(),
             lastDeviceAddress = p[Keys.lastAddress],
             lastDeviceName = p[Keys.lastName],
             autoConnect = p[Keys.autoConnect] ?: false,
@@ -162,6 +179,13 @@ class SettingsRepository(private val context: Context) {
     suspend fun setUpdateShareLink(link: String) = edit {
         it[Keys.updateShareLink] = link.trim()
     }
+
+    suspend fun setAdapterEndpoint(host: String, port: Int) = edit {
+        it[Keys.adapterHost] = host.trim()
+        it[Keys.adapterPort] = port
+    }
+
+    suspend fun setSupportedPids(pids: Set<String>) = edit { it[Keys.supportedPids] = pids }
 
     suspend fun setVehicleProfile(id: String) = edit { it[Keys.vehicleProfile] = id }
 
