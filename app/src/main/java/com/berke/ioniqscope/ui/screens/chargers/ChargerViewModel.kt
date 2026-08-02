@@ -122,6 +122,10 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     /** Where the routes currently on screen were computed from. */
     private var routedFrom: Pair<Double, Double>? = null
 
+    /** Where the distances currently on screen were measured from. */
+    private var rankedFrom: Pair<Double, Double>? = null
+    private var rankJob: Job? = null
+
     private val here: Pair<Double, Double>?
         get() = (_location.value as? LocationState.Known)?.let { it.lat to it.lon }
 
@@ -336,21 +340,74 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     }
 
     /**
-     * Routes to the nearest few places, recomputed only once the user has actually
-     * gone somewhere.
+     * Keeps the suggestions honest while the car is moving, at two different cadences.
      *
-     * Every fix would otherwise fire a handful of requests a second, which would be
-     * both rude to a free service and a stream of position reports rather than the
-     * occasional one. Well under [ROUTE_REFRESH_M] the existing lines are still
-     * accurate enough to read.
+     * The two questions the panel answers cost wildly different amounts. *Which* five
+     * places are nearest, and how far away they are, is a query against a table on the
+     * phone. The *road* to each of them is five requests to a free service. Asking both
+     * at the same rate meant either the panel went stale for half a kilometre or the
+     * service got a position report every second.
+     *
+     * So the cheap question is asked every [RERANK_M] — often enough that the distances
+     * on screen are the distances now, and that a place dropping out of the nearest
+     * five is noticed as it happens rather than 500 m later. The expensive one is asked
+     * only when it would actually change something: when the set of destinations is no
+     * longer the same set, or when the car has moved [ROUTE_REFRESH_M] and the drawn
+     * lines have stopped describing the drive from here.
+     *
+     * Below those thresholds nothing is fetched and nothing is redrawn, which is the
+     * point — a line that is 80 m out of date is not wrong to look at.
      */
     private fun refreshRoutesIfMoved(lat: Double, lon: Double) {
-        val previous = routedFrom
-        if (previous != null &&
-            ChargerRepository.distanceMetres(previous.first, previous.second, lat, lon) <
+        val routed = routedFrom
+        if (routed == null ||
+            ChargerRepository.distanceMetres(routed.first, routed.second, lat, lon) >=
             ROUTE_REFRESH_M
+        ) {
+            loadRoutes(lat, lon)
+            return
+        }
+
+        val ranked = rankedFrom
+        if (ranked != null &&
+            ChargerRepository.distanceMetres(ranked.first, ranked.second, lat, lon) < RERANK_M
         ) return
-        loadRoutes(lat, lon)
+        rankedFrom = lat to lon
+
+        rankJob?.cancel()
+        rankJob = viewModelScope.launch {
+            val current = _routes.value
+            if (current.isEmpty()) return@launch
+            val nearest = withContext(Dispatchers.Default) {
+                val settingsNow = settings.first()
+                groupIntoSites(
+                    repo.nearest(
+                        lat, lon,
+                        dcOnly = settingsNow.chargersDcOnly,
+                        minPowerKw = settingsNow.chargersMinPowerKw.toDouble(),
+                        operators = settingsNow.chargersOperators,
+                        limit = NEAREST_LIMIT
+                    ).map { it.withDistance(lat to lon) }
+                ).sortedBy { it.distanceMetres ?: Double.MAX_VALUE }.take(ROUTE_COUNT)
+            }
+
+            // A different set of destinations is a different set of routes; there is no
+            // updating the old ones into the new ones. Same set, and only the numbers
+            // have moved, so the lines stay and the distances are refreshed under them.
+            if (nearest.map { it.id }.toSet() != current.map { it.site.id }.toSet()) {
+                loadRoutes(lat, lon)
+                return@launch
+            }
+            _routes.value = current.map {
+                it.copy(
+                    site = it.site.copy(
+                        distanceMetres = ChargerRepository.distanceMetres(
+                            lat, lon, it.site.lat, it.site.lon
+                        )
+                    )
+                )
+            }
+        }
     }
 
     /**
@@ -363,7 +420,9 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
      */
     fun loadRoutes(lat: Double, lon: Double) {
         routeJob?.cancel()
+        rankJob?.cancel()
         routedFrom = lat to lon
+        rankedFrom = lat to lon
         routeJob = viewModelScope.launch {
             val current = settings.first()
             // The same filters the map is showing. A suggestion to drive to a network
@@ -410,7 +469,9 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     fun clearRoutes() {
         routeJob?.cancel()
+        rankJob?.cancel()
         routedFrom = null
+        rankedFrom = null
         _routes.value = emptyList()
     }
 
@@ -462,6 +523,17 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
         /** Routes are only redrawn once the user has gone this far. */
         private const val ROUTE_REFRESH_M = 500.0
+
+        /**
+         * How far the car goes before the nearest five are worked out again.
+         *
+         * 120 m is roughly five seconds at motorway speed and fifteen in town, which is
+         * how often the numbers in the panel change by enough to be worth changing on
+         * screen. It costs one local query, so the limit on it is legibility rather
+         * than expense: distances that renumber several times a second are harder to
+         * read than distances that are a few seconds old.
+         */
+        private const val RERANK_M = 120.0
 
         /** Roughly the middle of Türkiye, for ordering searches before a fix. */
         private val DEFAULT_ANCHOR = 39.0 to 35.0
