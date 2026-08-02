@@ -274,7 +274,18 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
                     )
                 }
             }
-            ChargerList(sites) { openInMaps(context, it) }
+            // A row opens the place on our own map, not in someone else's app. Handing
+            // straight off to a navigation app answered a question that had not been
+            // asked: tapping a row is how you find out where a place is and what is
+            // around it, and the card that opens has "Yol tarifi" on it for when the
+            // answer is that you want to go there.
+            ChargerList(sites) { site ->
+                moveTo = GeoPoint(site.lat, site.lon) to PICKED_ZOOM
+                selected = site
+                // Otherwise the next fix drags the map off the place just picked.
+                vm.stopFollowing()
+                vm.setListMode(false)
+            }
         }
         if (pickingBrands) {
             BrandFilterDialog(
@@ -1441,7 +1452,7 @@ private fun emitBounds(map: MapView, onBoundsChanged: (BoundingBox) -> Unit) {
 }
 
 @Composable
-private fun ChargerList(sites: List<ChargerSite>, onNavigate: (ChargerSite) -> Unit) {
+private fun ChargerList(sites: List<ChargerSite>, onOpen: (ChargerSite) -> Unit) {
     if (sites.isEmpty()) {
         EmptyState("Burada istasyon yok. Haritayı kaydır ya da filtreleri gevşet.")
         return
@@ -1452,19 +1463,19 @@ private fun ChargerList(sites: List<ChargerSite>, onNavigate: (ChargerSite) -> U
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(sites, key = { it.id }) { site ->
-            ChargerRow(site) { onNavigate(site) }
+            ChargerRow(site) { onOpen(site) }
         }
     }
 }
 
 @Composable
-private fun ChargerRow(site: ChargerSite, onNavigate: () -> Unit) {
+private fun ChargerRow(site: ChargerSite, onOpen: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Surface(
         shape = RoundedCornerShape(18.dp),
         color = scheme.surfaceContainer,
         border = BorderStroke(1.dp, scheme.outline),
-        onClick = onNavigate,
+        onClick = onOpen,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(14.dp)) {
