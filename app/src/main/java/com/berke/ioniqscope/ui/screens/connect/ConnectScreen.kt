@@ -5,20 +5,27 @@ import android.net.Uri
 import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,6 +36,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,9 +46,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.berke.ioniqscope.R
@@ -53,6 +63,8 @@ import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.EmptyState
 import com.berke.ioniqscope.ui.components.SectionLabel
 import com.berke.ioniqscope.ui.serviceViewModel
+import com.berke.ioniqscope.ui.theme.StatusAmber
+import com.berke.ioniqscope.ui.theme.StatusGreen
 
 @Composable
 fun ConnectScreen(services: ServiceLocator) {
@@ -169,32 +181,57 @@ private fun ConnectContent(vm: ConnectViewModel) {
             BluetoothAvailability.Ready -> Unit
         }
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        // Both actions full width and side by side. Scanning and listing what is
+        // already paired are the two ways in, and one of them being a small button
+        // beside the other made it look like an afterthought rather than the shortcut
+        // it is for anyone who has connected before.
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (scan.isScanning) {
-                OutlinedButton(onClick = vm::stopScan) { Text("Taramayı durdur") }
-                CircularProgressIndicator(modifier = Modifier.padding(start = 4.dp))
+                Button(
+                    onClick = vm::stopScan,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.weight(1f).height(50.dp)
+                ) { Text("Taramayı durdur") }
             } else {
                 Button(
                     onClick = vm::startScan,
-                    enabled = availability == BluetoothAvailability.Ready
+                    enabled = availability == BluetoothAvailability.Ready,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.weight(1f).height(50.dp)
                 ) {
                     Text(
                         if (settings.adapterType == com.berke.ioniqscope.data.AdapterType.CLASSIC) {
-                            "Eşleşmiş adaptörleri listele"
+                            "Eşleşmişler"
                         } else "Adaptör tara"
                     )
                 }
+            }
+            OutlinedButton(
+                onClick = vm::startScan,
+                enabled = availability == BluetoothAvailability.Ready && !scan.isScanning,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.weight(1f).height(50.dp)
+            ) { Text("Eşleşmişler") }
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Bulunan adaptörler",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f)
+            )
+            if (scan.isScanning) {
+                Text(
+                    "Taranıyor…",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
 
         scan.error?.let {
             Banner(title = "Tarama başarısız", text = it, tone = BannerTone.Error)
         }
-
-        SectionLabel("Bulunan adaptörler")
 
         Box(Modifier.weight(1f)) {
             if (scan.devices.isEmpty()) {
@@ -224,66 +261,79 @@ private fun ConnectionCard(
     onDisconnect: () -> Unit,
     onReconnectLast: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+    val scheme = MaterialTheme.colorScheme
+    val accent = when (state) {
+        is ConnectionState.Connected -> StatusGreen
+        is ConnectionState.Connecting -> StatusAmber
+        is ConnectionState.Failed -> scheme.error
+        ConnectionState.Disconnected -> scheme.outline
+    }
+
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = accent.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            when (state) {
-                is ConnectionState.Connected -> {
-                    Text("Connected", style = MaterialTheme.typography.titleMedium)
+        Column(Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // The state as a mark before it is a sentence: this screen is looked at
+                // while waiting, and a colour and a shape resolve before words do.
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .background(accent.copy(alpha = 0.14f), RoundedCornerShape(20.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        if (state is ConnectionState.Connected) Icons.Filled.BluetoothConnected
+                        else Icons.Filled.Bluetooth,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                Column(Modifier.weight(1f).padding(start = 16.dp)) {
                     Text(
-                        state.deviceName,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.primary
+                        when (state) {
+                            is ConnectionState.Connected -> "Bağlı"
+                            is ConnectionState.Connecting -> "Bağlanıyor…"
+                            is ConnectionState.Failed -> "Bağlanamadı"
+                            ConnectionState.Disconnected -> "Bağlı değil"
+                        },
+                        style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        state.linkDetail,
+                        when (state) {
+                            is ConnectionState.Connected -> "${state.deviceName} · ${state.linkDetail}"
+                            is ConnectionState.Connecting -> state.step
+                            is ConnectionState.Failed -> state.message
+                            ConnectionState.Disconnected -> lastDeviceName
+                                ?.let { "Son kullanılan: $it" }
+                                ?: "Başlamak için tarama yap ve OBD-II adaptörünü seç."
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
                     )
-                    TextButton(onClick = onDisconnect) { Text("Disconnect") }
                 }
-                is ConnectionState.Connecting -> {
-                    Text("Connecting", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        state.step,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
-                }
-                is ConnectionState.Failed -> {
-                    Text(
-                        "Bağlı değil",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Text(state.message, style = MaterialTheme.typography.bodyMedium)
-                    if (lastDeviceName != null) {
-                        TextButton(onClick = onReconnectLast) { Text("$lastDeviceName ile tekrar dene") }
-                    }
-                }
-                ConnectionState.Disconnected -> {
-                    Text("Bağlı değil", style = MaterialTheme.typography.titleMedium)
-                    if (lastDeviceName != null) {
-                        Text(
-                            "Son kullanılan: $lastDeviceName",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        TextButton(onClick = onReconnectLast) { Text("Reconnect") }
-                    } else {
-                        Text(
-                            "Başlamak için tarama yap ve OBD-II adaptörünü seç.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            }
+
+            if (state is ConnectionState.Connecting) {
+                LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 14.dp))
+            }
+
+            when {
+                state is ConnectionState.Connected ->
+                    TextButton(
+                        onClick = onDisconnect,
+                        modifier = Modifier.padding(top = 6.dp)
+                    ) { Text("Bağlantıyı kes") }
+                state !is ConnectionState.Connecting && lastDeviceName != null ->
+                    TextButton(
+                        onClick = onReconnectLast,
+                        modifier = Modifier.padding(top = 6.dp)
+                    ) { Text("$lastDeviceName ile tekrar dene") }
             }
         }
     }
@@ -291,29 +341,61 @@ private fun ConnectionCard(
 
 @Composable
 private fun DeviceRow(device: DiscoveredDevice, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(device.displayName) },
-        supportingContent = {
-            Text(
-                buildString {
-                    append(device.address)
-                    if (device.rssi != 0) append("  ·  ${device.rssi} dBm")
-                    if (device.looksLikeObdAdapter) append("  ·  OBD adaptörüne benziyor")
-                },
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall
-            )
-        },
-        trailingContent = { TextButton(onClick = onClick) { Text("Bağlan") } },
-        modifier = Modifier.fillMaxWidth()
-    )
+    val scheme = MaterialTheme.colorScheme
+    // A device that looks like an adapter is the one you came here for, so it is drawn
+    // as the answer and the rest are dimmed rather than merely listed alongside.
+    val likely = device.looksLikeObdAdapter
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = if (likely) scheme.surfaceContainerLow else scheme.surfaceContainer,
+        border = BorderStroke(
+            1.dp,
+            if (likely) scheme.primary.copy(alpha = 0.45f) else scheme.outline
+        ),
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().alpha(if (likely) 1f else 0.72f)
+    ) {
+        Row(
+            Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                Modifier
+                    .size(38.dp)
+                    .background(
+                        if (likely) scheme.primary.copy(alpha = 0.14f)
+                        else scheme.surfaceContainerHigh,
+                        RoundedCornerShape(13.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Bluetooth,
+                    contentDescription = null,
+                    tint = if (likely) scheme.primary else scheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text(device.displayName, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    buildString {
+                        if (likely) append("· OBD adaptörüne benziyor · ")
+                        append(device.address)
+                        if (device.rssi != 0) append(" · ${device.rssi} dBm")
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (likely) scheme.primary else scheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp)
+                )
+            }
+        }
+    }
 }
 
-/**
- * The discovered GATT profile is dumped here on purpose: if the adapter's UUIDs
- * differ from the known candidates, this is where you read them off to pin them
- * in BleTransport.
- */
 @Composable
 private fun AdapterLogCard(log: List<String>) {
     Card(

@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.util.Locale
 
 /** A single live reading. Value is deliberately the largest thing on the card. */
@@ -178,10 +179,18 @@ private fun textLocale(): Locale =
 
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    // In the accent rather than the muted grey, and tracked out.
+    //
+    // A section label sitting in the same colour as the text under it is not doing the
+    // one job it has — saying where one group of settings stops and the next begins.
+    // The design puts them in the accent, which is the only place in the app that
+    // colour is used for something that is not interactive, and that is why it works:
+    // nothing else on the screen looks like a heading.
     Text(
         text = text.uppercase(textLocale()),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.primary,
+        letterSpacing = 0.8.sp,
         modifier = modifier
     )
 }
