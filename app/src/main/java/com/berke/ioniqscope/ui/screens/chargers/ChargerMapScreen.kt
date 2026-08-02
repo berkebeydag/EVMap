@@ -332,6 +332,7 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
                 Surface(
                     shape = RoundedCornerShape(23.dp),
                     color = MAP_CHROME,
+                    contentColor = MAP_CHROME_INK,
                     shadowElevation = 6.dp,
                     onClick = { searching = true },
                     modifier = Modifier.weight(1f).height(46.dp)
@@ -454,6 +455,7 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
         if (selected == null) Surface(
             shape = RoundedCornerShape(23.dp),
             color = MAP_CHROME,
+            contentColor = MAP_CHROME_INK,
             shadowElevation = 6.dp,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -683,6 +685,12 @@ private fun RouteLegend(
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
+        // Not a theme colour, so Material has no matching content colour to hand down
+        // and the text fell through to the theme's onSurface — which in the light
+        // theme is nearly black, on a panel that is nearly black in both. The panel is
+        // dark on purpose: it sits on a light map in either theme, and it has to be
+        // legible against the map rather than against the app. So its ink is fixed too.
+        contentColor = LEGEND_INK,
         color = LEGEND_SURFACE,
         border = BorderStroke(1.dp, LEGEND_OUTLINE),
         shadowElevation = 12.dp,
@@ -717,7 +725,8 @@ private fun RouteLegend(
                     )
                     Text(
                         formatDistance(entry.route.metres),
-                        style = MaterialTheme.typography.labelSmall
+                        style = MaterialTheme.typography.labelSmall,
+                        color = LEGEND_INK_MUTED
                     )
                     // Fixed width so the prices line up as a column; a ragged right
                     // edge is what stops five of them being comparable at a glance.
@@ -838,12 +847,26 @@ private fun previewDetail(site: ChargerSite): String = buildString {
 private val LEGEND_SURFACE = Color(0xED0C1A22)
 private val LEGEND_OUTLINE = Color(0xE635525E)
 
+/**
+ * The legend's own ink, fixed rather than themed.
+ *
+ * The panel is dark in both themes because it lies on a light map in both, so what it
+ * has to be legible against is the map — not the app around it. Taking the text colour
+ * from the scheme meant that in the light theme it was drawn in the theme's near-black
+ * onSurface, on a near-black panel, and the five suggestions simply were not there.
+ */
+private val LEGEND_INK = Color(0xFFE6F2F5)
+private val LEGEND_INK_MUTED = Color(0xFF9DB3BC)
+private val LEGEND_CHEAP = Color(0xFF7ED45A)
+private val LEGEND_DEAR = Color(0xFFFF8B8B)
+
 /** A round map control, the same size as the search field beside it. */
 @Composable
 private fun MapRoundButton(onClick: () -> Unit, content: @Composable () -> Unit) {
     Surface(
         shape = CircleShape,
         color = MAP_CHROME,
+        contentColor = MAP_CHROME_INK,
         shadowElevation = 6.dp,
         onClick = onClick,
         modifier = Modifier.size(46.dp)
@@ -894,9 +917,13 @@ private fun priceVerdict(site: ChargerSite): String? =
 @Composable
 private fun priceColour(site: ChargerSite) =
     when (ChargerTariffs.levelFor(site.operator, site.isDc)) {
-        ChargerTariffs.Level.Cheap -> MaterialTheme.colorScheme.secondary
-        ChargerTariffs.Level.Expensive -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+        // Fixed, for the same reason the panel's ink is: these are read on a dark panel
+        // in both themes, and the theme's own green and red are chosen to sit on the
+        // theme's background rather than on this one. In the light theme they came out
+        // dark enough to disappear into it.
+        ChargerTariffs.Level.Cheap -> LEGEND_CHEAP
+        ChargerTariffs.Level.Expensive -> LEGEND_DEAR
+        else -> LEGEND_INK_MUTED
     }
 
 /** A charge rating as a driver reads it, or nothing when nobody published one. */

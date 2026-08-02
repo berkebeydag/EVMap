@@ -86,6 +86,11 @@ private val DarkColors = darkColorScheme(
 
 // Light scheme exists so the app is usable in daylight, but dark is the default
 // and the one the layout is tuned for.
+//
+// Every role is set, for the reason the dark scheme learned the hard way: an unset
+// role does not inherit from the ones beside it, it falls through to Material's
+// baseline, which is purple. Half of these were missing and the navigation bar came
+// out lilac under a teal-and-green app.
 private val LightColors = lightColorScheme(
     primary = TealDeep,
     onPrimary = Color(0xFFFFFFFF),
@@ -96,9 +101,32 @@ private val LightColors = lightColorScheme(
     secondaryContainer = Color(0xFFCCEDBB),
     onSecondaryContainer = Color(0xFF11290A),
     tertiary = Color(0xFF7A5900),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFFFE0A8),
+    onTertiaryContainer = Color(0xFF261A00),
     background = Color(0xFFF7FBFC),
+    onBackground = Color(0xFF12242B),
     surface = Color(0xFFF7FBFC),
-    error = Color(0xFFBA1A1A)
+    onSurface = Color(0xFF12242B),
+    surfaceVariant = Color(0xFFDCE8EC),
+    onSurfaceVariant = Color(0xFF4C6169),
+    // The container ramp, tinted towards the same slate the dark scheme is built on
+    // rather than left at Material's neutral — a grey card under a teal app reads as
+    // an unstyled card, and the baseline's is not even grey.
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF1F7F9),
+    surfaceContainer = Color(0xFFEAF2F5),
+    surfaceContainerHigh = Color(0xFFE1ECEF),
+    surfaceContainerHighest = Color(0xFFD8E5E9),
+    inverseSurface = Color(0xFF12242B),
+    inverseOnSurface = Color(0xFFEFF6F8),
+    inversePrimary = Teal,
+    outline = Color(0xFFA6BCC4),
+    outlineVariant = Color(0xFFCBDBE0),
+    error = Color(0xFFBA1A1A),
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002)
 )
 
 /**
