@@ -135,12 +135,17 @@ interface ChargingStationDao {
     @Query(
         // ESCAPE is required for the caller's backslash-escaping of % and _ to mean
         // anything; without it the backslash is just another character to match.
+        //
+        // Doubled, because a single one is a Kotlin escape and not a backslash. Written
+        // with one, the literal collapses to an empty string before SQLite ever
+        // sees it, and SQLite rejects an empty ESCAPE — which crashed the app on
+        // the first keystroke of every search.
         "SELECT * FROM charging_stations WHERE " +
-            "name LIKE :pattern ESCAPE '\' OR operator LIKE :pattern ESCAPE '\' " +
-            "OR address LIKE :pattern ESCAPE '\' " +
+            "name LIKE :pattern ESCAPE '\\' OR operator LIKE :pattern ESCAPE '\\' " +
+            "OR address LIKE :pattern ESCAPE '\\' " +
             "ORDER BY CASE " +
-            "  WHEN name LIKE :pattern ESCAPE '\' THEN 0 " +
-            "  WHEN operator LIKE :pattern ESCAPE '\' THEN 1 " +
+            "  WHEN name LIKE :pattern ESCAPE '\\' THEN 0 " +
+            "  WHEN operator LIKE :pattern ESCAPE '\\' THEN 1 " +
             "  ELSE 2 END, " +
             "((lat - :lat) * (lat - :lat)) + " +
             "((lon - :lon) * (lon - :lon) * :lonScale * :lonScale) " +

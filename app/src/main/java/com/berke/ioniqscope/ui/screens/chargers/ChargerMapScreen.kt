@@ -392,6 +392,9 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
                     onPick = { site ->
                         moveTo = GeoPoint(site.lat, site.lon) to PICKED_ZOOM
                         selected = site
+                        // Same reason as the list: putting the map somewhere and then
+                        // letting the next fix take it away is worse than not moving it.
+                        vm.stopFollowing()
                         searching = false
                         vm.clearSearch()
                     },

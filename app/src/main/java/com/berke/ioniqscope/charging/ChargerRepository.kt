@@ -132,7 +132,13 @@ class ChargerRepository(
     ): List<ChargingStationEntity> {
         val cleaned = query.trim()
         if (cleaned.length < MIN_SEARCH_CHARS) return emptyList()
-        val escaped = cleaned.replace("%", "\\%").replace("_", "\\_")
+        // The backslash goes first: escaping % and _ with one, without escaping
+        // the backslash itself, turns a typed backslash into an escape character
+        // for whatever the user typed next.
+        val escaped = cleaned
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
         return dao.search("%$escaped%", lat, lon, cos(lat * PI / 180.0), limit)
     }
 
