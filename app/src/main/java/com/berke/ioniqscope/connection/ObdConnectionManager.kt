@@ -375,7 +375,18 @@ class ObdConnectionManager(
             val transcript = StringBuilder()
             try {
                 for (read in queries.reads) {
-                    val raw = elm.command(read.identifier)
+                    // Retried once, because the first request after a header change
+                    // comes back CANERROR often enough to look like the query is
+                    // wrong when it is not: measured on an Ioniq 6, 220101 errored
+                    // and 220105 immediately after it answered perfectly. The adapter
+                    // needs a beat to settle on the new address, and a second ask
+                    // costs a few hundred milliseconds against a battery read the
+                    // user pressed a button for.
+                    var raw = elm.command(read.identifier)
+                    if (looksLikeBusError(raw)) {
+                        delay(RETRY_SETTLE_MS)
+                        raw = elm.command(read.identifier)
+                    }
                     transcript.append(read.identifier).append(NEWLINE).append(raw.trim()).append(BLANK_LINE)
                     val payload = UdsReader.payloadOf(raw, read.identifier) ?: continue
                     for (value in read.values) {
@@ -389,6 +400,19 @@ class ObdConnectionManager(
             }
             BatteryReading(values, transcript.toString().trim())
         }
+    }
+
+    /**
+     * Whether a reply is the adapter reporting it could not get an answer off the bus.
+     *
+     * These are all transient in practice — they say the request did not complete, not
+     * that it was wrong — which is what makes retrying them worth doing and retrying a
+     * negative response (0x7F) not.
+     */
+    private fun looksLikeBusError(raw: String): Boolean {
+        val text = raw.uppercase()
+        return BUS_ERRORS.any { text.contains(it) } ||
+            text.filter { it.isDigit() || it in 'A'..'F' }.isEmpty()
     }
 
     /** Puts the adapter back on the functional broadcast address (normal PID polling). */
@@ -407,6 +431,11 @@ class ObdConnectionManager(
         const val MAX_CONNECT_ATTEMPTS = 3
         const val RECONNECT_BACKOFF_MS = 2_000L
         const val IN_FLIGHT_SETTLE_MS = 150L
+        const val RETRY_SETTLE_MS = 300L
+        val BUS_ERRORS = listOf(
+            "CAN ERROR", "CANERROR", "NO DATA", "BUS INIT", "BUS ERROR",
+            "UNABLE TO CONNECT", "STOPPED", "BUFFER FULL", "FB ERROR"
+        )
         const val MAX_LOG_LINES = 300
 
         /** Kept as constants so the transcript reads the same on every platform. */

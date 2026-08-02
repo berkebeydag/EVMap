@@ -50,15 +50,26 @@ object UdsReader {
         for (line in lines) {
             // "SEARCHING...", "NO DATA", "CAN ERROR" and the echoed command all reach
             // here; anything that is not hex is not an answer.
-            val hex = line.filter { it.isDigit() || it in 'A'..'F' }
+            var hex = line.filter { it.isDigit() || it in 'A'..'F' }
+
+            // The 11-bit CAN id has to come off before anything counts bytes, because
+            // it is three hex characters and three plus any number of byte pairs is
+            // always odd. The parity check below therefore threw away every line the
+            // ELM printed with headers on — which is every line, since the engine sets
+            // ATH1. This reader never saw a single frame: a perfectly good
+            // "7EC102E6201051FFB74" was discarded as malformed, and the screen said
+            // the car had not answered with the identifier it had in fact answered
+            // with. The old code noticed the oddness in a comment and then filtered on
+            // it anyway.
+            if (hex.length % 2 == 1 && hex.length >= 3) hex = hex.drop(3)
+
             if (hex.length < 2 || hex.length % 2 != 0) continue
             var frame = hex.chunked(2).mapNotNull { it.toIntOrNull(16) }
             if (frame.isEmpty()) continue
 
-            // Drop the CAN id when the ELM is printing headers. An 11-bit id is three
-            // hex characters, so the line is odd-length before the filter above pairs
-            // it up — which is why the id is found by looking at what a frame can be
-            // rather than by trusting the length.
+            // A 29-bit id is eight hex characters, so it survives the parity check and
+            // has to be dropped by length instead. A CAN frame is never more than eight
+            // bytes, so anything beyond that is addressing.
             if (frame.size > 8) frame = frame.drop(frame.size - 8)
 
             val pci = frame.first()
