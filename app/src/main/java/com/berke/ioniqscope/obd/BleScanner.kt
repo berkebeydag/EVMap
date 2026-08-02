@@ -11,12 +11,21 @@ import android.content.Context
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import com.berke.ioniqscope.data.AdapterType
 
-/** One adapter seen during a BLE scan. */
+/**
+ * One adapter the app found, however it found it.
+ *
+ * Carries its own kind because the user should not have to know one. Picking
+ * "Bluetooth LE" or "Klasik" or "WiFi" from a list of three before being allowed to
+ * look for anything is asking a question the app can answer by looking — so it looks
+ * in all three places and each result remembers where it came from.
+ */
 data class DiscoveredDevice(
     val address: String,
     val name: String?,
-    val rssi: Int
+    val rssi: Int,
+    val kind: AdapterType = AdapterType.BLE
 ) {
     val displayName: String get() = name?.takeIf { it.isNotBlank() } ?: "(isimsiz)"
 
@@ -63,7 +72,9 @@ class BleScanner(private val context: Context) {
     /** Bonded classic-BT adapters, for the Classic transport option in Settings. */
     fun bondedDevices(): List<DiscoveredDevice> =
         runCatching {
-            adapter?.bondedDevices.orEmpty().map { DiscoveredDevice(it.address, it.name, 0) }
+            adapter?.bondedDevices.orEmpty().map {
+                DiscoveredDevice(it.address, it.name, 0, AdapterType.CLASSIC)
+            }
         }.getOrDefault(emptyList())
 
     /**

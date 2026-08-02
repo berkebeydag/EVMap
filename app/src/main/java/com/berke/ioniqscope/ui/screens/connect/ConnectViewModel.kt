@@ -41,26 +41,61 @@ class ConnectViewModel(private val services: ServiceLocator) : ViewModel() {
 
     fun bluetoothAvailability(): BluetoothAvailability = scanner.availability()
 
+    /**
+     * Looks everywhere at once.
+     *
+     * The app used to make the user choose an adapter type first, and then looked in
+     * exactly one place. That is the wrong way round: which of the three a dongle is
+     * happens to be a fact about the hardware, and the app can find that out by looking
+     * rather than by asking somebody who bought whatever was cheapest.
+     *
+     * So all three run together. Paired classic devices and the WiFi address are known
+     * immediately, so they appear at once; the BLE scan streams in on top of them over
+     * the next few seconds. Each result carries its own kind, and connecting to one
+     * sets the adapter type as a side effect — so the choice still gets made, just not
+     * by the user and not before there is anything to choose between.
+     */
     fun startScan() {
         if (_scan.value.isScanning) return
+        scanJob?.cancel()
 
-        val type = settings.value.adapterType
-        if (type == AdapterType.CLASSIC) {
-            // Classic BT adapters are not advertised; they come from the system
-            // pairing list instead.
-            _scan.value = ScanUiState(isScanning = false, devices = scanner.bondedDevices())
+        val immediate = buildList {
+            // The WiFi dongle cannot be discovered — it is an address, and either
+            // something answers there or it does not. Offering it unconditionally is
+            // honest: it says "this is where I would look", which is the only thing
+            // that can be said before trying.
+            val s = settings.value
+            add(
+                DiscoveredDevice(
+                    address = "${s.adapterHost}:${s.adapterPort}",
+                    name = "ELM327 WiFi",
+                    rssi = 0,
+                    kind = AdapterType.WIFI
+                )
+            )
+            if (scanner.availability() == BluetoothAvailability.Ready) {
+                addAll(runCatching { scanner.bondedDevices() }.getOrDefault(emptyList()))
+            }
+        }
+
+        if (scanner.availability() != BluetoothAvailability.Ready) {
+            // No Bluetooth is not an error here any more: the WiFi row is still usable,
+            // and a red banner over a screen that still works reads as a dead end.
+            _scan.value = ScanUiState(isScanning = false, devices = immediate)
             return
         }
 
-        scanJob?.cancel()
-        _scan.value = ScanUiState(isScanning = true)
+        _scan.value = ScanUiState(isScanning = true, devices = immediate)
         scanJob = viewModelScope.launch {
             scanner.scan()
                 .catch { e ->
-                    _scan.value = ScanUiState(isScanning = false, error = e.message)
+                    _scan.value = _scan.value.copy(isScanning = false, error = e.message)
                 }
-                .collect { devices ->
-                    _scan.value = _scan.value.copy(isScanning = true, devices = devices)
+                .collect { found ->
+                    // Bonded and scanned lists overlap: a paired adapter that is also
+                    // advertising would otherwise appear twice, once per way of seeing it.
+                    val merged = (found + immediate).distinctBy { it.address }
+                    _scan.value = _scan.value.copy(isScanning = true, devices = merged)
                 }
         }
     }
@@ -89,10 +124,13 @@ class ConnectViewModel(private val services: ServiceLocator) : ViewModel() {
 
     fun connect(device: DiscoveredDevice) {
         stopScan()
+        // The row knows what it is, so the stored adapter type follows from the choice
+        // rather than having to be set before it.
+        viewModelScope.launch { services.settings.setAdapterType(device.kind) }
         viewModelScope.launch {
             services.settings.setLastDevice(device.address, device.name)
         }
-        manager.connect(device.address, device.displayName, settings.value.adapterType)
+        manager.connect(device.address, device.displayName, device.kind)
     }
 
     fun reconnectLast() {

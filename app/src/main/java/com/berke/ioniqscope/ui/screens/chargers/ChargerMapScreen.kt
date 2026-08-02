@@ -110,7 +110,11 @@ private const val UNBRANDED = "Marka belirtilmemiş"
 private val TURKEY_CENTRE = GeoPoint(39.0, 35.0)
 
 @Composable
-fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
+fun ChargerMapScreen(
+    services: ServiceLocator,
+    onSettings: () -> Unit,
+    onConnect: () -> Unit
+) {
     val vm = serviceViewModel(services) { ChargerViewModel(it) }
     val context = LocalContext.current
 
@@ -200,7 +204,10 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
         }
     }
 
-    val toConnect: () -> Unit = { onSettings() }
+    // This used to be `{ onSettings() }`: the Bluetooth button on the map opened
+    // Settings. It looked like a wiring shortcut and behaved like a dead end — the one
+    // control on the map that is about the adapter took you to a page of preferences.
+    val toConnect: () -> Unit = onConnect
 
     val requestLocation: () -> Unit = {
         if (ChargerViewModel.hasLocationPermission(context)) {

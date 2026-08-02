@@ -130,7 +130,9 @@ fun IoniqScopeRoot(services: ServiceLocator) {
             val toConnect: () -> Unit = { navController.navigateTo(Destination.Connect) }
             val toSettings: () -> Unit = { navController.navigateTo(Destination.Settings) }
 
-            composable(Destination.Chargers.route) { ChargerMapScreen(services, toSettings) }
+            composable(Destination.Chargers.route) {
+                ChargerMapScreen(services, toSettings, toConnect)
+            }
             composable(Destination.Obd.route) {
                 ObdScreen(
                     services = services,

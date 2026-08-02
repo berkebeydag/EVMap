@@ -172,65 +172,38 @@ private fun ConnectContent(vm: ConnectViewModel) {
             lastDeviceName = settings.lastDeviceName ?: settings.lastDeviceAddress
         )
 
-        // WiFi is a different screen inside the same one. There is nothing to scan
-        // for and no Bluetooth to complain about — the dongle is an address, and the
-        // only question is whether the phone is on its network.
-        if (settings.adapterType == AdapterType.WIFI) {
-            WifiEndpointCard(
-                host = settings.adapterHost,
-                port = settings.adapterPort,
-                connecting = connection is ConnectionState.Connecting,
-                onSave = vm::setEndpoint,
-                onConnect = vm::connectWifi
-            )
-            return@Column
-        }
-
         when (availability) {
             BluetoothAvailability.NoAdapter -> Banner(
                 title = "Bluetooth donanımı yok",
-                text = "Bu cihazda Şarj Bul'un kullanabileceği bir Bluetooth donanımı yok.",
-                tone = BannerTone.Error
+                text = "Bu cihazda Bluetooth yok. WiFi adaptörü yine de kullanılabilir.",
+                tone = BannerTone.Warning
             )
             BluetoothAvailability.Disabled -> Banner(
                 title = "Bluetooth kapalı",
-                text = "Adaptörü taramak için Bluetooth'u aç.",
+                text = "Bluetooth adaptörlerini görmek için aç. WiFi adaptörü açmadan da çalışır.",
                 tone = BannerTone.Warning
             )
             BluetoothAvailability.Ready -> Unit
         }
 
-        // Both actions full width and side by side. Scanning and listing what is
-        // already paired are the two ways in, and one of them being a small button
-        // beside the other made it look like an afterthought rather than the shortcut
-        // it is for anyone who has connected before.
+        // One button, because there is now one thing to do. Scanning and listing the
+        // paired devices used to be two, which made the user pick the method before
+        // they had picked a device — a question about how the app works, asked of
+        // somebody who wants to know whether their dongle is there.
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (scan.isScanning) {
                 Button(
                     onClick = vm::stopScan,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.weight(1f).height(50.dp)
-                ) { Text("Taramayı durdur") }
+                ) { Text("Aramayı durdur") }
             } else {
                 Button(
                     onClick = vm::startScan,
-                    enabled = availability == BluetoothAvailability.Ready,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.weight(1f).height(50.dp)
-                ) {
-                    Text(
-                        if (settings.adapterType == AdapterType.CLASSIC) {
-                            "Eşleşmişler"
-                        } else "Adaptör tara"
-                    )
-                }
+                ) { Text("Adaptör ara") }
             }
-            OutlinedButton(
-                onClick = vm::startScan,
-                enabled = availability == BluetoothAvailability.Ready && !scan.isScanning,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.weight(1f).height(50.dp)
-            ) { Text("Eşleşmişler") }
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -372,6 +345,10 @@ private fun ConnectionCard(
 @Composable
 private fun DeviceRow(device: DiscoveredDevice, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    val kindIcon = when (device.kind) {
+        AdapterType.WIFI -> Icons.Filled.Wifi
+        else -> Icons.Filled.Bluetooth
+    }
     // A device that looks like an adapter is the one you came here for, so it is drawn
     // as the answer and the rest are dimmed rather than merely listed alongside.
     val likely = device.looksLikeObdAdapter
@@ -401,7 +378,7 @@ private fun DeviceRow(device: DiscoveredDevice, onClick: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.Filled.Bluetooth,
+                    kindIcon,
                     contentDescription = null,
                     tint = if (likely) scheme.primary else scheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
@@ -411,7 +388,17 @@ private fun DeviceRow(device: DiscoveredDevice, onClick: () -> Unit) {
                 Text(device.displayName, style = MaterialTheme.typography.titleSmall)
                 Text(
                     buildString {
-                        if (likely) append("· OBD adaptörüne benziyor · ")
+                        // The kind first, because it is the thing the user no longer
+                        // has to choose and therefore the thing they should be told.
+                        append(
+                            when (device.kind) {
+                                AdapterType.WIFI -> "WiFi"
+                                AdapterType.CLASSIC -> "Klasik BT · eşleşmiş"
+                                AdapterType.BLE -> "Bluetooth LE"
+                            }
+                        )
+                        if (likely) append(" · OBD adaptörüne benziyor")
+                        append(" · ")
                         append(device.address)
                         if (device.rssi != 0) append(" · ${device.rssi} dBm")
                     },
@@ -467,6 +454,7 @@ private fun WifiEndpointCard(
     onSave: (String, Int) -> Unit,
     onConnect: () -> Unit
 ) {
+    @Suppress("UNUSED_PARAMETER")
     val scheme = MaterialTheme.colorScheme
     var hostText by remember(host) { mutableStateOf(host) }
     var portText by remember(port) { mutableStateOf(port.toString()) }
