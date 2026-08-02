@@ -1,17 +1,20 @@
 package com.berke.ioniqscope.ui.screens.diagnostics
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -24,6 +27,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -52,6 +57,7 @@ import com.berke.ioniqscope.ui.components.SectionLabel
 import com.berke.ioniqscope.ui.serviceViewModel
 import com.berke.ioniqscope.ui.theme.StatusAmber
 import com.berke.ioniqscope.ui.theme.StatusGreen
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -59,7 +65,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 data class DiagnosticsUiState(
     val busy: Boolean = false,
@@ -180,33 +185,59 @@ fun DiagnosticsScreen(
 
         item { AuxBatteryCard(aux, onOpenAuxBattery) }
 
+        // Read and clear, side by side and full width. They were ordinary buttons in
+        // a row, which made the destructive one look like the safe one at a glance;
+        // the design gives read the filled treatment and clear an outline in the fault
+        // colour, so which is which is legible before the labels are.
         item {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                Modifier.padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Button(onClick = vm::readCodes, enabled = connected && !ui.busy) {
-                    Text("Kodları oku")
-                }
+                Button(
+                    onClick = vm::readCodes,
+                    enabled = connected && !ui.busy,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.weight(1f).height(50.dp)
+                ) { Text("Kodları oku") }
                 OutlinedButton(
                     onClick = { showConfirm = true },
                     enabled = connected && !ui.busy,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                    ),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text(stringResource(R.string.dtc_clear_confirm))
-                }
-                if (ui.busy) CircularProgressIndicator()
+                    ),
+                    modifier = Modifier.weight(1f).height(50.dp)
+                ) { Text(stringResource(R.string.dtc_clear_confirm)) }
+            }
+        }
+
+        if (ui.busy) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) { CircularProgressIndicator(strokeWidth = 2.dp) }
             }
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = vm::runInspectionCheck, enabled = connected && !ui.busy) {
-                    Text("Muayene kontrolü")
-                }
-                TextButton(onClick = onOpenConsole) { Text("Komut konsolu") }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = vm::runInspectionCheck,
+                    enabled = connected && !ui.busy,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.weight(1f).height(46.dp)
+                ) { Text("Muayene kontrolü") }
+                OutlinedButton(
+                    onClick = onOpenConsole,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.weight(1f).height(46.dp)
+                ) { Text("Komut konsolu") }
             }
         }
 
@@ -255,44 +286,83 @@ private fun AuxBatteryCard(health: AuxBatteryHealth, onClick: () -> Unit) {
         AuxBatteryStatus.Critical -> scheme.error
         AuxBatteryStatus.Unknown -> scheme.outline
     }
+    val verdict = when (health.status) {
+        AuxBatteryStatus.Good -> "SAĞLIKLI"
+        AuxBatteryStatus.Low -> "DÜŞÜK"
+        AuxBatteryStatus.Critical -> "KRİTİK"
+        AuxBatteryStatus.Unknown -> "VERİ YOK"
+    }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainer),
-        onClick = onClick
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = scheme.surfaceContainer,
+        border = BorderStroke(1.dp, scheme.outline),
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
     ) {
-        ListItem(
-            colors = ListItemDefaults.colors(containerColor = scheme.surfaceContainer),
-            leadingContent = {
-                Icon(Icons.Filled.BatteryAlert, contentDescription = null, tint = accent)
-            },
-            headlineContent = { Text("12V akü") },
-            supportingContent = {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    when (health.status) {
-                        AuxBatteryStatus.Unknown -> "Henüz ölçüm yok"
-                        else -> buildString {
-                            append(
-                                health.latestVolts?.let {
-                                    String.format(Locale.US, "%.2f V", it)
-                                } ?: "—"
-                            )
-                            append(" · ")
-                            append(
-                                when (health.status) {
-                                    AuxBatteryStatus.Good ->
-                                        if (health.isDeclining) "düşüş eğiliminde" else "healthy"
-                                    AuxBatteryStatus.Low -> "low"
-                                    AuxBatteryStatus.Critical -> "critical"
-                                    AuxBatteryStatus.Unknown -> ""
-                                }
-                            )
-                        }
-                    }
+                    "12V akü",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f)
                 )
-            },
-            trailingContent = { Text("Eğilim →", color = scheme.primary) }
-        )
+                // The verdict as a badge rather than a word in a sentence. It is the
+                // one thing on this card read at a glance, and the status colour is
+                // what carries it.
+                Surface(
+                    shape = RoundedCornerShape(7.dp),
+                    color = accent.copy(alpha = 0.14f),
+                    border = BorderStroke(1.dp, accent.copy(alpha = 0.35f))
+                ) {
+                    Text(
+                        verdict,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = accent,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Row(
+                Modifier.padding(top = 10.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text(
+                    health.latestVolts?.let { String.format(Locale.US, "%.2f", it) } ?: "—",
+                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 32.sp),
+                    color = scheme.onSurface
+                )
+                Text(
+                    "V",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 5.dp, bottom = 4.dp)
+                )
+                // The trend beside the reading rather than under it: a voltage on its
+                // own says nothing about a battery, and which way it is going does.
+                health.trendVoltsPerWeek?.let { drift ->
+                    Text(
+                        String.format(
+                            Locale.getDefault(),
+                            "%d oturumda haftada %+.3f V",
+                            health.sessionStartCount,
+                            drift
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
+                    )
+                }
+            }
+
+            Text(
+                "Eğilim →",
+                style = MaterialTheme.typography.labelMedium,
+                color = scheme.primary,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.berke.ioniqscope.ui.screens.performance
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,10 +9,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -19,6 +22,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,9 +30,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -47,14 +53,13 @@ import com.berke.ioniqscope.ui.components.formatReading
 import com.berke.ioniqscope.ui.components.formatSeconds
 import com.berke.ioniqscope.ui.components.formatSecondsBare
 import com.berke.ioniqscope.ui.serviceViewModel
-import androidx.compose.ui.res.stringResource
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 class PerformanceViewModel(services: ServiceLocator) : ViewModel() {
 
@@ -167,132 +172,219 @@ private fun LiveRunPanel(perf: PerfState, settings: AppSettings) {
         PerfState.Phase.IDLE -> scheme.outline
     }
 
-    Card(
-        colors = CardDefaults.cardColors(containerColor = scheme.surfaceContainer),
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = scheme.surfaceContainer,
+        border = BorderStroke(1.dp, scheme.outline),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             Modifier.padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 when (perf.phase) {
-                    PerfState.Phase.IDLE -> "READY"
-                    PerfState.Phase.RUNNING -> "RUNNING"
-                    PerfState.Phase.DONE -> "DONE"
+                    PerfState.Phase.IDLE -> "HAZIR"
+                    PerfState.Phase.RUNNING -> "ÖLÇÜYOR"
+                    PerfState.Phase.DONE -> "BİTTİ"
                 },
-                style = MaterialTheme.typography.labelLarge,
-                color = accent
+                style = MaterialTheme.typography.labelSmall,
+                color = accent,
+                letterSpacing = 3.sp
             )
 
-            // 0-100 is the headline number; while running it counts up live.
+            // 0-100 is the headline; while running it counts up live. The unit sits
+            // beside it at a fifth of the size rather than on a line of its own — it
+            // is part of the reading, not a caption under it.
             val headline = perf.splits[PerfRunRecorder.SPLIT_100]
-            Text(
-                text = headline?.let { formatSecondsBare(it) }
-                    ?: if (running) formatSecondsBare(perf.elapsedMs) else "0.00",
-                style = MaterialTheme.typography.displayLarge,
-                fontFamily = FontFamily.Monospace,
-                color = accent,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                if (headline != null) "saniye · 0-100 km/h" else "geçen saniye",
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant
-            )
+            Row(
+                Modifier.padding(top = 6.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text(
+                    text = headline?.let { formatSecondsBare(it) }
+                        ?: if (running) formatSecondsBare(perf.elapsedMs) else "0,00",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = scheme.onSurface
+                )
+                Text(
+                    "s",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+                )
+            }
 
             Row(
                 Modifier.fillMaxWidth().padding(top = 16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                BigStat(
-                    "Speed",
+                LiveStat(
+                    "ANLIK",
                     formatReading(settings.speedUnit.fromKmh(perf.currentKmh)),
-                    settings.speedUnit.suffix
+                    settings.speedUnit.suffix,
+                    highlight = true,
+                    modifier = Modifier.weight(1f)
                 )
-                BigStat(
-                    "Max",
+                LiveStat(
+                    "MAKS",
                     formatReading(settings.speedUnit.fromKmh(perf.maxKmh)),
-                    settings.speedUnit.suffix
+                    settings.speedUnit.suffix,
+                    modifier = Modifier.weight(1f)
                 )
-                BigStat("Distance", formatReading(perf.distanceM), "m")
+                LiveStat(
+                    "MESAFE",
+                    formatReading(perf.distanceM),
+                    "m",
+                    modifier = Modifier.weight(1f)
+                )
             }
+        }
+    }
 
-            if (perf.splits.isNotEmpty()) {
-                HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                perf.splits.forEach { (label, ms) ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
+    // The split that the whole run is for, given a card of its own rather than a row
+    // in a list of them: it is the number anybody quotes about a car.
+    val hundred = perf.splits[PerfRunRecorder.SPLIT_100]
+    if (hundred != null) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = scheme.surfaceContainer,
+            border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.4f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "0-100 km/h",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = scheme.onSurfaceVariant
+                    )
+                    Row(verticalAlignment = Alignment.Bottom) {
                         Text(
-                            formatSeconds(ms),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontFamily = FontFamily.Monospace,
+                            formatSecondsBare(hundred),
+                            style = MaterialTheme.typography.headlineMedium,
                             color = scheme.primary
+                        )
+                        Text(
+                            "s",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = scheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp)
                         )
                     }
                 }
             }
         }
     }
+
+    // Every other split, still shown, but under the headline rather than beside it.
+    if (perf.splits.size > 1) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = scheme.surfaceContainer,
+            border = BorderStroke(1.dp, scheme.outline),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                perf.splits.filterKeys { it != PerfRunRecorder.SPLIT_100 }
+                    .forEach { (label, ms) ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = scheme.onSurfaceVariant
+                            )
+                            Text(formatSeconds(ms), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+            }
+        }
+    }
 }
 
+/** One live figure during a run: what it is, the number, and its unit. */
 @Composable
-private fun BigStat(label: String, value: String, unit: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            value,
-            style = MaterialTheme.typography.headlineMedium,
-            fontFamily = FontFamily.Monospace
-        )
-        Text(
-            "$label · $unit",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+private fun LiveStat(
+    label: String,
+    value: String,
+    unit: String,
+    modifier: Modifier = Modifier,
+    highlight: Boolean = false
+) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = scheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, scheme.outline),
+        modifier = modifier
+    ) {
+        Column(
+            Modifier.padding(10.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant
+            )
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (highlight) scheme.primary else scheme.onSurface,
+                modifier = Modifier.padding(top = 3.dp)
+            )
+            Text(
+                unit,
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant
+            )
+        }
     }
 }
 
 @Composable
 private fun RunRow(run: PerfRunEntity, isBest: Boolean, onDelete: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .background(
-                if (isBest) scheme.primary.copy(alpha = 0.12f) else scheme.surfaceContainer,
-                RoundedCornerShape(12.dp)
-            )
-            .padding(12.dp)
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = scheme.surfaceContainer,
+        border = BorderStroke(
+            1.dp,
+            if (isBest) scheme.secondary.copy(alpha = 0.5f) else scheme.outline
+        ),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(Modifier.fillMaxWidth()) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        run.zeroTo100Ms?.let { formatSeconds(it) } ?: "100'e ulaşmadı",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontFamily = FontFamily.Monospace,
-                        color = if (isBest) scheme.primary else scheme.onSurface
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    timestampFormatter.format(Instant.ofEpochMilli(run.recordedAtEpochMs)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    run.zeroTo100Ms?.let { formatSeconds(it) } ?: "100'e ulaşmadı",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (isBest) scheme.secondary else scheme.onSurface
+                )
+                IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Ölçümü sil",
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
                     )
-                    Text(
-                        timestampFormatter.format(Instant.ofEpochMilli(run.recordedAtEpochMs)) +
-                            if (isBest) "  ·  en iyi" else "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Filled.Delete, contentDescription = "Ölçümü sil")
                 }
             }
 
+            // The rest of the run, on one quiet line. It is what you look at after
+            // deciding the headline is interesting, not while deciding.
             val details = buildList {
                 run.zeroTo50Ms?.let { add("0-50 ${formatSeconds(it)}") }
                 run.zeroTo120Ms?.let { add("0-120 ${formatSeconds(it)}") }
@@ -301,9 +393,9 @@ private fun RunRow(run: PerfRunEntity, isBest: Boolean, onDelete: () -> Unit) {
                 add("azami ${formatReading(run.maxKmh)} km/h")
             }
             Text(
-                details.joinToString("  ·  "),
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant,
+                details.joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant.copy(alpha = 0.8f),
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
