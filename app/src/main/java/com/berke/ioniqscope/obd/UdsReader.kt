@@ -39,13 +39,57 @@ object UdsReader {
      * is the difference between showing nothing and showing an empty battery.
      */
     fun payloadOf(raw: String, identifier: String): IntArray? {
+        val byLine = framesFromLines(raw)
+        val payload = extract(byLine, identifier)
+        if (payload != null) return payload
+
+        // Some adapters — the one measured here among them — return the whole
+        // multi-frame answer as a single unbroken run of hex with no separator between
+        // frames at all:
+        //
+        //   7EC103E620101EFFBE77EC21EF5200000000007EC22001212EA1F1D1E...
+        //
+        // Split on line breaks that is one line, and the first eight bytes of it are
+        // the id and the first frame's header — so a line-based reader either sees
+        // nonsense or, having dropped everything past eight bytes, sees the tail of
+        // the last frame and nothing else. Every frame is exactly the same width,
+        // though, so the run can be cut back into frames by measuring one.
+        return extract(framesFromRun(raw), identifier)
+    }
+
+    /** The frames as the ELM printed them, one per line, when it prints lines at all. */
+    private fun framesFromLines(raw: String): List<List<Int>> {
         val lines = raw.uppercase()
             .split('\r', '\n')
             .map { it.trim() }
             .filter { it.isNotEmpty() && it != ">" }
+        return framesOf(lines)
+    }
 
-        val bytes = ArrayList<Int>(64)
-        var seenFirstFrame = false
+    /**
+     * The frames recovered from one unbroken run of hex.
+     *
+     * Only the shapes that can be checked are accepted: every frame carries the same
+     * CAN id and the same width, so the run divides exactly by that width and each
+     * block starts with that id. An 11-bit id makes a 19-character frame and a 29-bit
+     * id a 24-character one — both because the ELM pads every CAN frame out to its
+     * full eight bytes. If neither divides the run cleanly, this returns nothing
+     * rather than guessing where the boundaries are.
+     */
+    private fun framesFromRun(raw: String): List<List<Int>> {
+        val hex = raw.uppercase().filter { it.isDigit() || it in 'A'..'F' }
+        for ((idChars, width) in listOf(3 to 19, 8 to 24)) {
+            if (hex.length < width || hex.length % width != 0) continue
+            val id = hex.take(idChars)
+            val blocks = (hex.indices step width).map { hex.substring(it, it + width) }
+            if (blocks.any { !it.startsWith(id) }) continue
+            return framesOf(blocks.map { it.drop(idChars) })
+        }
+        return emptyList()
+    }
+
+    private fun framesOf(lines: List<String>): List<List<Int>> {
+        val out = ArrayList<List<Int>>(lines.size)
 
         for (line in lines) {
             // "SEARCHING...", "NO DATA", "CAN ERROR" and the echoed command all reach
@@ -57,10 +101,8 @@ object UdsReader {
             // always odd. The parity check below therefore threw away every line the
             // ELM printed with headers on — which is every line, since the engine sets
             // ATH1. This reader never saw a single frame: a perfectly good
-            // "7EC102E6201051FFB74" was discarded as malformed, and the screen said
-            // the car had not answered with the identifier it had in fact answered
-            // with. The old code noticed the oddness in a comment and then filtered on
-            // it anyway.
+            // "7EC102E6201051FFB74" was discarded as malformed, and the screen said the
+            // car had not answered with the identifier it had in fact answered with.
             if (hex.length % 2 == 1 && hex.length >= 3) hex = hex.drop(3)
 
             if (hex.length < 2 || hex.length % 2 != 0) continue
@@ -71,7 +113,17 @@ object UdsReader {
             // has to be dropped by length instead. A CAN frame is never more than eight
             // bytes, so anything beyond that is addressing.
             if (frame.size > 8) frame = frame.drop(frame.size - 8)
+            out += frame
+        }
+        return out
+    }
 
+    /** Reassembles frames into the payload of [identifier], or null if it is not there. */
+    private fun extract(frames: List<List<Int>>, identifier: String): IntArray? {
+        val bytes = ArrayList<Int>(64)
+        var seenFirstFrame = false
+
+        for (frame in frames) {
             val pci = frame.first()
             when {
                 // Single frame: the low nibble is the length.
@@ -79,8 +131,8 @@ object UdsReader {
                     bytes += frame.drop(1).take(pci)
                     seenFirstFrame = true
                 }
-                // First frame of a multi-frame answer; the length spans two nibbles
-                // and is not needed here, because the caller reads fixed offsets.
+                // First frame of a multi-frame answer; the length spans two nibbles and
+                // is not needed here, because the caller reads fixed offsets.
                 pci in 0x10..0x1F -> {
                     bytes += frame.drop(2)
                     seenFirstFrame = true
