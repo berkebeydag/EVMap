@@ -3,11 +3,6 @@ package com.berke.ioniqscope
 import android.content.Context
 import com.berke.ioniqscope.charging.ChargerRepository
 import com.berke.ioniqscope.charging.ChargerSeeder
-import com.berke.ioniqscope.charging.ChargerSource
-import com.berke.ioniqscope.charging.OcmChargerSource
-import com.berke.ioniqscope.charging.OsmChargerSource
-import com.berke.ioniqscope.charging.StoredSweepProgress
-import com.berke.ioniqscope.charging.TomTomChargerSource
 import com.berke.ioniqscope.connection.AuxBatteryMonitor
 import com.berke.ioniqscope.connection.DriveDetector
 import com.berke.ioniqscope.connection.ObdConnectionManager
@@ -45,27 +40,6 @@ class ServiceLocator private constructor(context: Context) {
         CsvExporter(appContext, database.tripDao())
     }
 
-    /**
-     * Charger sources, best-data-first. OSM needs nothing and is always available;
-     * OCM turns itself on once the user has pasted their own free key.
-     */
-    private val osmChargerSource by lazy { OsmChargerSource() }
-
-    val chargerSources: List<ChargerSource> by lazy {
-        listOf(
-            TomTomChargerSource(
-                apiKeyProvider = { cachedTomTomKey },
-                progress = StoredSweepProgress(appContext),
-                knownPoints = {
-                    database.chargingStationDao().allCoordinates()
-                        .map { it.lat to it.lon }
-                }
-            ),
-            OcmChargerSource(apiKeyProvider = { cachedOcmKey }),
-            osmChargerSource
-        )
-    }
-
     private val chargerSeeder: ChargerSeeder by lazy {
         ChargerSeeder(appContext, database.chargingStationDao(), appScope)
     }
@@ -76,24 +50,18 @@ class ServiceLocator private constructor(context: Context) {
 
     val apkDownloader: ApkDownloader by lazy { ApkDownloader(appContext) }
 
-    /** Mirror of the stored link, for the same reason as [cachedOcmKey]. */
+    /**
+     * Mirror of the stored link.
+     *
+     * Read from composition and from menu building, where suspending to reach
+     * DataStore is not an option, so the value is kept here and refreshed by the
+     * collector in [warmUp].
+     */
     @Volatile private var cachedUpdateLink: String? = null
 
     val chargerRepository: ChargerRepository by lazy {
-        ChargerRepository(database.chargingStationDao(), chargerSources)
+        ChargerRepository(database.chargingStationDao())
     }
-
-    /**
-     * Mirror of the stored OCM key.
-     *
-     * ChargerSource.isAvailable() is called from composition and menu building,
-     * where suspending to read DataStore is not an option, so the value is kept
-     * here and refreshed by the collector below.
-     */
-    @Volatile private var cachedOcmKey: String? = null
-
-    /** Same reason as [cachedOcmKey]: read from composition, cannot suspend there. */
-    @Volatile private var cachedTomTomKey: String? = null
 
     private val perfRunRecorder: PerfRunRecorder by lazy {
         PerfRunRecorder(connectionManager, database.perfRunDao(), appScope)
@@ -114,8 +82,6 @@ class ServiceLocator private constructor(context: Context) {
         chargerSeeder.seedIfStale()
         appScope.launch {
             settings.settings.collect {
-                cachedOcmKey = it.ocmApiKey.takeIf { k -> k.isNotBlank() }
-                cachedTomTomKey = it.tomtomApiKey.takeIf { k -> k.isNotBlank() }
                 cachedUpdateLink = it.updateShareLink.takeIf { l -> l.isNotBlank() }
             }
         }

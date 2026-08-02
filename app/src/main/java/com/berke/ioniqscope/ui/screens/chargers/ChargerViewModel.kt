@@ -9,10 +9,8 @@ import com.berke.ioniqscope.charging.contains
 import com.berke.ioniqscope.charging.paddedBy
 import com.berke.ioniqscope.charging.ChargerRepository
 import com.berke.ioniqscope.charging.ChargerTariffs
-import com.berke.ioniqscope.charging.ChargerSource
 import com.berke.ioniqscope.charging.Route
 import com.berke.ioniqscope.charging.RouteService
-import com.berke.ioniqscope.charging.SyncState
 import com.berke.ioniqscope.data.AppSettings
 import com.berke.ioniqscope.data.ChargingStationEntity
 import com.berke.ioniqscope.data.OperatorCount
@@ -43,7 +41,6 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     private val repo: ChargerRepository = services.chargerRepository
 
-    val syncState: StateFlow<SyncState> = repo.syncState
 
     val settings: StateFlow<AppSettings> = services.settings.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
@@ -142,13 +139,6 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     private val _listMode = MutableStateFlow(false)
     val listMode: StateFlow<Boolean> = _listMode.asStateFlow()
 
-    fun sources(): List<ChargerSource> = services.chargerSources
-
-    fun refresh(source: ChargerSource) {
-        viewModelScope.launch { repo.sync(source) }
-    }
-
-    fun dismissSyncMessage() = repo.clearSyncState()
 
     /**
      * The AC/DC switch, wired here as well as in Settings.

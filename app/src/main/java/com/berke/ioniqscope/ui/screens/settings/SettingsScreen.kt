@@ -38,15 +38,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.berke.ioniqscope.ServiceLocator
-import com.berke.ioniqscope.charging.ChargerSource
-import com.berke.ioniqscope.charging.SyncState
 import com.berke.ioniqscope.data.AdapterType
 import com.berke.ioniqscope.data.AppSettings
 import com.berke.ioniqscope.data.PidCatalog
 import com.berke.ioniqscope.data.SettingsRepository
 import com.berke.ioniqscope.data.SpeedUnit
-import com.berke.ioniqscope.ui.components.Banner
-import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.SectionLabel
 import com.berke.ioniqscope.ui.serviceViewModel
 import com.berke.ioniqscope.update.UpdateState
@@ -67,20 +63,6 @@ class SettingsViewModel(private val services: ServiceLocator) : ViewModel() {
     fun setAutoLog(enabled: Boolean) = viewModelScope.launch { repo.setAutoLogTrips(enabled) }
     val updateState: StateFlow<UpdateState> = services.updateChecker.state
 
-    fun setOcmKey(key: String) = viewModelScope.launch { repo.setOcmApiKey(key) }
-    fun setTomTomKey(key: String) = viewModelScope.launch { repo.setTomTomApiKey(key) }
-
-    val syncState: StateFlow<SyncState> = services.chargerRepository.syncState
-
-    /** Only the sources the user has actually enabled by supplying a key. */
-    fun availableSources(): List<ChargerSource> =
-        services.chargerSources.filter { it.isAvailable() }
-
-    fun syncChargers(source: ChargerSource) = viewModelScope.launch {
-        services.chargerRepository.sync(source)
-    }
-
-    fun dismissSync() = services.chargerRepository.clearSyncState()
     fun setUpdateLink(link: String) = viewModelScope.launch { repo.setUpdateShareLink(link) }
     fun setAutoCheck(enabled: Boolean) = viewModelScope.launch { repo.setAutoCheckUpdates(enabled) }
 
@@ -109,7 +91,6 @@ fun SettingsScreen(services: ServiceLocator) {
     val vm = serviceViewModel(services) { SettingsViewModel(it) }
     val settings by vm.settings.collectAsStateWithLifecycle()
     val updateState by vm.updateState.collectAsStateWithLifecycle()
-    val syncState by vm.syncState.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -221,66 +202,6 @@ fun SettingsScreen(services: ServiceLocator) {
                 "verisiyle işe yarar, OpenStreetMap verisiyle körlemesine keser.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.tertiary
-        )
-
-        var ocmKey by remember(settings.ocmApiKey) { mutableStateOf(settings.ocmApiKey) }
-        OutlinedTextField(
-            value = ocmKey,
-            onValueChange = { ocmKey = it },
-            label = { Text("Open Charge Map API anahtarı") },
-            placeholder = { Text("kendi ücretsiz anahtarın") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { vm.setOcmKey(ocmKey) }) { Text("Anahtarı kaydet") }
-            if (settings.ocmApiKey.isNotBlank()) {
-                TextButton(onClick = { ocmKey = ""; vm.setOcmKey("") }) { Text("Temizle") }
-            }
-        }
-        Text(
-            "İsteğe bağlı. Open Charge Map elektrikli araca özel olduğu için soket ve güç " +
-                "verisi ham OpenStreetMap'ten çok daha iyi. Anahtar ücretsiz ama " +
-                "openchargemap.org'dan kendin almalısın — uygulama senin adına hesap " +
-                "açmaz. Anahtar yalnızca bu telefonda saklanır.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        var tomtomKey by remember(settings.tomtomApiKey) { mutableStateOf(settings.tomtomApiKey) }
-        OutlinedTextField(
-            value = tomtomKey,
-            onValueChange = { tomtomKey = it },
-            label = { Text("TomTom API anahtarı") },
-            placeholder = { Text("kendi ücretsiz anahtarın") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { vm.setTomTomKey(tomtomKey) }) { Text("Anahtarı kaydet") }
-            if (settings.tomtomApiKey.isNotBlank()) {
-                TextButton(onClick = { tomtomKey = ""; vm.setTomTomKey("") }) { Text("Temizle") }
-            }
-        }
-        Text(
-            "İsteğe bağlı ama en çok fark yaratan kaynak. Ölçtüm: döndürdüğünün " +
-                "yaklaşık yarısı bizde yok, ve tek başına her sonuçta gücü yazıyor — " +
-                "paketteki 6.102 yerin ancak 1.779'unda güç bilgisi var. Ayrıca " +
-                "kendi listesini yayınlamayan ağları (Eşarj, Voltrun, Sharz, WAT) " +
-                "taşıyor. " +
-                "Anahtarı developer.tomtom.com'dan kendin alıyorsun; uygulama senin " +
-                "adına hesap açmaz. Bu kaynak uygulamanın içinde gelen listeye " +
-                "karışmıyor — TomTom verisi senin anahtarınla çekilip yalnızca bu " +
-                "telefonda saklanıyor, herkese dağıtılan pakete girmiyor.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        ChargerSyncSection(
-            state = syncState,
-            sources = vm.availableSources(),
-            onSync = vm::syncChargers,
-            onDismiss = vm::dismissSync
         )
 
         HorizontalDivider()
@@ -442,73 +363,4 @@ private fun ChoiceRow(
             )
         }
     }
-}
-
-/**
- * Pulls fresh stations from whichever keyed sources are switched on.
- *
- * Lives here rather than on the map. The map had a refresh button and it was taken
- * off deliberately: on a screen you look at while driving, the useful action is
- * "find me a charger", not "go and re-download the country". This is a thing you do
- * once, at home, after pasting a key.
- */
-@Composable
-private fun ChargerSyncSection(
-    state: SyncState,
-    sources: List<ChargerSource>,
-    onSync: (ChargerSource) -> Unit,
-    onDismiss: () -> Unit
-) {
-    if (sources.isEmpty()) return
-
-    when (state) {
-        is SyncState.Running -> Text(
-            "${state.sourceName} indiriliyor… bu bir dakika sürebilir.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        is SyncState.Failed -> Banner(
-            title = "Güncelleme başarısız",
-            text = state.message,
-            tone = BannerTone.Error,
-            actionLabel = "Kapat",
-            onAction = onDismiss
-        )
-
-        is SyncState.Done -> Banner(
-            title = if (state.partial) "Kısmi güncelleme" else null,
-            text = if (state.partial) {
-                "${state.sourceName} kaynağından ${state.added} istasyon geldi, ama " +
-                    "istek bütçesi bitti. Gelenler mevcut listenin üzerine eklendi, " +
-                    "listenin yerine geçmedi. Tekrar çalıştırırsan kalanı da alır."
-            } else {
-                "${state.sourceName} kaynağından ${state.added} istasyon."
-            },
-            tone = if (state.partial) BannerTone.Warning else BannerTone.Success,
-            actionLabel = "Kapat",
-            onAction = onDismiss
-        )
-
-        SyncState.Idle -> Unit
-    }
-
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        sources.forEach { source ->
-            TextButton(
-                onClick = { onSync(source) },
-                enabled = state !is SyncState.Running
-            ) {
-                Text("${source.displayName.substringBefore(" (")} ile güncelle")
-            }
-        }
-    }
-    Text(
-        "Ülke çapında, tek seferlik bir indirme. Şarj istasyonları taşınmadığı için " +
-            "bunu bir kez yapman yeter: veri telefonda kalır, uygulama güncellemeleri " +
-            "silmez, yarım kalırsa kaldığı yerden devam eder. Wi-Fi'dayken yap, " +
-            "birkaç dakika sürer.",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
 }

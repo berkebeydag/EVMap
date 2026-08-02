@@ -37,7 +37,6 @@ data class AppSettings(
     /** Start and stop trip logging from vehicle speed rather than a button. */
     val autoLogTrips: Boolean = false,
     /** User's own Open Charge Map key. Empty means that source stays off. */
-    val ocmApiKey: String = "",
     /**
      * User's own TomTom key. Empty means that source stays off.
      *
@@ -45,7 +44,6 @@ data class AppSettings(
      * own key and cached on their own phone, which is not the same thing as putting
      * it in the bundle that gets published for anyone to download.
      */
-    val tomtomApiKey: String = "",
     /** Hide stations not positively marked as DC. */
     /** Default on: an EV on the road wants fast charging, and it halves what is drawn. */
     val chargersDcOnly: Boolean = true,
@@ -92,8 +90,6 @@ class SettingsRepository(private val context: Context) {
         val lastName = stringPreferencesKey("last_device_name")
         val autoConnect = booleanPreferencesKey("auto_connect")
         val autoLogTrips = booleanPreferencesKey("auto_log_trips")
-        val ocmApiKey = stringPreferencesKey("ocm_api_key")
-        val tomtomApiKey = stringPreferencesKey("tomtom_api_key")
         val chargersDcOnly = booleanPreferencesKey("chargers_dc_only")
         val chargersOperators = stringSetPreferencesKey("chargers_operators")
         val chargersMinPowerKw = intPreferencesKey("chargers_min_power_kw")
@@ -115,8 +111,6 @@ class SettingsRepository(private val context: Context) {
             lastDeviceName = p[Keys.lastName],
             autoConnect = p[Keys.autoConnect] ?: false,
             autoLogTrips = p[Keys.autoLogTrips] ?: false,
-            ocmApiKey = p[Keys.ocmApiKey].orEmpty(),
-            tomtomApiKey = p[Keys.tomtomApiKey].orEmpty(),
             chargersDcOnly = p[Keys.chargersDcOnly] ?: true,
             chargersOperators = p[Keys.chargersOperators] ?: emptySet(),
             chargersMinPowerKw = p[Keys.chargersMinPowerKw] ?: 0,
@@ -145,9 +139,7 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAutoLogTrips(enabled: Boolean) = edit { it[Keys.autoLogTrips] = enabled }
 
-    suspend fun setOcmApiKey(key: String) = edit { it[Keys.ocmApiKey] = key.trim() }
 
-    suspend fun setTomTomApiKey(key: String) = edit { it[Keys.tomtomApiKey] = key.trim() }
 
     suspend fun setChargersDcOnly(enabled: Boolean) = edit { it[Keys.chargersDcOnly] = enabled }
 

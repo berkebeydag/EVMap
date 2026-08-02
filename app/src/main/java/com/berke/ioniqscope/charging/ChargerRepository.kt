@@ -24,57 +24,10 @@ sealed interface SyncState {
  * Room and the map follows — so the map keeps working with no signal, which is
  * precisely the situation in which you need to find a charger.
  */
-class ChargerRepository(
-    private val dao: ChargingStationDao,
-    private val sources: List<ChargerSource>
-) {
-
-    private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
-    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+class ChargerRepository(private val dao: ChargingStationDao) {
 
     val stationCount: Flow<Int> = dao.observeCount()
     val lastSync: Flow<Long?> = dao.observeLastSync()
-
-    fun availableSources(): List<ChargerSource> = sources.filter { it.isAvailable() }
-
-    /**
-     * Refreshes from [source] over [box].
-     *
-     * Replaces that source's rows outright rather than merging into them, so
-     * stations withdrawn upstream disappear. Other sources are untouched, so
-     * running two of them leaves both sets present.
-     */
-    suspend fun sync(source: ChargerSource, box: BoundingBox = BoundingBox.TURKEY) {
-        _syncState.value = SyncState.Running(source.displayName)
-        try {
-            val result = source.fetch(box)
-            if (result.stations.isEmpty()) {
-                _syncState.value = SyncState.Failed(
-                    "${source.displayName} bu alan için istasyon döndürmedi."
-                )
-                return
-            }
-
-            // Only a complete fetch may replace what is cached. A partial one is
-            // merged instead — otherwise one slow request during a refresh would
-            // delete stations that are perfectly good and still out there.
-            if (result.complete) {
-                dao.replaceSource(source.id, result.stations)
-            } else {
-                dao.upsertAll(result.stations)
-            }
-
-            _syncState.value = SyncState.Done(
-                added = result.stations.size,
-                sourceName = source.displayName,
-                partial = !result.complete
-            )
-        } catch (e: Exception) {
-            _syncState.value = SyncState.Failed(e.message ?: "Yenileme başarısız.")
-        }
-    }
-
-    fun clearSyncState() { _syncState.value = SyncState.Idle }
 
     suspend fun inBounds(
         box: BoundingBox,
