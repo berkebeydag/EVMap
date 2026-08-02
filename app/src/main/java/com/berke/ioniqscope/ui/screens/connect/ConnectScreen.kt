@@ -25,6 +25,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.BluetoothConnected
 import androidx.compose.material3.Button
@@ -69,6 +71,7 @@ import com.berke.ioniqscope.ui.components.SectionLabel
 import com.berke.ioniqscope.ui.serviceViewModel
 import com.berke.ioniqscope.ui.theme.StatusAmber
 import com.berke.ioniqscope.ui.theme.StatusGreen
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun ConnectScreen(services: ServiceLocator) {
@@ -155,6 +158,8 @@ private fun ConnectContent(vm: ConnectViewModel) {
     val scan by vm.scan.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val log by vm.adapterLog.collectAsStateWithLifecycle()
+    /** Whether the things that do not look like adapters are on screen. */
+    var showAllDevices by remember { mutableStateOf(false) }
 
     val availability = remember(connection) { vm.bluetoothAvailability() }
 
@@ -225,6 +230,19 @@ private fun ConnectContent(vm: ConnectViewModel) {
             Banner(title = "Tarama başarısız", text = it, tone = BannerTone.Error)
         }
 
+        // A scan in a city sees dozens of things — headphones, watches, beacons, other
+        // people's cars — and exactly one of them is the adapter. The app already knows
+        // which names look like one, and was printing that knowledge into each row
+        // while leaving the order to whatever the radio happened to hear first. So the
+        // likely ones come first, and the rest are folded away rather than scrolled
+        // past.
+        val likely = scan.devices.filter { it.looksLikeObdAdapter }
+            .sortedByDescending { it.rssi }
+        val rest = scan.devices.filterNot { it.looksLikeObdAdapter }
+            // Named before unnamed: an adapter always advertises a name, so a row with
+            // no name is the least likely thing on the screen to be the one wanted.
+            .sortedWith(compareBy({ it.name.isNullOrBlank() }, { -it.rssi }))
+
         Box(Modifier.weight(1f)) {
             if (scan.devices.isEmpty()) {
                 EmptyState(
@@ -233,8 +251,44 @@ private fun ConnectContent(vm: ConnectViewModel) {
                 )
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(scan.devices, key = { it.address }) { device ->
+                    items(likely, key = { it.address }) { device ->
                         DeviceRow(device) { vm.connect(device) }
+                    }
+
+                    if (rest.isNotEmpty()) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color.Transparent,
+                                onClick = { showAllDevices = !showAllDevices },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        if (showAllDevices) "Diğer ${rest.size} cihazı gizle"
+                                        else "Diğer ${rest.size} cihazı göster",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Icon(
+                                        if (showAllDevices) Icons.Filled.ExpandLess
+                                        else Icons.Filled.ExpandMore,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                        if (showAllDevices) {
+                            items(rest, key = { it.address }) { device ->
+                                DeviceRow(device) { vm.connect(device) }
+                            }
+                        }
                     }
                 }
             }
