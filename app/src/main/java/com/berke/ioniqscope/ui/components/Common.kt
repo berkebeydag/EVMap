@@ -1,14 +1,21 @@
 package com.berke.ioniqscope.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,15 +36,26 @@ fun GaugeCard(
     unit: String,
     modifier: Modifier = Modifier,
     accent: Color = MaterialTheme.colorScheme.primary,
-    stale: Boolean = false
+    stale: Boolean = false,
+    /**
+     * How far along its range the value sits, for the ones that have a range.
+     *
+     * Null for the ones that do not, and drawn as nothing rather than as an empty bar:
+     * a coolant temperature has no natural full, and a bar sitting at zero would be
+     * read as a reading rather than as the absence of a scale.
+     */
+    fraction: Float? = null,
+    /** A word under the value where a bar would say less — "Sağlıklı", say. */
+    note: String? = null,
+    noteColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = modifier
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(13.dp)) {
             Text(
                 text = label.uppercase(textLocale()),
                 style = MaterialTheme.typography.labelSmall,
@@ -51,20 +69,46 @@ fun GaugeCard(
             ) {
                 Text(
                     text = value,
-                    style = MaterialTheme.typography.headlineLarge,
+                    style = MaterialTheme.typography.headlineSmall,
                     fontFamily = FontFamily.Monospace,
                     color = if (stale) MaterialTheme.colorScheme.outline else accent,
                     maxLines = 1
                 )
                 Text(
                     text = unit,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (fraction != null) {
+                Box(
+                    Modifier
+                        .padding(top = 9.dp)
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            RoundedCornerShape(3.dp)
+                        )
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .background(accent, RoundedCornerShape(3.dp))
+                    )
+                }
+            } else if (note != null) {
+                Text(
+                    text = note,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = noteColor,
+                    modifier = Modifier.padding(top = 9.dp)
                 )
             }
         }
     }
+
 }
 
 /** Non-blocking inline message — info, warning or error depending on [tone]. */
