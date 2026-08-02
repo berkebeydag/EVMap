@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -65,6 +67,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -75,11 +78,13 @@ import com.berke.ioniqscope.charging.BoundingBox
 import com.berke.ioniqscope.charging.ChargerTariffs
 import com.berke.ioniqscope.charging.ChargerTariffs.AS_OF
 import com.berke.ioniqscope.charging.Http
+import com.berke.ioniqscope.connection.ConnectionState
 import com.berke.ioniqscope.data.OperatorCount
 import com.berke.ioniqscope.ui.components.Banner
 import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.EmptyState
 import com.berke.ioniqscope.ui.serviceViewModel
+import com.berke.ioniqscope.ui.theme.StatusGreen
 import java.util.Locale
 import kotlin.math.roundToInt
 import org.osmdroid.config.Configuration
@@ -109,6 +114,7 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
     val vm = serviceViewModel(services) { ChargerViewModel(it) }
     val context = LocalContext.current
 
+    val connection by services.connectionManager.connectionState.collectAsStateWithLifecycle()
     val count by vm.stationCount.collectAsStateWithLifecycle()
     val sites by vm.sites.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -193,6 +199,8 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
             vm.refreshRoutes()
         }
     }
+
+    val toConnect: () -> Unit = { onSettings() }
 
     val requestLocation: () -> Unit = {
         if (ChargerViewModel.hasLocationPermission(context)) {
@@ -293,22 +301,88 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
             context = context
         )
 
+        // The search field, permanently on the map rather than behind a toggle.
+        //
+        // It was an icon in the corner that had to be pressed before it became a
+        // field. On a map, search is not an occasional action — it is one of the two
+        // ways of getting anywhere, the other being to drag — so the design leaves it
+        // open, and puts the two things that leave the map beside it.
         Column(
             Modifier
-                .align(Alignment.TopStart)
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .align(Alignment.TopCenter)
+                .padding(start = 14.dp, end = 14.dp, top = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(23.dp),
+                    color = MAP_CHROME,
+                    shadowElevation = 6.dp,
+                    onClick = { searching = true },
+                    modifier = Modifier.weight(1f).height(46.dp)
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = null,
+                            tint = MAP_CHROME_MUTED,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Text(
+                            "İstasyon veya konum ara",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MAP_CHROME_MUTED,
+                            maxLines = 1
+                        )
+                    }
+                }
+                MapRoundButton(onClick = toConnect) {
+                    Box {
+                        Icon(
+                            Icons.Filled.Bluetooth,
+                            contentDescription = "Adaptör",
+                            tint = MAP_CHROME_INK,
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .size(8.dp)
+                                .background(
+                                    if (connection is ConnectionState.Connected) StatusGreen
+                                    else MAP_CHROME_MUTED,
+                                    CircleShape
+                                )
+                        )
+                    }
+                }
+                MapRoundButton(onClick = onSettings) {
+                    Icon(
+                        Icons.Filled.Settings,
+                        contentDescription = "Ayarlar",
+                        tint = MAP_CHROME_INK,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
+
             if (searching) {
                 SearchPanel(
                     results = searchResults,
                     onQuery = vm::search,
                     onPick = { site ->
+                        moveTo = GeoPoint(site.lat, site.lon) to PICKED_ZOOM
+                        selected = site
                         searching = false
                         vm.clearSearch()
-                        selected = site
-                        moveTo = GeoPoint(site.lat, site.lon) to PICKED_ZOOM
                     },
                     onClose = {
                         searching = false
@@ -320,14 +394,13 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
             if (count == 0) {
                 Banner(
                     title = "İstasyon yok",
-                    text = "İstasyon listesi uygulamanın içinde geliyor, yani burası normalde " +
-                        "hiç boş kalmaz. En son sürümü yeniden kurmak listeyi geri getirir.",
+                    text = "İstasyon listesi uygulamanın içinde geliyor, yani burası " +
+                        "normalde hiç boş kalmaz. En son sürümü yeniden kurmak listeyi " +
+                        "geri getirir.",
                     tone = BannerTone.Warning
                 )
             }
 
-            // Given its own banner rather than a line of text, because unlike every
-            // other note here this one has something the driver can actually press.
             if (!precisePermission && location is LocationState.Known) {
                 Banner(
                     text = "Yalnızca yaklaşık konum izni verilmiş, bu yüzden Android " +
@@ -343,25 +416,17 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
                 Banner(text = it, tone = BannerTone.Warning)
             }
 
-            // Up here with everything else that describes the map, rather than in the
-            // opposite corner from it. Constrained so it never becomes a panel: it is
-            // a key to four coloured lines, not a screen of its own.
-            if (routes.isNotEmpty()) {
+            // Narrow and one line per route. It carried two lines each and ran a third
+            // of the way down the screen, over the map it was describing.
+            if (routes.isNotEmpty() && !searching) {
                 RouteLegend(
                     routes = routes,
                     onNavigate = { openInMaps(context, it) },
-                    modifier = Modifier.widthIn(max = 208.dp)
+                    modifier = Modifier.width(184.dp)
                 )
             }
         }
 
-        // Everything the user can press lives in one stack in the corner nearest the
-        // thumb, over the map rather than above it — the earlier row along the top
-        // pushed the map down and put the controls where a right-handed grip cannot
-        // comfortably reach.
-        //
-        // One surface holding three buttons rather than three floating circles: it
-        // reads as a single control, and it takes noticeably less of the map.
         // A pale strip on the parchment rather than a dark slab over it.
         //
         // The controls sit on a light map now, and a dark block on it read as a hole
@@ -377,8 +442,8 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
             color = MAP_CHROME,
             shadowElevation = 6.dp,
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 14.dp)
+                .align(Alignment.BottomEnd)
+                .padding(end = 14.dp, bottom = 116.dp)
                 .width(46.dp)
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -459,11 +524,22 @@ fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
         // card. It used to be inset with the button stack squeezed alongside it, which
         // left a strip of map down each side too narrow to see anything through and
         // put a column of controls over the thing the user had just asked to read.
-        selected?.let { site ->
+        // Expanded when something is chosen, collapsed to a bar the rest of the
+        // time. The bar is not decoration — it is the nearest suggestion, which is the
+        // question the screen is open for, kept answered without a tap.
+        val previewed = selected ?: routes.minByOrNull { it.route.metres }?.site
+        if (selected != null) {
             SelectedSiteCard(
-                site = site,
-                onNavigate = { openInMaps(context, site) },
+                site = selected!!,
+                onNavigate = { openInMaps(context, selected!!) },
                 onDismiss = { selected = null },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        } else if (previewed != null) {
+            SitePreviewBar(
+                site = previewed,
+                onOpen = { selected = previewed },
+                onNavigate = { openInMaps(context, previewed) },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -578,11 +654,12 @@ private fun SearchPanel(
 }
 
 /**
- * Which coloured line goes where.
+ * The suggestions, at the size the design gives them.
  *
- * Without this the lines are decoration: four colours leaving your position and no
- * way to tell which one ends at which charger, or whether the shortest is also the
- * quickest. Tapping a row hands that one to the navigation app.
+ * One line each, 184dp wide. It used to run two lines per route and five routes deep,
+ * which took a third of the screen — a panel describing the map, sitting on top of the
+ * map. Four fields fit on one line and answer the question the panel is for: which
+ * network, how far, what it costs.
  */
 @Composable
 private fun RouteLegend(
@@ -591,22 +668,21 @@ private fun RouteLegend(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-        shadowElevation = 3.dp,
+        shape = RoundedCornerShape(14.dp),
+        color = LEGEND_SURFACE,
+        border = BorderStroke(1.dp, LEGEND_OUTLINE),
+        shadowElevation = 12.dp,
         modifier = modifier
     ) {
-        Column(Modifier.padding(vertical = 3.dp)) {
-            // Nearest at the top. The order routes arrive in is the order the
-            // requests happened to finish, which is no order at all to read.
+        Column(Modifier.padding(4.dp)) {
+            // Nearest at the top. The order routes arrive in is the order the requests
+            // happened to finish, which is no order at all to read.
             routes.sortedBy { it.route.metres }.forEachIndexed { index, entry ->
-                // The whole row navigates. A separate button for it was one more
-                // thing to aim at for an action the row already stands for.
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .clickable { onNavigate(entry.site) }
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .padding(horizontal = 7.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
@@ -618,55 +694,147 @@ private fun RouteLegend(
                                 CircleShape
                             )
                     )
-                    // Network on top, where you would actually arrive underneath.
-                    // The network alone answers "can I charge here"; it does not
-                    // answer "where am I going", and four rows reading ZES, ZES,
-                    // Trugo, ZES are four rows you cannot choose between.
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            entry.site.operator ?: entry.site.name ?: UNBRANDED,
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        // Power first, then where. The kW is what decides whether a
-                        // suggestion is worth taking — 180 and 11 are twenty minutes
-                        // and an evening — and it was the one thing on this panel the
-                        // map markers said and it did not. On the same line as the
-                        // destination so the panel does not grow a row to say it.
-                        Text(
-                            listOfNotNull(
-                                formatPower(entry.site.maxPowerKw),
-                                destinationOf(entry.site)
-                            ).joinToString(" · "),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            "${formatDistance(entry.route.metres)} · " +
-                                formatMinutes(entry.route.seconds),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        // Rounded to whole lira here and only here. A suggestion is a
-                        // choice between five stops, and "13-16 ₺" separates them just
-                        // as well as "12,99-16,49 ₺" in a third of the width; the exact
-                        // figures are one tap away on the card.
-                        formatTariff(entry.site, short = true)?.let {
-                            Text(
-                                it,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = priceColour(entry.site)
-                            )
-                        }
-                    }
+                    Text(
+                        entry.site.operator ?: entry.site.name ?: UNBRANDED,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        formatDistance(entry.route.metres),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                    // Fixed width so the prices line up as a column; a ragged right
+                    // edge is what stops five of them being comparable at a glance.
+                    // Wider than the design's 34dp because half of these are ranges —
+                    // "~14-16₺" where its example was "~15₺" — and a clipped price is
+                    // worse than a slightly narrower name beside it.
+                    Text(
+                        formatTariff(entry.site, short = true) ?: "",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = priceColour(entry.site),
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        modifier = Modifier.width(50.dp)
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * What is under the map, when nothing has been tapped.
+ *
+ * The design keeps a bar along the bottom at all times, showing the nearest
+ * suggestion. It is the answer to the question the screen is open for — where am I
+ * going — kept visible instead of requiring a tap on a pin to find out, and tapping it
+ * opens the full card.
+ */
+@Composable
+private fun SitePreviewBar(
+    site: ChargerSite,
+    onOpen: () -> Unit,
+    onNavigate: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+        color = scheme.surfaceContainer,
+        shadowElevation = 12.dp,
+        onClick = onOpen,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(top = 10.dp)) {
+            Box(
+                Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(bottom = 12.dp)
+                    .size(width = 36.dp, height = 4.dp)
+                    .background(scheme.outline, RoundedCornerShape(2.dp))
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Box(
+                    Modifier
+                        .size(38.dp)
+                        .background(
+                            scheme.primary.copy(alpha = 0.16f),
+                            RoundedCornerShape(13.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Bolt,
+                        contentDescription = null,
+                        tint = scheme.primary,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        listOfNotNull(site.operator, destinationOf(site))
+                            .joinToString(" · ")
+                            .ifEmpty { site.name ?: UNBRANDED },
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        previewDetail(site),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Button(
+                    onClick = onNavigate,
+                    shape = RoundedCornerShape(13.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp),
+                    modifier = Modifier.height(38.dp)
+                ) { Text("Yol tarifi", style = MaterialTheme.typography.labelMedium) }
+            }
+        }
+    }
+}
+
+/**
+ * What the preview bar says under the name, which the name does not already say.
+ *
+ * [describe] leads with the operator, and the bar's title leads with it too — the same
+ * word twice in two lines, where the second line has one line to be useful in. Power,
+ * current type, sockets: what you would want to know before deciding to open the card.
+ */
+private fun previewDetail(site: ChargerSite): String = buildString {
+    powerChip(site)?.let { append(it) }
+    site.connectors?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
+        ?.distinct()?.joinToString(", ", transform = ::connectorName)
+        ?.takeIf { it.isNotEmpty() }
+        ?.let { if (isNotEmpty()) append(" · "); append(it) }
+    chargePointSummary(site)?.let { if (isNotEmpty()) append(" · "); append(it) }
+}
+
+/** The panel's own surface, darker and more opaque than the app's, to sit on cream. */
+private val LEGEND_SURFACE = Color(0xED0C1A22)
+private val LEGEND_OUTLINE = Color(0xE635525E)
+
+/** A round map control, the same size as the search field beside it. */
+@Composable
+private fun MapRoundButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+    Surface(
+        shape = CircleShape,
+        color = MAP_CHROME,
+        shadowElevation = 6.dp,
+        onClick = onClick,
+        modifier = Modifier.size(46.dp)
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
     }
 }
 
@@ -1578,6 +1746,7 @@ private val MAP_CHROME = Color(0xEBFFFFFF)
 private val MAP_CHROME_INK = Color(0xFF5F5749)
 private val MAP_CHROME_ACCENT = Color(0xFF0E8FA0)
 private val MAP_CHROME_RULE = Color(0xFFE6DFCE)
+private val MAP_CHROME_MUTED = Color(0xFF8A8172)
 
 /** One button in the map's right-hand strip. */
 @Composable
