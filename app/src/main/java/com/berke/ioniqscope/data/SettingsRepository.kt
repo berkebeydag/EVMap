@@ -36,14 +36,16 @@ data class AppSettings(
     val autoConnect: Boolean = false,
     /** Start and stop trip logging from vehicle speed rather than a button. */
     val autoLogTrips: Boolean = false,
-    /** User's own Open Charge Map key. Empty means that source stays off. */
     /**
-     * User's own TomTom key. Empty means that source stays off.
+     * Who is signed in, as Google reported them. All null when nobody is.
      *
-     * Kept per-device rather than shipped: TomTom's data is fetched with the user's
-     * own key and cached on their own phone, which is not the same thing as putting
-     * it in the bundle that gets published for anyone to download.
+     * Stored rather than asked for on every launch: the sign-in sheet is a thing the
+     * user chose to do once, and putting it in front of them again each time the app
+     * opens would be asking them to re-decide something they already decided.
      */
+    val accountName: String? = null,
+    val accountEmail: String? = null,
+    val accountPhotoUrl: String? = null,
     /** Hide stations not positively marked as DC. */
     /** Default on: an EV on the road wants fast charging, and it halves what is drawn. */
     val chargersDcOnly: Boolean = true,
@@ -96,6 +98,9 @@ class SettingsRepository(private val context: Context) {
         val updateShareLink = stringPreferencesKey("update_share_link")
         val autoCheckUpdates = booleanPreferencesKey("auto_check_updates")
         val vehicleProfile = stringPreferencesKey("vehicle_profile")
+        val accountName = stringPreferencesKey("account_name")
+        val accountEmail = stringPreferencesKey("account_email")
+        val accountPhotoUrl = stringPreferencesKey("account_photo_url")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -111,6 +116,9 @@ class SettingsRepository(private val context: Context) {
             lastDeviceName = p[Keys.lastName],
             autoConnect = p[Keys.autoConnect] ?: false,
             autoLogTrips = p[Keys.autoLogTrips] ?: false,
+            accountName = p[Keys.accountName],
+            accountEmail = p[Keys.accountEmail],
+            accountPhotoUrl = p[Keys.accountPhotoUrl],
             chargersDcOnly = p[Keys.chargersDcOnly] ?: true,
             chargersOperators = p[Keys.chargersOperators] ?: emptySet(),
             chargersMinPowerKw = p[Keys.chargersMinPowerKw] ?: 0,
@@ -156,6 +164,14 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setVehicleProfile(id: String) = edit { it[Keys.vehicleProfile] = id }
+
+    suspend fun setAccount(name: String?, email: String?, photoUrl: String?) = edit { p ->
+        // Written together, because a half-written account is a state nothing else in
+        // the app knows how to draw.
+        if (name == null) p.remove(Keys.accountName) else p[Keys.accountName] = name
+        if (email == null) p.remove(Keys.accountEmail) else p[Keys.accountEmail] = email
+        if (photoUrl == null) p.remove(Keys.accountPhotoUrl) else p[Keys.accountPhotoUrl] = photoUrl
+    }
 
     suspend fun setAutoCheckUpdates(enabled: Boolean) = edit {
         it[Keys.autoCheckUpdates] = enabled

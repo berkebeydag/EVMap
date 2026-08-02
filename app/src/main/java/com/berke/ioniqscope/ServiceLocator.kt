@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
  */
 class ServiceLocator private constructor(context: Context) {
 
-    private val appContext = context.applicationContext
+    val appContext: Context = context.applicationContext
 
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

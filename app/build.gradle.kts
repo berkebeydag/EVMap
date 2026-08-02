@@ -35,6 +35,19 @@ android {
         // hand-edited ones get forgotten exactly when it matters.
         versionCode = gitCommitCount()
         versionName = "0.1.$versionCode"
+
+        // The OAuth web client ID for Sign in with Google.
+        //
+        // Not a secret — Google publishes these in client apps by design — but it is
+        // per-project, so it comes from a gradle property rather than being baked in.
+        // Set `sarjbul.googleClientId` in ~/.gradle/gradle.properties or pass
+        // -Psarjbul.googleClientId=... Left empty the app still builds and runs; the
+        // sign-in button says what is missing instead of failing at the tap.
+        buildConfigField(
+            "String",
+            "GOOGLE_CLIENT_ID",
+            "\"${project.findProperty("sarjbul.googleClientId") ?: ""}\""
+        )
     }
 
     buildTypes {
@@ -107,4 +120,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.osmdroid.android)
+
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.google.id)
 }

@@ -1,6 +1,9 @@
 package com.berke.ioniqscope.ui.screens.settings
 
+import android.content.Context
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,11 +13,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -32,22 +41,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.berke.ioniqscope.ServiceLocator
+import com.berke.ioniqscope.auth.GoogleAccount
+import com.berke.ioniqscope.auth.SignInResult
 import com.berke.ioniqscope.data.AdapterType
 import com.berke.ioniqscope.data.AppSettings
 import com.berke.ioniqscope.data.PidCatalog
 import com.berke.ioniqscope.data.SettingsRepository
 import com.berke.ioniqscope.data.SpeedUnit
+import com.berke.ioniqscope.obd.VehicleProfile
 import com.berke.ioniqscope.ui.components.SectionLabel
 import com.berke.ioniqscope.ui.serviceViewModel
 import com.berke.ioniqscope.update.UpdateState
+import java.util.Locale
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -62,6 +79,43 @@ class SettingsViewModel(private val services: ServiceLocator) : ViewModel() {
     fun setAutoConnect(enabled: Boolean) = viewModelScope.launch { repo.setAutoConnect(enabled) }
     fun setAutoLog(enabled: Boolean) = viewModelScope.launch { repo.setAutoLogTrips(enabled) }
     val updateState: StateFlow<UpdateState> = services.updateChecker.state
+
+    private val account = GoogleAccount(services.appContext)
+    val signInConfigured: Boolean get() = account.isConfigured
+
+    private val _signingIn = MutableStateFlow(false)
+    val signingIn: StateFlow<Boolean> = _signingIn.asStateFlow()
+
+    /** What to say about the last attempt, or null when there is nothing to say. */
+    private val _signInMessage = MutableStateFlow<String?>(null)
+    val signInMessage: StateFlow<String?> = _signInMessage.asStateFlow()
+
+    fun signIn(activityContext: Context) = viewModelScope.launch {
+        _signingIn.value = true
+        _signInMessage.value = null
+        when (val result = account.signIn(activityContext)) {
+            is SignInResult.Success -> repo.setAccount(
+                result.user.name, result.user.email, result.user.photoUrl
+            )
+            // Closing the sheet is a decision, not a failure, and telling the user it
+            // went wrong when they are the one who stopped it is just wrong.
+            SignInResult.Cancelled -> Unit
+            SignInResult.NoAccount ->
+                _signInMessage.value = "Bu telefonda kullanılabilir bir Google hesabı yok."
+            SignInResult.NotConfigured ->
+                _signInMessage.value =
+                    "Bu sürüm giriş için yapılandırılmamış. Google istemci kimliği eklenmeden " +
+                        "giriş yapılamaz — uygulamanın geri kalanı bundan etkilenmiyor."
+            is SignInResult.Failed -> _signInMessage.value = result.message
+        }
+        _signingIn.value = false
+    }
+
+    fun signOut() = viewModelScope.launch {
+        account.signOut()
+        repo.setAccount(null, null, null)
+        _signInMessage.value = null
+    }
 
     fun setUpdateLink(link: String) = viewModelScope.launch { repo.setUpdateShareLink(link) }
     fun setAutoCheck(enabled: Boolean) = viewModelScope.launch { repo.setAutoCheckUpdates(enabled) }
@@ -91,6 +145,11 @@ fun SettingsScreen(services: ServiceLocator) {
     val vm = serviceViewModel(services) { SettingsViewModel(it) }
     val settings by vm.settings.collectAsStateWithLifecycle()
     val updateState by vm.updateState.collectAsStateWithLifecycle()
+    val signingIn by vm.signingIn.collectAsStateWithLifecycle()
+    val signInMessage by vm.signInMessage.collectAsStateWithLifecycle()
+    // Credential Manager puts a sheet on screen, so it needs the activity rather than
+    // the application context — handed the latter it throws instead of showing anything.
+    val activity = LocalActivity.current ?: LocalContext.current
 
     Column(
         modifier = Modifier
@@ -99,7 +158,27 @@ fun SettingsScreen(services: ServiceLocator) {
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        SectionLabel("Güncellemeler", Modifier.padding(top = 16.dp))
+        ProfileCard(
+            name = settings.accountName,
+            email = settings.accountEmail,
+            photoUrl = settings.accountPhotoUrl,
+            vehicle = VehicleProfile.byId(settings.vehicleProfileId).name,
+            configured = vm.signInConfigured,
+            busy = signingIn,
+            onSignIn = { vm.signIn(activity) },
+            onSignOut = vm::signOut,
+            modifier = Modifier.padding(top = 16.dp)
+        )
+        signInMessage?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.tertiary
+            )
+        }
+
+        HorizontalDivider()
+        SectionLabel("Güncellemeler")
         UpdateSection(
             state = updateState,
             shareLink = settings.updateShareLink,
@@ -362,5 +441,124 @@ private fun ChoiceRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+/**
+ * Who is using the app, and what they drive.
+ *
+ * The design puts a person at the top of this screen — avatar, name, car. Two of those
+ * three the app can know without asking anyone: the car is a setting, and the name and
+ * picture come from the phone's own Google account if the user chooses to hand them
+ * over. Nothing is invented; signed out, it says signed out rather than showing a
+ * placeholder person.
+ *
+ * Signing in buys the name and the picture and nothing else. There is no server behind
+ * this app, so there is nothing to sync and nothing to lose by staying signed out —
+ * which the card says plainly rather than implying a benefit that does not exist.
+ */
+@Composable
+private fun ProfileCard(
+    name: String?,
+    email: String?,
+    photoUrl: String?,
+    vehicle: String,
+    configured: Boolean,
+    busy: Boolean,
+    onSignIn: () -> Unit,
+    onSignOut: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scheme = MaterialTheme.colorScheme
+    val signedIn = name != null
+
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = scheme.surfaceContainer,
+        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.35f)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .background(scheme.primary.copy(alpha = 0.14f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (signedIn) {
+                        // Initials rather than the photo. Fetching it would mean an
+                        // image loader and a network call on the settings screen, for
+                        // a 56dp circle that says exactly what two letters say.
+                        Text(
+                            initialsOf(name),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = scheme.primary
+                        )
+                    } else {
+                        Icon(
+                            Icons.Filled.Person,
+                            contentDescription = null,
+                            tint = scheme.primary,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+                Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                    Text(
+                        name ?: "Giriş yapılmadı",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        listOfNotNull(email, vehicle).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+
+            if (signedIn) {
+                TextButton(onClick = onSignOut, modifier = Modifier.padding(top = 6.dp)) {
+                    Text("Çıkış yap")
+                }
+            } else {
+                Button(
+                    onClick = onSignIn,
+                    enabled = configured && !busy,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().height(46.dp).padding(top = 0.dp)
+                ) {
+                    Text(if (busy) "Giriş yapılıyor…" else "Google ile giriş yap")
+                }
+                Text(
+                    if (configured) {
+                        "İsteğe bağlı. Adın ve baş harflerin görünsün diye — uygulamanın " +
+                            "sunucusu yok, yani yolculukların ve favorilerin zaten " +
+                            "telefonunda kalıyor ve giriş yapmasan da hiçbir şey eksilmiyor."
+                    } else {
+                        "Bu sürümde giriş kapalı: Google istemci kimliği tanımlı değil. " +
+                            "Uygulamanın geri kalanı bundan etkilenmiyor."
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+/** Two letters from a display name, or one when that is all there is. */
+private fun initialsOf(name: String?): String {
+    val parts = name?.trim()?.split(" ")?.filter { it.isNotBlank() }.orEmpty()
+    return when {
+        parts.isEmpty() -> "?"
+        parts.size == 1 -> parts[0].take(1).uppercase(Locale.getDefault())
+        else -> (parts.first().take(1) + parts.last().take(1)).uppercase(Locale.getDefault())
     }
 }
