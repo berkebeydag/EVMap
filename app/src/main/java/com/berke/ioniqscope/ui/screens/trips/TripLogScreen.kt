@@ -45,6 +45,9 @@ import com.berke.ioniqscope.data.TripEntity
 import com.berke.ioniqscope.data.defaultTripFileName
 import com.berke.ioniqscope.service.TripLoggingService
 import com.berke.ioniqscope.data.TripSpeedSummary
+import com.berke.ioniqscope.ui.components.ConnectionPill
+import com.berke.ioniqscope.ui.components.ScreenHeader
+import com.berke.ioniqscope.ui.components.SettingsAction
 import com.berke.ioniqscope.ui.components.Banner
 import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.EmptyState
@@ -114,6 +117,7 @@ class TripLogViewModel(private val services: ServiceLocator) : ViewModel() {
 fun TripLogScreen(
     services: ServiceLocator,
     onConnect: () -> Unit,
+    onSettings: () -> Unit,
     onOpenTrip: (Long) -> Unit
 ) {
     val vm = serviceViewModel(services) { TripLogViewModel(it) }
@@ -139,10 +143,15 @@ fun TripLogScreen(
         ActivityResultContracts.RequestPermission()
     ) { vm.start(context) }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    Column(Modifier.fillMaxSize()) {
+        ScreenHeader("Yolculuklar") {
+            ConnectionPill(connection, onConnect)
+            SettingsAction(onSettings)
+        }
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
         if (!connected && !logging) {
             Banner(
                 title = "Bağlı değil",
@@ -236,6 +245,7 @@ fun TripLogScreen(
                     )
                 }
             }
+        }
         }
     }
 }

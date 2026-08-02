@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -65,6 +66,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,12 +74,14 @@ import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.charging.BoundingBox
 import com.berke.ioniqscope.charging.ChargerTariffs
 import com.berke.ioniqscope.charging.ChargerTariffs.AS_OF
-import com.berke.ioniqscope.data.OperatorCount
 import com.berke.ioniqscope.charging.Http
+import com.berke.ioniqscope.data.OperatorCount
 import com.berke.ioniqscope.ui.components.Banner
 import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.EmptyState
 import com.berke.ioniqscope.ui.serviceViewModel
+import java.util.Locale
+import kotlin.math.roundToInt
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.DelayedMapListener
 import org.osmdroid.events.MapListener
@@ -86,8 +90,6 @@ import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import java.util.Locale
-import kotlin.math.roundToInt
 
 /**
  * What a site with no operator and no name is called.
@@ -103,7 +105,7 @@ private const val UNBRANDED = "Marka belirtilmemiş"
 private val TURKEY_CENTRE = GeoPoint(39.0, 35.0)
 
 @Composable
-fun ChargerMapScreen(services: ServiceLocator) {
+fun ChargerMapScreen(services: ServiceLocator, onSettings: () -> Unit) {
     val vm = serviceViewModel(services) { ChargerViewModel(it) }
     val context = LocalContext.current
 
@@ -360,52 +362,76 @@ fun ChargerMapScreen(services: ServiceLocator) {
         //
         // One surface holding three buttons rather than three floating circles: it
         // reads as a single control, and it takes noticeably less of the map.
-        // Hidden while a site is open. The sheet reaches both edges now, so the stack
-        // would be sitting on top of the thing the user just asked to read — and every
-        // control on it acts on the map behind, which is not what is being looked at.
+        // A pale strip on the parchment rather than a dark slab over it.
+        //
+        // The controls sit on a light map now, and a dark block on it read as a hole
+        // punched through the tiles. This is the design's answer: the same white the
+        // search bar uses, hairline-divided, so it belongs to the map's own surface
+        // instead of floating above it in the app's colours.
+        //
+        // AC and DC are two words rather than one bolt. The bolt was a toggle whose
+        // state you had to remember — lit meant DC only — and two labels say which of
+        // the two you are looking at without anyone having to learn the convention.
         if (selected == null) Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-            shadowElevation = 3.dp,
+            shape = RoundedCornerShape(23.dp),
+            color = MAP_CHROME,
+            shadowElevation = 6.dp,
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 12.dp, bottom = 12.dp)
+                .align(Alignment.CenterEnd)
+                .padding(end = 14.dp)
+                .width(46.dp)
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                MapButton(
-                    icon = Icons.Filled.Search,
-                    description = "İstasyon ara",
-                    active = searching,
-                    onClick = {
-                        searching = !searching
-                        if (!searching) vm.clearSearch()
-                    }
-                )
-                MapButton(
-                    icon = Icons.Filled.MyLocation,
-                    description = if (following) "Takibi bırak" else "Konumumu takip et",
-                    active = following,
-                    busy = location is LocationState.Requesting,
-                    onClick = requestLocation
-                )
-                MapButton(
-                    icon = Icons.Filled.Bolt,
-                    description = if (settings.chargersDcOnly) "AC istasyonları da göster"
-                    else "Yalnızca DC göster",
-                    active = settings.chargersDcOnly,
-                    onClick = { vm.setDcOnly(!settings.chargersDcOnly) }
-                )
-                MapButton(
-                    icon = Icons.Filled.FilterAlt,
-                    description = "Şarj ağını seç",
-                    active = settings.chargersOperators.isNotEmpty(),
-                    onClick = { pickingBrands = true }
-                )
-                MapButton(
-                    icon = Icons.AutoMirrored.Filled.List,
-                    description = "Listeyi göster",
-                    onClick = { vm.setListMode(true) }
-                )
+                MapStripButton(onClick = requestLocation) {
+                    Icon(
+                        Icons.Filled.MyLocation,
+                        contentDescription = if (following) "Takibi bırak"
+                        else "Konumumu takip et",
+                        tint = if (following) MAP_CHROME_ACCENT else MAP_CHROME_INK,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+                MapStripDivider()
+                MapStripButton(
+                    height = 38.dp,
+                    onClick = { vm.setDcOnly(false) }
+                ) {
+                    Text(
+                        "AC",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (settings.chargersDcOnly) MAP_CHROME_INK else MAP_CHROME_ACCENT
+                    )
+                }
+                MapStripDivider()
+                MapStripButton(
+                    height = 38.dp,
+                    onClick = { vm.setDcOnly(true) }
+                ) {
+                    Text(
+                        "DC",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (settings.chargersDcOnly) MAP_CHROME_ACCENT else MAP_CHROME_INK
+                    )
+                }
+                MapStripDivider()
+                MapStripButton(onClick = { pickingBrands = true }) {
+                    Icon(
+                        Icons.Filled.FilterAlt,
+                        contentDescription = "Şarj ağını seç",
+                        tint = if (settings.chargersOperators.isNotEmpty()) MAP_CHROME_ACCENT
+                        else MAP_CHROME_INK,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                MapStripDivider()
+                MapStripButton(onClick = { vm.setListMode(true) }) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.List,
+                        contentDescription = "Listeyi göster",
+                        tint = MAP_CHROME_INK,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
             }
         }
 
@@ -1540,3 +1566,37 @@ private const val USER_ZOOM = 14.0
 private const val PICKED_ZOOM = 16.0
 
 private const val SEARCH_RESULTS_SHOWN = 8
+
+/**
+ * The colours the map's own controls are drawn in.
+ *
+ * Fixed rather than taken from the theme. Everything else in the app sits on the dark
+ * scheme, but these float on parchment, and the theme's surfaces on a cream map read as
+ * holes cut through it. The design gives the chrome the map's palette instead.
+ */
+private val MAP_CHROME = Color(0xEBFFFFFF)
+private val MAP_CHROME_INK = Color(0xFF5F5749)
+private val MAP_CHROME_ACCENT = Color(0xFF0E8FA0)
+private val MAP_CHROME_RULE = Color(0xFFE6DFCE)
+
+/** One button in the map's right-hand strip. */
+@Composable
+private fun MapStripButton(
+    onClick: () -> Unit,
+    height: Dp = 46.dp,
+    content: @Composable () -> Unit
+) {
+    Box(
+        Modifier
+            .size(width = 46.dp, height = height)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+        content = { content() }
+    )
+}
+
+/** The hairline between them, inset so the strip reads as one control. */
+@Composable
+private fun MapStripDivider() {
+    Box(Modifier.width(26.dp).height(1.dp).background(MAP_CHROME_RULE))
+}

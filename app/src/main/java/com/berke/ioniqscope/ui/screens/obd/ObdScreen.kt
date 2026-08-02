@@ -26,6 +26,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.berke.ioniqscope.ServiceLocator
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.berke.ioniqscope.ui.components.ConnectionPill
+import com.berke.ioniqscope.ui.components.ScreenHeader
+import com.berke.ioniqscope.ui.components.SettingsAction
 import com.berke.ioniqscope.ui.nav.ObdSection
 import com.berke.ioniqscope.ui.screens.dashboard.DashboardScreen
 import com.berke.ioniqscope.ui.screens.diagnostics.DiagnosticsScreen
@@ -49,10 +53,21 @@ import com.berke.ioniqscope.ui.screens.performance.PerformanceScreen
  * using.
  */
 @Composable
-fun ObdScreen(services: ServiceLocator, onConnect: () -> Unit, onOpen: (String) -> Unit) {
+fun ObdScreen(
+    services: ServiceLocator,
+    onConnect: () -> Unit,
+    onSettings: () -> Unit,
+    onOpen: (String) -> Unit
+) {
+    val connection by services.connectionManager.connectionState.collectAsStateWithLifecycle()
     var section by rememberSaveable { mutableStateOf(ObdSection.Dashboard) }
 
     Column(Modifier.fillMaxSize()) {
+        ScreenHeader("OBD") {
+            ConnectionPill(connection, onConnect)
+            SettingsAction(onSettings)
+        }
+
         // A segmented control rather than a tab row. Tabs are for moving between
         // places; these four are one place looked at four ways, and the design draws
         // that difference — a single bordered strip holding four segments, with the

@@ -9,8 +9,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
@@ -49,9 +53,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.navArgument
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.berke.ioniqscope.R
 import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.connection.ConnectionState
@@ -88,37 +92,6 @@ fun IoniqScopeRoot(services: ServiceLocator) {
     val isDetail = current in Destination.detail
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(current.labelRes)) },
-                navigationIcon = {
-                    if (isDetail) {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.back)
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    // Connection lives here rather than in the bottom bar: it is a
-                    // one-off action at the start of a drive, and the dot means the
-                    // status is legible from every screen without spending a tab.
-                    ConnectionAction(
-                        state = connection,
-                        selected = current == Destination.Connect,
-                        onClick = { navController.navigateTo(Destination.Connect) }
-                    )
-                    IconButton(onClick = { navController.navigateTo(Destination.Settings) }) {
-                        Icon(
-                            Icons.Filled.Settings,
-                            contentDescription = stringResource(R.string.nav_settings)
-                        )
-                    }
-                }
-            )
-        },
         bottomBar = {
             // Shorter than the 80dp default — three items do not need the height five
             // did, and this bar sits under a map that wants every row it can get.
@@ -155,12 +128,14 @@ fun IoniqScopeRoot(services: ServiceLocator) {
             modifier = Modifier.padding(padding)
         ) {
             val toConnect: () -> Unit = { navController.navigateTo(Destination.Connect) }
+            val toSettings: () -> Unit = { navController.navigateTo(Destination.Settings) }
 
-            composable(Destination.Chargers.route) { ChargerMapScreen(services) }
+            composable(Destination.Chargers.route) { ChargerMapScreen(services, toSettings) }
             composable(Destination.Obd.route) {
                 ObdScreen(
                     services = services,
                     onConnect = toConnect,
+                    onSettings = toSettings,
                     onOpen = { target ->
                         navController.navigateTo(
                             if (target == AUX_BATTERY) Destination.AuxBattery
@@ -173,90 +148,66 @@ fun IoniqScopeRoot(services: ServiceLocator) {
                 TripLogScreen(
                     services = services,
                     onConnect = toConnect,
+                    onSettings = toSettings,
                     onOpenTrip = { tripId ->
                         navController.navigate(Destination.tripDetailRoute(tripId))
                     }
                 )
             }
-            composable(Destination.Connect.route) { ConnectScreen(services) }
-            composable(Destination.Settings.route) { SettingsScreen(services) }
-            composable(Destination.RawConsole.route) { RawConsoleScreen(services) }
-            composable(Destination.AuxBattery.route) { AuxBatteryScreen(services) }
+            composable(Destination.Connect.route) {
+                DetailScreen("Bağlan", navController) { ConnectScreen(services) }
+            }
+            composable(Destination.Settings.route) {
+                DetailScreen("Ayarlar", navController) { SettingsScreen(services) }
+            }
+            composable(Destination.RawConsole.route) {
+                DetailScreen("Komut konsolu", navController) { RawConsoleScreen(services) }
+            }
+            composable(Destination.AuxBattery.route) {
+                DetailScreen("12V akü", navController) { AuxBatteryScreen(services) }
+            }
             composable(
                 route = Destination.TripDetail.route,
                 arguments = listOf(navArgument("tripId") { type = NavType.LongType })
             ) { entry ->
-                TripDetailScreen(
-                    services = services,
-                    tripId = entry.arguments?.getLong("tripId") ?: 0L
-                )
+                DetailScreen("Yolculuk", navController) {
+                    TripDetailScreen(
+                        services = services,
+                        tripId = entry.arguments?.getLong("tripId") ?: 0L
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * Bluetooth icon carrying a status dot: green connected, amber connecting (pulsing),
- * red failed, grey idle. Tapping it opens the Connect screen.
+ * A pushed screen's heading, with the way back.
+ *
+ * Pushed screens used to borrow the shared bar's back arrow. With that gone they carry
+ * their own, which also puts the title at the same size as every other screen's rather
+ * than at the smaller one a bar imposes.
  */
 @Composable
-private fun ConnectionAction(
-    state: ConnectionState,
-    selected: Boolean,
-    onClick: () -> Unit
+private fun DetailScreen(
+    title: String,
+    navController: NavHostController,
+    content: @Composable () -> Unit
 ) {
-    val scheme = MaterialTheme.colorScheme
-
-    val targetDot = when (state) {
-        is ConnectionState.Connected -> StatusGreen
-        is ConnectionState.Connecting -> StatusAmber
-        is ConnectionState.Failed -> scheme.error
-        ConnectionState.Disconnected -> scheme.outline
-    }
-    val dotColor by animateColorAsState(targetDot, label = "connectionDot")
-
-    // Only the connecting state pulses; a steady dot must not draw the eye while driving.
-    val pulse = rememberInfiniteTransition(label = "connectionPulse")
-    val dotAlpha by pulse.animateFloat(
-        initialValue = 1f,
-        targetValue = if (state is ConnectionState.Connecting) 0.25f else 1f,
-        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
-        label = "connectionDotAlpha"
-    )
-
-    val label = when (state) {
-        is ConnectionState.Connected -> stringResource(R.string.status_connected, state.deviceName)
-        is ConnectionState.Connecting -> stringResource(R.string.status_connecting)
-        is ConnectionState.Failed -> stringResource(R.string.status_failed)
-        ConnectionState.Disconnected -> stringResource(R.string.status_disconnected)
-    }
-
-    IconButton(onClick = onClick) {
-        Box {
-            Icon(
-                imageVector = if (state is ConnectionState.Connected) {
-                    Icons.Filled.BluetoothConnected
-                } else Icons.Filled.Bluetooth,
-                contentDescription = label,
-                tint = if (selected) scheme.primary else scheme.onSurface
-            )
-            // Ring in the bar's own colour so the dot reads against the icon behind it.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-3).dp)
-                    .size(13.dp)
-                    .background(scheme.surface, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    Modifier
-                        .size(9.dp)
-                        .alpha(dotAlpha)
-                        .background(dotColor, CircleShape)
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().height(56.dp).padding(start = 6.dp, end = 18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.back)
                 )
             }
+            Text(title, style = MaterialTheme.typography.headlineMedium)
         }
+        content()
     }
 }
 
