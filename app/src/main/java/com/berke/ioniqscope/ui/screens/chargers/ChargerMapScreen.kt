@@ -869,7 +869,10 @@ private fun previewDetail(site: ChargerSite): String = buildString {
 }
 
 /** The panel's own surface, darker and more opaque than the app's, to sit on cream. */
-private val LEGEND_SURFACE = Color(0xED0C1A22)
+// Alpha 0xE0 rather than 0xED: enough of the map shows through that the panel sits on
+// it instead of punching a hole in it, and not so much that five lines of 9.5sp text
+// have to compete with roads behind them.
+private val LEGEND_SURFACE = Color(0xE00C1A22)
 private val LEGEND_OUTLINE = Color(0xE635525E)
 
 /**
