@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +51,7 @@ import com.berke.ioniqscope.data.AppSettings
 import com.berke.ioniqscope.data.PidCatalog
 import com.berke.ioniqscope.obd.Pid
 import com.berke.ioniqscope.obd.Reading
+import com.berke.ioniqscope.obd.VehicleProfile
 import com.berke.ioniqscope.obd.VehicleState
 import com.berke.ioniqscope.ui.components.Banner
 import com.berke.ioniqscope.ui.components.BannerTone
@@ -57,9 +59,16 @@ import com.berke.ioniqscope.ui.components.EmptyState
 import com.berke.ioniqscope.ui.components.GaugeCard
 import com.berke.ioniqscope.ui.components.formatReading
 import com.berke.ioniqscope.ui.serviceViewModel
+import java.util.Locale
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class DashboardViewModel(services: ServiceLocator) : ViewModel() {
 
@@ -80,6 +89,55 @@ class DashboardViewModel(services: ServiceLocator) : ViewModel() {
         val pids = PidCatalog.resolve(settings.dashboardPidKeys)
         manager.startDashboardPolling(pids, settings.pollIntervalMs.toLong())
     }
+
+    /**
+     * What the car's own battery computer says, refreshed on a slow loop.
+     *
+     * The standard PIDs are the ones every car has to answer, and on an E-GMP car the
+     * answer to most of them is nothing: measured on an Ioniq 6, speed, module voltage
+     * and ambient temperature all come back NO DATA, and the dashboard sat there
+     * showing four dashes while the Batarya tab three taps away had the state of
+     * charge, the pack voltage, the current and the temperatures. The data was in the
+     * app and not on the screen that exists to show data.
+     *
+     * Slowly, because this is not a standard PID poll: it takes the adapter
+     * exclusively, moves it onto the battery ECU and back, and none of these numbers
+     * changes meaningfully in a second.
+     */
+    private val _battery = MutableStateFlow<Map<String, Double>>(emptyMap())
+    val battery: StateFlow<Map<String, Double>> = _battery.asStateFlow()
+
+    private var batteryJob: Job? = null
+
+    fun startBatteryPolling(profile: VehicleProfile) {
+        if (profile.battery == null) {
+            batteryJob?.cancel()
+            _battery.value = emptyMap()
+            return
+        }
+        batteryJob?.cancel()
+        batteryJob = viewModelScope.launch {
+            while (isActive) {
+                manager.readBattery(profile)
+                    .onSuccess { if (it.values.isNotEmpty()) _battery.value = it.values }
+                delay(BATTERY_INTERVAL_MS)
+            }
+        }
+    }
+
+    fun stopBatteryPolling() {
+        batteryJob?.cancel()
+        batteryJob = null
+    }
+
+    override fun onCleared() {
+        stopBatteryPolling()
+        super.onCleared()
+    }
+
+    private companion object {
+        const val BATTERY_INTERVAL_MS = 5_000L
+    }
 }
 
 @Composable
@@ -88,15 +146,22 @@ fun DashboardScreen(services: ServiceLocator, onConnect: () -> Unit) {
     val connection by vm.connectionState.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val state by vm.vehicleState.collectAsStateWithLifecycle()
+    val battery by vm.battery.collectAsStateWithLifecycle()
 
     val connected = connection is ConnectionState.Connected
+    val profile = VehicleProfile.byId(settings.vehicleProfileId)
 
     LaunchedEffect(connected, settings.dashboardPidKeys, settings.pollIntervalMs) {
         if (connected) vm.claimPolling(settings)
     }
 
+    DisposableEffect(connected, profile.id) {
+        if (connected) vm.startBatteryPolling(profile)
+        onDispose { vm.stopBatteryPolling() }
+    }
+
     val selected = PidCatalog.resolve(settings.dashboardPidKeys)
-    if (selected.isEmpty()) {
+    if (selected.isEmpty() && battery.isEmpty()) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
@@ -130,6 +195,35 @@ fun DashboardScreen(services: ServiceLocator, onConnect: () -> Unit) {
                     reading = state[speed.key],
                     settings = settings
                 )
+            }
+        }
+
+        // The car's own battery figures, ahead of the standard PIDs, because on an EV
+        // they are the ones that answer. Labels and units come from the profile, so
+        // nothing here has to know what an E-GMP is.
+        if (battery.isNotEmpty()) {
+            val specs = profile.battery?.reads.orEmpty().flatMap { it.values }
+            items(specs.filter { battery.containsKey(it.key) }, key = { "batt_" + it.key }) { spec ->
+                GaugeCard(
+                    label = spec.label,
+                    value = battery[spec.key]?.let { String.format(Locale.US, "%.1f", it) } ?: "—",
+                    unit = spec.unit,
+                    stale = false
+                )
+            }
+            // Power is not read; it is the product of two things that were, and it is
+            // the number a driver watches while charging.
+            val amps = battery["hv_current"]
+            val volts = battery["hv_voltage"]
+            if (amps != null && volts != null) {
+                item(key = "batt_power") {
+                    GaugeCard(
+                        label = "Güç",
+                        value = String.format(Locale.US, "%.1f", amps * volts / 1000.0),
+                        unit = "kW",
+                        stale = false
+                    )
+                }
             }
         }
 
