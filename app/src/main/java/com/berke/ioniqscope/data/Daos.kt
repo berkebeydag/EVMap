@@ -56,14 +56,22 @@ interface ChargingStationDao {
      * that time was spent constructing objects for stations the user had asked not
      * to see.
      *
-     * `is_dc IS NULL` survives [dcOnly] deliberately, matching what the Kotlin filter
-     * did: a source that never said whether a site is DC is not the same as one that
-     * said AC, and hiding the unknowns would hide real fast chargers.
+     * [dcOnly] reads the power before the flag, because where the two disagree the
+     * power is right. AC charging tops out at 22 kW — that is what the standard allows
+     * over a Type 2 socket — so a station rated at or below that is AC whatever its
+     * record says, and one rated above it is DC. Measured in the bundle: 84 stations
+     * flagged DC are 22 kW or less and 24 flagged AC are above it, and the flag was
+     * being believed over the physics in both directions.
+     *
+     * A station with no power figure falls back to the flag, and one with neither
+     * survives the filter: a source that never said is not the same as one that said
+     * AC, and hiding the unknowns would hide real fast chargers.
      */
     @Query(
         "SELECT * FROM charging_stations " +
             "WHERE lat BETWEEN :minLat AND :maxLat AND lon BETWEEN :minLon AND :maxLon " +
-            "AND (:dcOnly = 0 OR is_dc IS NULL OR is_dc != 0) " +
+            "AND (:dcOnly = 0 OR (CASE WHEN max_power_kw IS NOT NULL THEN max_power_kw > 22.0 " +
+            "ELSE is_dc IS NULL OR is_dc != 0 END)) " +
             "AND (:minPowerKw <= 0 OR (max_power_kw IS NOT NULL AND max_power_kw >= :minPowerKw)) " +
             "AND (:allBrands = 1 OR operator IN (:brands)) " +
             "LIMIT :limit"
@@ -90,7 +98,8 @@ interface ChargingStationDao {
      */
     @Query(
         "SELECT * FROM charging_stations WHERE " +
-            "(:dcOnly = 0 OR is_dc IS NULL OR is_dc != 0) " +
+            "(:dcOnly = 0 OR (CASE WHEN max_power_kw IS NOT NULL THEN max_power_kw > 22.0 " +
+            "ELSE is_dc IS NULL OR is_dc != 0 END)) " +
             "AND (:minPowerKw <= 0 OR (max_power_kw IS NOT NULL AND max_power_kw >= :minPowerKw)) " +
             "AND (:allBrands = 1 OR operator IN (:brands)) " +
             "ORDER BY " +

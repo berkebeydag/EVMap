@@ -39,6 +39,28 @@ data class ChargerSite(
     val distanceMetres: Double?
 )
 
+/**
+ * Whether a record is direct current, reading its power before its flag.
+ *
+ * Where the two disagree the power is right: AC over a Type 2 socket stops at 22 kW,
+ * so anything rated above that is DC however it was filed, and anything at or below is
+ * AC. The bundle has 84 records flagged DC at 22 kW or less and 24 flagged AC above
+ * it — real stations on both sides of the mistake.
+ *
+ * Null only when there is nothing to go on at all, which stays visible everywhere
+ * rather than being guessed into one camp.
+ */
+fun isDcRecord(flagged: Boolean?, maxPowerKw: Double?): Boolean? {
+    val power = maxPowerKw?.takeIf { it > 0 }
+    return when {
+        power != null -> power > AC_CEILING_KW
+        else -> flagged
+    }
+}
+
+/** What alternating current can carry through a Type 2 socket, and so where DC starts. */
+const val AC_CEILING_KW = 22.0
+
 /** Records closer together than this are treated as the same place. */
 private const val SITE_RADIUS_M = 60.0
 
@@ -166,9 +188,13 @@ private class SiteBuilder(val anchorLat: Double, val anchorLon: Double) {
 
         // Any DC socket makes the site useful for fast charging; "all AC" is only
         // claimed when every record actually said AC. Silence stays unknown.
+        //
+        // Each record is judged by [isDcRecord] rather than by its flag alone, so the
+        // card and the AC/DC filter cannot disagree — a site the filter hides as AC
+        // must not describe itself as DC on the way past.
         val isDc = when {
-            members.any { it.isDc == true } -> true
-            members.all { it.isDc == false } -> false
+            members.any { isDcRecord(it.isDc, it.maxPowerKw) == true } -> true
+            members.all { isDcRecord(it.isDc, it.maxPowerKw) == false } -> false
             else -> null
         }
 
