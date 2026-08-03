@@ -71,6 +71,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.berke.ioniqscope.ServiceLocator
@@ -95,6 +96,7 @@ import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import com.berke.ioniqscope.data.CurrentFilter
 
 /**
  * What a site with no operator and no name is called.
@@ -193,7 +195,7 @@ fun ChargerMapScreen(
     // Markers come from the cache, so a finished load has to nudge the query.
     LaunchedEffect(
         count,
-        settings.chargersDcOnly,
+        settings.chargersCurrent,
         settings.chargersMinPowerKw,
         settings.chargersOperators
     ) {
@@ -270,12 +272,12 @@ fun ChargerMapScreen(
                     )
                 }
                 HeaderPill(
-                    active = settings.chargersDcOnly,
-                    onClick = { vm.setDcOnly(!settings.chargersDcOnly) }
+                    active = settings.chargersCurrent != CurrentFilter.ALL,
+                    onClick = { vm.setCurrent(CurrentFilter.DC) }
                 ) {
                     Icon(
                         Icons.Filled.Bolt,
-                        contentDescription = if (settings.chargersDcOnly)
+                        contentDescription = if (settings.chargersCurrent == CurrentFilter.DC)
                             "AC istasyonları da göster" else "Yalnızca DC göster",
                         modifier = Modifier.size(17.dp)
                     )
@@ -444,7 +446,7 @@ fun ChargerMapScreen(
                 RouteLegend(
                     routes = routes,
                     onNavigate = { openInMaps(context, it) },
-                    modifier = Modifier.width(184.dp)
+                    modifier = Modifier.width(196.dp)
                 )
             }
         }
@@ -482,23 +484,28 @@ fun ChargerMapScreen(
                 MapStripDivider()
                 MapStripButton(
                     height = 38.dp,
-                    onClick = { vm.setDcOnly(false) }
+                    onClick = { vm.setCurrent(CurrentFilter.AC) }
                 ) {
                     Text(
                         "AC",
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (settings.chargersDcOnly) MAP_CHROME_INK else MAP_CHROME_ACCENT
+                        // Lit when AC is what is being shown, which includes showing
+                        // everything — the two buttons together say what is on screen,
+                        // and with no filter the answer is both.
+                        color = if (settings.chargersCurrent == CurrentFilter.DC)
+                            MAP_CHROME_INK else MAP_CHROME_ACCENT
                     )
                 }
                 MapStripDivider()
                 MapStripButton(
                     height = 38.dp,
-                    onClick = { vm.setDcOnly(true) }
+                    onClick = { vm.setCurrent(CurrentFilter.DC) }
                 ) {
                     Text(
                         "DC",
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (settings.chargersDcOnly) MAP_CHROME_ACCENT else MAP_CHROME_INK
+                        color = if (settings.chargersCurrent == CurrentFilter.AC)
+                            MAP_CHROME_INK else MAP_CHROME_ACCENT
                     )
                 }
                 MapStripDivider()
@@ -711,7 +718,7 @@ private fun RouteLegend(
                     Modifier
                         .fillMaxWidth()
                         .clickable { onNavigate(entry.site) }
-                        .padding(horizontal = 7.dp, vertical = 5.dp),
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
@@ -723,30 +730,41 @@ private fun RouteLegend(
                                 CircleShape
                             )
                     )
-                    Text(
-                        entry.site.operator ?: entry.site.name ?: UNBRANDED,
-                        style = MaterialTheme.typography.labelMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        formatDistance(entry.route.metres),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = LEGEND_INK_MUTED
-                    )
+                    // Name over distance-and-power. Five suggestions with a charge
+                    // rating each will not fit across 200dp on one line, and the
+                    // rating is the second thing asked after "where" — a 22 kW
+                    // suggestion and a 180 kW one are not the same suggestion, and the
+                    // panel was not saying which was which.
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            entry.site.operator ?: entry.site.name ?: UNBRANDED,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            listOfNotNull(
+                                formatDistance(entry.route.metres),
+                                formatPower(entry.site.maxPowerKw)
+                            ).joinToString(" · "),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.5.sp,
+                            color = LEGEND_INK_MUTED,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     // Fixed width so the prices line up as a column; a ragged right
                     // edge is what stops five of them being comparable at a glance.
-                    // Wider than the design's 34dp because half of these are ranges —
-                    // "~14-16₺" where its example was "~15₺" — and a clipped price is
-                    // worse than a slightly narrower name beside it.
                     Text(
                         formatTariff(entry.site, short = true) ?: "",
                         style = MaterialTheme.typography.labelSmall,
+                        fontSize = 9.5.sp,
                         color = priceColour(entry.site),
                         textAlign = TextAlign.End,
                         maxLines = 1,
-                        modifier = Modifier.width(50.dp)
+                        modifier = Modifier.width(44.dp)
                     )
                 }
             }

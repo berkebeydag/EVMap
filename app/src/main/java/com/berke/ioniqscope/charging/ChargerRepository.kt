@@ -31,13 +31,14 @@ class ChargerRepository(private val dao: ChargingStationDao) {
 
     suspend fun inBounds(
         box: BoundingBox,
-        dcOnly: Boolean = false,
+        wantAc: Boolean = true,
+        wantDc: Boolean = true,
         minPowerKw: Double = 0.0,
         operators: Set<String> = emptySet(),
         limit: Int = 100_000
     ): List<ChargingStationEntity> = dao.inBounds(
         box.minLat, box.maxLat, box.minLon, box.maxLon,
-        dcOnly, minPowerKw, operators.isEmpty(), operators.orPlaceholder(), limit
+        wantAc, wantDc, minPowerKw, operators.isEmpty(), operators.orPlaceholder(), limit
     )
 
     /** Every network with a station, most first. Drives the brand filter's list. */
@@ -61,13 +62,14 @@ class ChargerRepository(private val dao: ChargingStationDao) {
     suspend fun nearest(
         lat: Double,
         lon: Double,
-        dcOnly: Boolean = false,
+        wantAc: Boolean = true,
+        wantDc: Boolean = true,
         minPowerKw: Double = 0.0,
         operators: Set<String> = emptySet(),
         limit: Int = 100
     ): List<ChargingStationEntity> = dao.nearest(
         lat, lon, cos(lat * PI / 180.0),
-        dcOnly, minPowerKw, operators.isEmpty(), operators.orPlaceholder(), limit
+        wantAc, wantDc, minPowerKw, operators.isEmpty(), operators.orPlaceholder(), limit
     )
 
     /**

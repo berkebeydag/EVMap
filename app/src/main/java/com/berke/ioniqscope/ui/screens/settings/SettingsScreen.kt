@@ -54,6 +54,7 @@ import com.berke.ioniqscope.auth.GoogleAccount
 import com.berke.ioniqscope.auth.SignInResult
 import com.berke.ioniqscope.data.AdapterType
 import com.berke.ioniqscope.data.AppSettings
+import com.berke.ioniqscope.data.CurrentFilter
 import com.berke.ioniqscope.data.PidCatalog
 import com.berke.ioniqscope.data.SettingsRepository
 import com.berke.ioniqscope.data.SpeedUnit
@@ -129,7 +130,7 @@ class SettingsViewModel(private val services: ServiceLocator) : ViewModel() {
             services.updateChecker.download(it.update)
         }
     }
-    fun setDcOnly(enabled: Boolean) = viewModelScope.launch { repo.setChargersDcOnly(enabled) }
+    fun setCurrent(kind: CurrentFilter) = viewModelScope.launch { repo.setChargersCurrent(kind) }
     fun setMinPower(kw: Int) = viewModelScope.launch { repo.setChargersMinPower(kw) }
     fun setAdapter(type: AdapterType) = viewModelScope.launch { repo.setAdapterType(type) }
     fun setPollInterval(ms: Int) = viewModelScope.launch { repo.setPollInterval(ms) }
@@ -254,12 +255,12 @@ fun SettingsScreen(services: ServiceLocator) {
         HorizontalDivider()
         SectionLabel("Şarj istasyonları")
         SwitchRow(
-            checked = settings.chargersDcOnly,
+            checked = settings.chargersCurrent == CurrentFilter.DC,
             title = "Sadece DC",
             subtitle = "AC olarak kayıtlı istasyonları gizler. Akım tipi belirtilmemiş " +
                 "olanlar görünür kalır — Türkiye'deki OSM kayıtlarının çoğu bunu hiç " +
                 "yazmıyor, dışlamak gerçek hızlı şarjları gizlerdi.",
-            onChange = vm::setDcOnly
+            onChange = { vm.setCurrent(if (it) CurrentFilter.DC else CurrentFilter.ALL) }
         )
 
         var minPower by remember(settings.chargersMinPowerKw) {

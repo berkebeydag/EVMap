@@ -12,6 +12,7 @@ import com.berke.ioniqscope.charging.ChargerTariffs
 import com.berke.ioniqscope.charging.Route
 import com.berke.ioniqscope.charging.RouteService
 import com.berke.ioniqscope.data.AppSettings
+import com.berke.ioniqscope.data.CurrentFilter
 import com.berke.ioniqscope.data.ChargingStationEntity
 import com.berke.ioniqscope.data.OperatorCount
 import kotlinx.coroutines.Dispatchers
@@ -149,8 +150,15 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
      * a settings screen. Both places write the same stored setting, so they cannot
      * disagree.
      */
-    fun setDcOnly(enabled: Boolean) = viewModelScope.launch {
-        services.settings.setChargersDcOnly(enabled)
+    /**
+     * Picks AC, DC, or neither-and-therefore-both.
+     *
+     * Tapping the kind already chosen clears back to ALL, which is what makes two
+     * buttons a three-state control rather than a pair that can both be wrong.
+     */
+    fun setCurrent(kind: CurrentFilter) = viewModelScope.launch {
+        val now = settings.value.chargersCurrent
+        services.settings.setChargersCurrent(if (now == kind) CurrentFilter.ALL else kind)
     }
 
     /** Every network with a station, most first — the brand filter's own list. */
@@ -213,7 +221,8 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
             // Filtered in SQL, so the rows never built are the ones being hidden.
             val rows = repo.inBounds(
                 padded,
-                dcOnly = current.chargersDcOnly,
+                wantAc = current.chargersCurrent != CurrentFilter.DC,
+                wantDc = current.chargersCurrent != CurrentFilter.AC,
                 minPowerKw = current.chargersMinPowerKw.toDouble(),
                 operators = current.chargersOperators
             )
@@ -243,7 +252,8 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
             val current = settings.first()
             _visible.value = repo.nearest(
                 anchor.first, anchor.second,
-                dcOnly = current.chargersDcOnly,
+                wantAc = current.chargersCurrent != CurrentFilter.DC,
+                wantDc = current.chargersCurrent != CurrentFilter.AC,
                 minPowerKw = current.chargersMinPowerKw.toDouble(),
                 operators = current.chargersOperators,
                 limit = NEAREST_LIMIT
@@ -373,7 +383,8 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
                 groupIntoSites(
                     repo.nearest(
                         lat, lon,
-                        dcOnly = settingsNow.chargersDcOnly,
+                        wantAc = settingsNow.chargersCurrent != CurrentFilter.DC,
+                        wantDc = settingsNow.chargersCurrent != CurrentFilter.AC,
                         minPowerKw = settingsNow.chargersMinPowerKw.toDouble(),
                         operators = settingsNow.chargersOperators,
                         limit = NEAREST_LIMIT
@@ -421,7 +432,8 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
             val targets = groupIntoSites(
                 repo.nearest(
                     lat, lon,
-                    dcOnly = current.chargersDcOnly,
+                    wantAc = current.chargersCurrent != CurrentFilter.DC,
+                wantDc = current.chargersCurrent != CurrentFilter.AC,
                     minPowerKw = current.chargersMinPowerKw.toDouble(),
                     operators = current.chargersOperators,
                     limit = NEAREST_LIMIT

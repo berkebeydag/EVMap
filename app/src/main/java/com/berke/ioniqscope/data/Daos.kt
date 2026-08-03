@@ -70,8 +70,9 @@ interface ChargingStationDao {
     @Query(
         "SELECT * FROM charging_stations " +
             "WHERE lat BETWEEN :minLat AND :maxLat AND lon BETWEEN :minLon AND :maxLon " +
-            "AND (:dcOnly = 0 OR (CASE WHEN max_power_kw IS NOT NULL THEN max_power_kw > 22.0 " +
-            "ELSE is_dc IS NULL OR is_dc != 0 END)) " +
+            "AND (:wantAc = :wantDc OR (CASE WHEN max_power_kw IS NOT NULL " +
+            "THEN (max_power_kw > 22.0) = (:wantDc = 1) " +
+            "ELSE is_dc IS NULL OR (is_dc != 0) = (:wantDc = 1) END)) " +
             "AND (:minPowerKw <= 0 OR (max_power_kw IS NOT NULL AND max_power_kw >= :minPowerKw)) " +
             "AND (:allBrands = 1 OR operator IN (:brands)) " +
             "LIMIT :limit"
@@ -81,7 +82,8 @@ interface ChargingStationDao {
         maxLat: Double,
         minLon: Double,
         maxLon: Double,
-        dcOnly: Boolean = false,
+        wantAc: Boolean = true,
+        wantDc: Boolean = true,
         minPowerKw: Double = 0.0,
         allBrands: Boolean = true,
         brands: List<String> = listOf(""),
@@ -98,8 +100,9 @@ interface ChargingStationDao {
      */
     @Query(
         "SELECT * FROM charging_stations WHERE " +
-            "(:dcOnly = 0 OR (CASE WHEN max_power_kw IS NOT NULL THEN max_power_kw > 22.0 " +
-            "ELSE is_dc IS NULL OR is_dc != 0 END)) " +
+            "(:wantAc = :wantDc OR (CASE WHEN max_power_kw IS NOT NULL " +
+            "THEN (max_power_kw > 22.0) = (:wantDc = 1) " +
+            "ELSE is_dc IS NULL OR (is_dc != 0) = (:wantDc = 1) END)) " +
             "AND (:minPowerKw <= 0 OR (max_power_kw IS NOT NULL AND max_power_kw >= :minPowerKw)) " +
             "AND (:allBrands = 1 OR operator IN (:brands)) " +
             "ORDER BY " +
@@ -111,7 +114,8 @@ interface ChargingStationDao {
         lat: Double,
         lon: Double,
         lonScale: Double,
-        dcOnly: Boolean = false,
+        wantAc: Boolean = true,
+        wantDc: Boolean = true,
         minPowerKw: Double = 0.0,
         allBrands: Boolean = true,
         brands: List<String> = listOf(""),

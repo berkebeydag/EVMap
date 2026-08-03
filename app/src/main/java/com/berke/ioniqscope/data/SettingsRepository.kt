@@ -21,6 +21,16 @@ enum class SpeedUnit(val label: String, val suffix: String) {
     fun fromKmh(kmh: Double): Double = if (this == KMH) kmh else kmh * 0.621371
 }
 
+/**
+ * Which kind of charging the map is showing.
+ *
+ * Three states rather than a switch, because the two buttons on the map read as a
+ * choice between AC and DC and were in fact one boolean: "AC" meant *no filter*, so
+ * choosing it left every 180 kW DC station on the screen. Selecting the one already
+ * selected returns to ALL, which is the only way back to everything.
+ */
+enum class CurrentFilter { ALL, AC, DC }
+
 enum class AdapterType(val label: String, val description: String) {
     BLE("Bluetooth LE", "Vgate iCar Pro BLE 4.0 ve diğer GATT adaptörleri"),
     CLASSIC("Klasik Bluetooth", "RFCOMM / SPP adaptörleri — önce sistem ayarlarından eşleştirilmeli"),
@@ -59,7 +69,7 @@ data class AppSettings(
     val accountPhotoUrl: String? = null,
     /** Hide stations not positively marked as DC. */
     /** Default on: an EV on the road wants fast charging, and it halves what is drawn. */
-    val chargersDcOnly: Boolean = true,
+    val chargersCurrent: CurrentFilter = CurrentFilter.DC,
     /**
      * Which networks to show. Empty means all of them, which is the default and the
      * only sane one — a filter nobody has touched must not be hiding anything.
@@ -106,6 +116,7 @@ class SettingsRepository(private val context: Context) {
         val lastName = stringPreferencesKey("last_device_name")
         val autoConnect = booleanPreferencesKey("auto_connect")
         val autoLogTrips = booleanPreferencesKey("auto_log_trips")
+        val chargersCurrent = stringPreferencesKey("chargers_current")
         val chargersDcOnly = booleanPreferencesKey("chargers_dc_only")
         val chargersOperators = stringSetPreferencesKey("chargers_operators")
         val chargersMinPowerKw = intPreferencesKey("chargers_min_power_kw")
@@ -136,7 +147,11 @@ class SettingsRepository(private val context: Context) {
             accountName = p[Keys.accountName],
             accountEmail = p[Keys.accountEmail],
             accountPhotoUrl = p[Keys.accountPhotoUrl],
-            chargersDcOnly = p[Keys.chargersDcOnly] ?: true,
+            // Falls back to the old boolean so an existing install keeps what it had
+            // rather than silently switching to showing everything.
+            chargersCurrent = p[Keys.chargersCurrent]
+                ?.let { runCatching { CurrentFilter.valueOf(it) }.getOrNull() }
+                ?: if (p[Keys.chargersDcOnly] == false) CurrentFilter.ALL else CurrentFilter.DC,
             chargersOperators = p[Keys.chargersOperators] ?: emptySet(),
             chargersMinPowerKw = p[Keys.chargersMinPowerKw] ?: 0,
             // Falls back to the built-in address rather than to empty, so updates
@@ -166,7 +181,9 @@ class SettingsRepository(private val context: Context) {
 
 
 
-    suspend fun setChargersDcOnly(enabled: Boolean) = edit { it[Keys.chargersDcOnly] = enabled }
+    suspend fun setChargersCurrent(filter: CurrentFilter) = edit {
+        it[Keys.chargersCurrent] = filter.name
+    }
 
     suspend fun setChargersOperators(operators: Set<String>) = edit {
         it[Keys.chargersOperators] = operators
