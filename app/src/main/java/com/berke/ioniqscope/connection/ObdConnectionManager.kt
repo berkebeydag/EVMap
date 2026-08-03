@@ -13,6 +13,8 @@ import com.berke.ioniqscope.obd.ClassicBtTransport
 import com.berke.ioniqscope.obd.DtcReader
 import com.berke.ioniqscope.obd.Elm327
 import com.berke.ioniqscope.obd.ObdEngine
+import com.berke.ioniqscope.obd.Reading
+import kotlinx.coroutines.flow.first
 import com.berke.ioniqscope.obd.Pid
 import com.berke.ioniqscope.obd.UdsReader
 import com.berke.ioniqscope.obd.VehicleProfile
@@ -101,6 +103,10 @@ class ObdConnectionManager(
     private val commandMutex = Mutex()
 
     private var connectJob: Job? = null
+    private var profileJob: Job? = null
+
+    /** The most recent answers from the vehicle profile, kept between its slow polls. */
+    @Volatile private var profileReadings: VehicleState = emptyMap()
     private var lastRequest: ConnectRequest? = null
     private var userInitiatedDisconnect = false
 
@@ -202,6 +208,8 @@ class ObdConnectionManager(
         dtcReader = DtcReader(newElm)
         engine = ObdEngine(newElm, scope, onSample = ::onSample)
 
+        startProfilePolling()
+
         _connectionState.value = ConnectionState.Connected(
             deviceName = request.name ?: request.address,
             address = request.address,
@@ -287,8 +295,13 @@ class ObdConnectionManager(
     }
 
     private fun onSample(snapshot: VehicleState) {
-        _vehicleState.value = snapshot
-        _samples.tryEmit(snapshot)
+        // Merged, not replaced. The profile's readings arrive on their own slow loop
+        // and would otherwise be wiped by the next standard-PID poll a fraction of a
+        // second later — which on a car that answers no standard PIDs means the
+        // dashboard flickers between the real numbers and nothing.
+        val merged = profileReadings + snapshot
+        _vehicleState.value = merged
+        _samples.tryEmit(merged)
 
         // Speed drives the performance meter regardless of which mode is polling,
         // so a run started from the Dashboard is still timed (just more coarsely).
@@ -403,6 +416,45 @@ class ObdConnectionManager(
     }
 
     /**
+     * Polls whatever the selected vehicle profile can read, slowly, for as long as the
+     * adapter is connected.
+     *
+     * This used to live in the Dashboard, which meant it stopped the moment you looked
+     * at another screen — and the trip logger, which records the sample stream, never
+     * saw any of it. On a car that answers no standard PIDs that is the difference
+     * between a trip log and an empty one.
+     *
+     * Five seconds: it takes the adapter exclusively onto the battery ECU and back,
+     * and none of these figures moves meaningfully in between.
+     */
+    private fun startProfilePolling() {
+        profileJob?.cancel()
+        profileReadings = emptyMap()
+        profileJob = scope.launch {
+            val profile = VehicleProfile.byId(settings.settings.first().vehicleProfileId)
+            val specs = profile.battery?.reads.orEmpty().flatMap { it.values }
+            if (specs.isEmpty()) return@launch
+            while (isConnected) {
+                readBattery(profile).onSuccess { reading ->
+                    if (reading.values.isNotEmpty()) {
+                        profileReadings = specs.mapNotNull { spec ->
+                            reading.values[spec.key]?.let {
+                                spec.key to Reading(spec.label, it, spec.unit)
+                            }
+                        }.toMap()
+                        // Emitted even when the standard poll is silent, or a car that
+                        // answers nothing else would produce no samples at all and the
+                        // trip logger would have nothing to write down.
+                        _vehicleState.value = profileReadings + _vehicleState.value
+                        _samples.tryEmit(_vehicleState.value)
+                    }
+                }
+                delay(PROFILE_POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    /**
      * Whether a reply is the adapter reporting it could not get an answer off the bus.
      *
      * These are all transient in practice — they say the request did not complete, not
@@ -432,6 +484,7 @@ class ObdConnectionManager(
         const val RECONNECT_BACKOFF_MS = 2_000L
         const val IN_FLIGHT_SETTLE_MS = 150L
         const val RETRY_SETTLE_MS = 300L
+        const val PROFILE_POLL_INTERVAL_MS = 5_000L
         val BUS_ERRORS = listOf(
             "CAN ERROR", "CANERROR", "NO DATA", "BUS INIT", "BUS ERROR",
             "UNABLE TO CONNECT", "STOPPED", "BUFFER FULL", "FB ERROR"

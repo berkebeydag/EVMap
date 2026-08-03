@@ -31,6 +31,15 @@ class DriveDetector(
     private var stationarySinceMs: Long? = null
     private var startedByUs = false
 
+    /**
+     * Whether this car has ever reported a speed.
+     *
+     * Latched, not per-sample: a car that answers 010D can still miss one poll, and
+     * treating that single gap as "no speed available" would start a trip in the
+     * middle of a stop.
+     */
+    private var sawSpeed = false
+
     fun start() {
         scope.launch {
             manager.samples.collect { snapshot ->
@@ -38,19 +47,45 @@ class DriveDetector(
                     reset()
                     return@collect
                 }
-                val speed = snapshot[PidCatalog.speed.key]?.value ?: return@collect
-                evaluate(speed)
-            }
-        }
-
-        // A dropped link should not leave a trip recording forever.
-        scope.launch {
-            manager.connectionState.collect { state ->
-                if (state !is ConnectionState.Connected && startedByUs) {
-                    stop()
+                val speed = snapshot[PidCatalog.speed.key]?.value
+                if (speed != null) {
+                    sawSpeed = true
+                    evaluate(speed)
+                } else if (!sawSpeed && snapshot.isNotEmpty()) {
+                    // The car answers something, just not speed. Measured on an Ioniq
+                    // 6: 010D returns NO DATA, so this collector used to return here on
+                    // every single sample and no trip was ever recorded on that car —
+                    // the log was empty and looked broken rather than inapplicable.
+                    //
+                    // With nothing to time the start against, the connection is the
+                    // start: the adapter is plugged into a car that is switched on, and
+                    // it stops answering when the car is switched off. That is coarser
+                    // than waiting for movement — a trip begun while parked on the
+                    // driveway includes the parking — but it is the difference between
+                    // a log and no log.
+                    startIfIdle()
                 }
             }
         }
+
+        // A dropped link ends the trip, whichever way it was started. On a car with no
+        // speed reading this is also the only thing that ends it.
+        scope.launch {
+            manager.connectionState.collect { state ->
+                if (state !is ConnectionState.Connected) {
+                    // Cleared with the link, so plugging into a different car does not
+                    // inherit the last one's answer about whether it reports speed.
+                    sawSpeed = false
+                    if (startedByUs) stop()
+                }
+            }
+        }
+    }
+
+    private fun startIfIdle() {
+        if (TripLoggingService.activeTripId.value != null) return
+        TripLoggingService.start(appContext)
+        startedByUs = true
     }
 
     private fun evaluate(speedKmh: Double) {
