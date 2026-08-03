@@ -449,13 +449,38 @@ class ChargerOverlay(
      * being given a made-up one.
      */
     private fun labelFor(site: ChargerSite): String? {
-        val name = site.operator ?: site.name ?: return null
-        val kw = site.maxPowerKw?.takeIf { it > 0 } ?: return name
+        // The venue first, the network second.
+        //
+        // This read the operator and nothing else, so a Shell forecourt whose chargers
+        // are run by WAT Mobilite was labelled "WAT Mobilite" — and a driver looking
+        // for the Shell drove past it. The label is the thing you match against what
+        // you can see from the road, and what you can see from the road is the Shell
+        // sign. Whose charger it is stays on the card, on the chip and on the tariff,
+        // where it is what you need after you have arrived.
+        //
+        // Most rows still show the operator, because for most of them the name is the
+        // operator; only the ones that know a venue change.
+        val venue = site.name?.trim()?.takeIf {
+            it.isNotEmpty() && !it.equals(site.operator?.trim(), ignoreCase = true)
+        }
+        val full = venue ?: site.operator ?: site.name ?: return null
+        val kw = site.maxPowerKw?.takeIf { it > 0 }
+            ?: return full.clipTo(MAX_LABEL_CHARS)
+
         // Whole numbers for whole ratings: "22 kW", not "22.0 kW". The halves that do
         // occur (7.4, 3.7) are real and stay.
         val power = if (kw % 1.0 == 0.0) kw.toInt().toString() else String.format("%.1f", kw)
-        return "$name $power kW"
+        val suffix = " $power kW"
+
+        // The name is cut to leave room for the rating rather than the whole label
+        // being cut afterwards, which would throw the rating away — and the rating is
+        // the half a driver cannot guess from looking at the forecourt.
+        return full.clipTo(MAX_LABEL_CHARS - suffix.length) + suffix
     }
+
+    /** Shortens to [limit] characters with an ellipsis, or returns it unchanged. */
+    private fun String.clipTo(limit: Int): String =
+        if (length <= limit || limit < 2) this else take(limit - 1).trimEnd() + "…"
 
     /** Draws [text] centred at the point if nothing is there already. */
     private fun place(
