@@ -47,7 +47,12 @@ class DriveDetector(
                     reset()
                     return@collect
                 }
+                // Either speed will do for "is the car moving". The receiver's is
+                // arguably the better one for it: it measures the whole car over the
+                // ground rather than a wheel, and it exists on cars that publish no
+                // speed at all.
                 val speed = snapshot[PidCatalog.speed.key]?.value
+                    ?: snapshot[GPS_SPEED_KEY]?.value
                 if (speed != null) {
                     sawSpeed = true
                     evaluate(speed)

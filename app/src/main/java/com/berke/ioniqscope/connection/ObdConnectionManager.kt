@@ -14,6 +14,7 @@ import com.berke.ioniqscope.obd.DtcReader
 import com.berke.ioniqscope.obd.Elm327
 import com.berke.ioniqscope.obd.ObdEngine
 import com.berke.ioniqscope.obd.Reading
+import com.berke.ioniqscope.ui.screens.chargers.LocationFinder
 import kotlinx.coroutines.flow.first
 import com.berke.ioniqscope.obd.Pid
 import com.berke.ioniqscope.obd.UdsReader
@@ -69,6 +70,9 @@ private sealed interface PollMode {
  * One-off commands (DTC read/clear) go through [exclusive], which parks the poll
  * loop first and restores it afterwards.
  */
+/** Where road speed from the satellite receiver is published, when the car will not. */
+const val GPS_SPEED_KEY = "gps_speed"
+
 class ObdConnectionManager(
     private val appContext: Context,
     private val scope: CoroutineScope,
@@ -104,6 +108,7 @@ class ObdConnectionManager(
 
     private var connectJob: Job? = null
     private var profileJob: Job? = null
+    private var gpsJob: Job? = null
 
     /** The most recent answers from the vehicle profile, kept between its slow polls. */
     @Volatile private var profileReadings: VehicleState = emptyMap()
@@ -209,6 +214,7 @@ class ObdConnectionManager(
         engine = ObdEngine(newElm, scope, onSample = ::onSample)
 
         startProfilePolling()
+        startGpsSpeed()
 
         _connectionState.value = ConnectionState.Connected(
             deviceName = request.name ?: request.address,
@@ -427,6 +433,37 @@ class ObdConnectionManager(
      * Five seconds: it takes the adapter exclusively onto the battery ECU and back,
      * and none of these figures moves meaningfully in between.
      */
+    /**
+     * Road speed from the receiver, published like any other reading.
+     *
+     * It lives here rather than on the Dashboard because three different things need
+     * it and only one of them is a screen. The dashboard shows it; the trip logger
+     * records it, and without it a trip has no distance, no average and no maximum —
+     * every one of those is computed from a speed trace; and the drive detector uses
+     * it to know the car is moving, which on a car that answers no speed PID it
+     * otherwise cannot.
+     *
+     * Under its own key, not the standard PID's. They are different measurements and
+     * the app should never quietly pass one off as the other.
+     */
+    private fun startGpsSpeed() {
+        gpsJob?.cancel()
+        gpsJob = scope.launch {
+            runCatching {
+                LocationFinder(appContext).stream().collect { fix ->
+                    val kmh = fix.speedKmh ?: return@collect
+                    val merged = _vehicleState.value +
+                        (GPS_SPEED_KEY to Reading("Hız (GPS)", kmh, "km/h"))
+                    _vehicleState.value = merged
+                    _samples.tryEmit(merged)
+                    performanceMeter.onSpeed(
+                        SpeedSample(timeMs = SystemClock.elapsedRealtime(), speedKmh = kmh)
+                    )
+                }
+            }
+        }
+    }
+
     private fun startProfilePolling() {
         profileJob?.cancel()
         profileReadings = emptyMap()

@@ -1,6 +1,7 @@
 package com.berke.ioniqscope
 
 import android.content.Context
+import com.berke.ioniqscope.service.TripLoggingService
 import com.berke.ioniqscope.charging.ChargerRepository
 import com.berke.ioniqscope.charging.ChargerSeeder
 import com.berke.ioniqscope.connection.AuxBatteryMonitor
@@ -76,6 +77,22 @@ class ServiceLocator private constructor(context: Context) {
     }
 
     fun warmUp() {
+        // Close out anything a killed process left open. A trip only writes its end
+        // time and its sample count when it finishes cleanly, so one that was swiped
+        // away stays open for ever and reports zero samples however many it has —
+        // which is exactly what one nineteen-minute, 1,314-sample trip was doing.
+        appScope.launch {
+            val dao = database.tripDao()
+            runCatching {
+                for (id in dao.unfinishedTrips()) {
+                    if (TripLoggingService.activeTripId.value == id) continue
+                    val count = dao.sampleCount(id)
+                    val endedAt = dao.lastSampleAt(id) ?: continue
+                    dao.finishTrip(id, endedAt, count)
+                }
+            }
+        }
+
         perfRunRecorder.start()
         auxBatteryMonitor.start()
         driveDetector.start()

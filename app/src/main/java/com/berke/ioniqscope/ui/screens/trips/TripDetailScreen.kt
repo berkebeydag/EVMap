@@ -46,9 +46,18 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.berke.ioniqscope.connection.GPS_SPEED_KEY
+
+/** What the battery computer calls the 12V rail; the only source on a car that will
+ *  not answer the standard module-voltage PID. */
+private const val BMS_AUX_VOLTAGE_KEY = "aux_voltage"
 
 data class TripDetail(
     val trip: TripEntity?,
+    /** Counted from the rows themselves; the trip row's own column can be stale. */
+    val sampleCount: Int = 0,
+    /** When recording actually stopped, for a trip that never closed. */
+    val lastSampleAt: Long? = null,
     val speedSeries: List<SeriesPoint> = emptyList(),
     val voltSeries: List<SeriesPoint> = emptyList(),
     val maxKmh: Double? = null,
@@ -76,13 +85,29 @@ class TripDetailViewModel(
     init {
         viewModelScope.launch {
             val trip = dao.trip(tripId)
+            // Counted, not read off the trip row. That column is only written when a
+            // trip closes cleanly, so a trip whose process was killed reported zero
+            // samples for ever — this one had 1,314 of them and said 0.
+            val realCount = dao.sampleCount(tripId)
+            val lastAt = dao.lastSampleAt(tripId)
             val speed = dao.series(tripId, PidCatalog.speed.key)
+                .ifEmpty { dao.series(tripId, GPS_SPEED_KEY) }
             val volts = dao.series(tripId, StandardPids.moduleVolt.key)
+                .ifEmpty { dao.series(tripId, BMS_AUX_VOLTAGE_KEY) }
+            // An aggregate over no rows is still a row — count 0, everything null —
+            // so a plain `?:` never reached the fallback and the maximum and average
+            // stayed blank beside a chart that plainly had both.
             val speedStats = dao.stats(tripId, PidCatalog.speed.key)
+                ?.takeIf { it.sampleCount > 0 }
+                ?: dao.stats(tripId, GPS_SPEED_KEY)?.takeIf { it.sampleCount > 0 }
             val voltStats = dao.stats(tripId, StandardPids.moduleVolt.key)
+                ?.takeIf { it.sampleCount > 0 }
+                ?: dao.stats(tripId, BMS_AUX_VOLTAGE_KEY)?.takeIf { it.sampleCount > 0 }
 
             _detail.value = TripDetail(
                 trip = trip,
+                sampleCount = realCount,
+                lastSampleAt = lastAt,
                 speedSeries = speed,
                 voltSeries = volts,
                 maxKmh = speedStats?.maxValue,
@@ -153,7 +178,7 @@ fun TripDetailScreen(services: ServiceLocator, tripId: Long) {
         SummaryCard(detail, settings)
 
         HorizontalDivider()
-        SectionLabel("Speed")
+        SectionLabel("Hız")
         if (detail.speedSeries.size < 2) {
             EmptyState("Bu sefer için hız verisi kaydedilmemiş.")
         } else {
@@ -192,7 +217,10 @@ fun TripDetailScreen(services: ServiceLocator, tripId: Long) {
 @Composable
 private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
     val trip = detail.trip ?: return
-    val duration = trip.endedAtEpochMs?.let { it - trip.startedAtEpochMs }
+    // A trip that was never closed has no end time, and showed no duration at all.
+    // Its last sample is when it stopped recording, which is the honest answer.
+    val endedAt = trip.endedAtEpochMs ?: detail.lastSampleAt
+    val duration = endedAt?.let { it - trip.startedAtEpochMs }?.takeIf { it > 0 }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -206,12 +234,12 @@ private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Stat(
-                    "Distance",
+                    "Mesafe",
                     String.format(Locale.US, "%.1f", detail.distanceM / 1000.0),
                     "km"
                 )
-                Stat("Duration", duration?.let { formatDuration(it) } ?: "—", "")
-                Stat("Samples", trip.sampleCount.toString(), "")
+                Stat("Süre", duration?.let { formatDuration(it) } ?: "—", "")
+                Stat("Ölçüm", detail.sampleCount.toString(), "")
             }
             HorizontalDivider()
             Row(
@@ -219,12 +247,12 @@ private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Stat(
-                    "Max",
+                    "En yüksek",
                     detail.maxKmh?.let { formatReading(settings.speedUnit.fromKmh(it)) } ?: "—",
                     settings.speedUnit.suffix
                 )
                 Stat(
-                    "Average",
+                    "Ortalama",
                     detail.avgKmh?.let { formatReading(settings.speedUnit.fromKmh(it)) } ?: "—",
                     settings.speedUnit.suffix
                 )

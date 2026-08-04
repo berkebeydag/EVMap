@@ -264,6 +264,21 @@ interface TripDao {
     @Query("SELECT COUNT(*) FROM trip_samples WHERE trip_id = :tripId")
     suspend fun sampleCount(tripId: Long): Int
 
+    /**
+     * When the last sample landed, for a trip that was never closed.
+     *
+     * A trip records `ended_at` when it finishes cleanly. One whose process was killed
+     * — swiped away, or stopped by the system — never gets that, and then has no
+     * duration at all. Its last sample is when it actually stopped recording, which is
+     * the honest answer and within a second of the real one.
+     */
+    @Query("SELECT MAX(at) FROM trip_samples WHERE trip_id = :tripId")
+    suspend fun lastSampleAt(tripId: Long): Long?
+
+    /** Trips that were never closed out, so the next launch can finish them. */
+    @Query("SELECT id FROM trips WHERE ended_at IS NULL")
+    suspend fun unfinishedTrips(): List<Long>
+
     @Query("SELECT * FROM trips ORDER BY started_at DESC")
     fun observeTrips(): Flow<List<TripEntity>>
 

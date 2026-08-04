@@ -47,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.berke.ioniqscope.ServiceLocator
 import com.berke.ioniqscope.connection.ConnectionState
+import com.berke.ioniqscope.connection.GPS_SPEED_KEY
 import com.berke.ioniqscope.data.AppSettings
 import com.berke.ioniqscope.data.PidCatalog
 import com.berke.ioniqscope.obd.Pid
@@ -82,42 +83,6 @@ class DashboardViewModel(private val services: ServiceLocator) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
 
     /**
-     * Road speed from the satellite receiver, for the cars that will not report it.
-     *
-     * The standard PID for speed is 010D and an E-GMP answers it with NO DATA —
-     * measured on an Ioniq 6, along with module voltage and ambient temperature. So the
-     * one number a driver most expects to see was permanently blank on exactly the car
-     * this app was written for.
-     *
-     * The receiver has it anyway: it derives ground speed from Doppler shift rather
-     * than from successive positions, which is why it is good even where the position
-     * is not, and it works on every car ever made. It is not enough to time a 0-100
-     * with — that wants ten readings a second and this is one — so the Performance
-     * screen still waits for a car that answers on the wire.
-     */
-    private val _gpsSpeed = MutableStateFlow<Double?>(null)
-    val gpsSpeed: StateFlow<Double?> = _gpsSpeed.asStateFlow()
-
-    private var gpsJob: Job? = null
-
-    fun startGpsSpeed() {
-        if (gpsJob?.isActive == true) return
-        gpsJob = viewModelScope.launch {
-            runCatching {
-                LocationFinder(services.appContext).stream().collect { fix ->
-                    _gpsSpeed.value = fix.speedKmh
-                }
-            }
-        }
-    }
-
-    fun stopGpsSpeed() {
-        gpsJob?.cancel()
-        gpsJob = null
-        _gpsSpeed.value = null
-    }
-
-    /**
      * Takes ownership of the poll loop with the user's chosen PID set.
      * Called when the screen becomes visible; the Performance screen takes it back
      * the same way, so whichever screen you are looking at drives the adapter.
@@ -138,14 +103,9 @@ fun DashboardScreen(services: ServiceLocator, onConnect: () -> Unit) {
 
     val connected = connection is ConnectionState.Connected
     val profile = VehicleProfile.byId(settings.vehicleProfileId)
-    val gpsSpeed by vm.gpsSpeed.collectAsStateWithLifecycle()
-
-    // Only while this screen is up, and only while connected: a satellite fix costs
-    // battery, and nobody wants it running because they once opened the dashboard.
-    DisposableEffect(connected) {
-        if (connected) vm.startGpsSpeed()
-        onDispose { vm.stopGpsSpeed() }
-    }
+    // Published by the connection manager alongside everything else, so the trip
+    // logger and the drive detector see the same number this dial does.
+    val gpsSpeed = state[GPS_SPEED_KEY]?.value
 
     LaunchedEffect(connected, settings.dashboardPidKeys, settings.pollIntervalMs) {
         if (connected) vm.claimPolling(settings)
