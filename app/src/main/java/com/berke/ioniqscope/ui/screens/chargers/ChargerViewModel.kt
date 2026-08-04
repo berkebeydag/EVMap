@@ -9,6 +9,8 @@ import com.berke.ioniqscope.charging.contains
 import com.berke.ioniqscope.charging.paddedBy
 import com.berke.ioniqscope.charging.ChargerRepository
 import com.berke.ioniqscope.charging.ChargerTariffs
+import com.berke.ioniqscope.charging.Place
+import com.berke.ioniqscope.charging.PlaceIndex
 import com.berke.ioniqscope.charging.Route
 import com.berke.ioniqscope.charging.RouteService
 import com.berke.ioniqscope.data.AppSettings
@@ -109,6 +111,20 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     private val _searchResults = MutableStateFlow<List<ChargerSite>>(emptyList())
     val searchResults: StateFlow<List<ChargerSite>> = _searchResults.asStateFlow()
 
+    private val places = PlaceIndex(services.appContext)
+    private val _placeResults = MutableStateFlow<List<Place>>(emptyList())
+    val placeResults: StateFlow<List<Place>> = _placeResults.asStateFlow()
+
+    /**
+     * Where the suggestions are measured from, when that is not the user.
+     *
+     * Picking a place off the search results is a way of asking "what if I were here",
+     * and the five suggestions are the answer. Null means the answer is about wherever
+     * the phone actually is, which is what following restores.
+     */
+    private val _viewpoint = MutableStateFlow<Pair<Double, Double>?>(null)
+    val viewpoint: StateFlow<Pair<Double, Double>?> = _viewpoint.asStateFlow()
+
     private val routeService = RouteService()
     private var followJob: Job? = null
     private var boundsJob: Job? = null
@@ -126,6 +142,15 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     private val here: Pair<Double, Double>?
         get() = (_location.value as? LocationState.Known)?.let { it.lat to it.lon }
+
+    /**
+     * The point the list and the suggestions are measured from.
+     *
+     * A chosen viewpoint wins over the phone: having asked what is around Balçova, the
+     * list should not quietly re-sort itself around the driveway you are standing on.
+     */
+    private val anchorPoint: Pair<Double, Double>?
+        get() = _viewpoint.value ?: here
 
     /**
      * True while the list is up, and with it the list's nearest-first query.
@@ -257,7 +282,7 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
                 minPowerKw = current.chargersMinPowerKw.toDouble(),
                 operators = current.chargersOperators,
                 limit = NEAREST_LIMIT
-            ).map { it.withDistance(anchor) }.sortedBy { it.distanceMetres }
+            ).map { it.withDistance(anchorPoint) }.sortedBy { it.distanceMetres }
         }
     }
 
@@ -491,10 +516,11 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
             return
         }
         searchJob = viewModelScope.launch {
-            val anchor = here ?: DEFAULT_ANCHOR
+            val anchor = anchorPoint ?: DEFAULT_ANCHOR
+            _placeResults.value = places.search(query)
             _searchResults.value = groupIntoSites(
                 repo.search(query, anchor.first, anchor.second)
-                    .map { it.withDistance(here) }
+                    .map { it.withDistance(anchorPoint) }
             )
         }
     }
@@ -502,6 +528,25 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     fun clearSearch() {
         searchJob?.cancel()
         _searchResults.value = emptyList()
+        _placeResults.value = emptyList()
+    }
+
+    /**
+     * Looks at the map from [place] instead of from the phone.
+     *
+     * Following is stopped first, or the next fix would drag the map back and the
+     * suggestions with it — having just been asked to look somewhere else.
+     */
+    fun viewFrom(place: Place) {
+        stopFollowing()
+        _viewpoint.value = place.lat to place.lon
+        loadRoutes(place.lat, place.lon)
+    }
+
+    /** Back to answering about where the phone is. */
+    fun clearViewpoint() {
+        _viewpoint.value = null
+        here?.let { loadRoutes(it.first, it.second) } ?: clearRoutes()
     }
 
     companion object {

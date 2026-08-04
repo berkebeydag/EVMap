@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -46,6 +47,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -79,6 +81,7 @@ import com.berke.ioniqscope.charging.BoundingBox
 import com.berke.ioniqscope.charging.ChargerTariffs
 import com.berke.ioniqscope.charging.ChargerTariffs.AS_OF
 import com.berke.ioniqscope.charging.Http
+import com.berke.ioniqscope.charging.Place
 import com.berke.ioniqscope.connection.ConnectionState
 import com.berke.ioniqscope.data.OperatorCount
 import com.berke.ioniqscope.ui.components.Banner
@@ -128,6 +131,7 @@ fun ChargerMapScreen(
     val following by vm.following.collectAsStateWithLifecycle()
     val routes by vm.routes.collectAsStateWithLifecycle()
     val searchResults by vm.searchResults.collectAsStateWithLifecycle()
+    val placeResults by vm.placeResults.collectAsStateWithLifecycle()
 
     // The view model owns this. Remembering it here as well let the two disagree
     // whenever the screen left composition with the list open.
@@ -398,7 +402,19 @@ fun ChargerMapScreen(
             if (searching) {
                 SearchPanel(
                     results = searchResults,
+                    places = placeResults,
                     onQuery = vm::search,
+                    onPickPlace = { place ->
+                        // Sent to the place and asked about it: the map moves, and the
+                        // five suggestions are recomputed as though the driver were
+                        // standing there. Which is the question — what is around where
+                        // I am going — and it used to be answered about the driveway
+                        // the phone was sitting on.
+                        moveTo = GeoPoint(place.lat, place.lon) to placeZoom(place)
+                        vm.viewFrom(place)
+                        searching = false
+                        vm.clearSearch()
+                    },
                     onPick = { site ->
                         moveTo = GeoPoint(site.lat, site.lon) to PICKED_ZOOM
                         selected = site
@@ -613,8 +629,10 @@ private fun MapButton(
 @Composable
 private fun SearchPanel(
     results: List<ChargerSite>,
+    places: List<Place>,
     onQuery: (String) -> Unit,
     onPick: (ChargerSite) -> Unit,
+    onPickPlace: (Place) -> Unit,
     onClose: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
@@ -632,8 +650,8 @@ private fun SearchPanel(
                     onQuery(it)
                 },
                 singleLine = true,
-                label = { Text("İstasyon ara") },
-                placeholder = { Text("ZES, Trugo, bir ilçe…") },
+                label = { Text("Yer ya da istasyon ara") },
+                placeholder = { Text("Balçova, Çeşme, ZES…") },
                 trailingIcon = {
                     IconButton(onClick = onClose) {
                         Icon(Icons.Filled.Close, contentDescription = "Aramayı kapat")
@@ -642,7 +660,7 @@ private fun SearchPanel(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            if (query.isNotBlank() && results.isEmpty()) {
+            if (query.isNotBlank() && results.isEmpty() && places.isEmpty()) {
                 Text(
                     "Eşleşen bir şey yok. Arama, cihazdaki istasyonlar üzerinde çalışıyor; " +
                         "haritanın tamamında değil.",
@@ -656,6 +674,46 @@ private fun SearchPanel(
                 Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
+                // Places first, and labelled, because they answer a different question:
+                // a station is somewhere to plug in and a place is somewhere to go, and
+                // most searches typed into a map are the second kind.
+                if (places.isNotEmpty()) {
+                    items(places, key = { "place_" + it.kind + it.name + it.detail }) { place ->
+                        TextButton(
+                            onClick = { onPickPlace(place) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.Place,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                                    Text(
+                                        place.name,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        "${place.detail} · ${place.count} istasyon",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (results.isNotEmpty()) {
+                        item {
+                            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                        }
+                    }
+                }
+
                 items(results.take(SEARCH_RESULTS_SHOWN), key = { it.id }) { site ->
                     TextButton(
                         onClick = { onPick(site) },
@@ -1803,6 +1861,18 @@ private const val USER_ZOOM = 14.0
 private const val PICKED_ZOOM = 16.0
 
 private const val SEARCH_RESULTS_SHOWN = 8
+
+/**
+ * How close to sit when sent to a place.
+ *
+ * A province is not looked at from a forecourt and a neighbourhood is not looked at
+ * from orbit — arriving at Istanbul zoomed to a street would show one junction of it.
+ */
+private fun placeZoom(place: Place): Double = when (place.kind) {
+    "province" -> 9.5
+    "district" -> 12.0
+    else -> 14.0
+}
 
 /**
  * The colours the map's own controls are drawn in.
