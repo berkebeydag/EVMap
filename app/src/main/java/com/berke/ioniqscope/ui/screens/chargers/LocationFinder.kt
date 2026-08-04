@@ -31,7 +31,17 @@ sealed interface LocationState {
         val lat: Double,
         val lon: Double,
         val fromCache: Boolean,
-        val accuracyMetres: Float? = null
+        val accuracyMetres: Float? = null,
+        /**
+         * Ground speed in km/h when the fix stated one.
+         *
+         * The receiver computes this from Doppler shift rather than from successive
+         * positions, so it is good even when the position is not, and it is the only
+         * speed available on a car that does not answer 010D — which is every E-GMP,
+         * measured. Null on a cached fix, which is a position from some time ago and
+         * says nothing about how fast anything is moving now.
+         */
+        val speedKmh: Double? = null
     ) : LocationState
     data object PermissionMissing : LocationState
     data object Disabled : LocationState
@@ -207,7 +217,8 @@ class LocationFinder(private val context: Context) {
         lat = latitude,
         lon = longitude,
         fromCache = fromCache,
-        accuracyMetres = if (hasAccuracy() && accuracy > 0f) accuracy else null
+        accuracyMetres = if (hasAccuracy() && accuracy > 0f) accuracy else null,
+        speedKmh = if (!fromCache && hasSpeed()) (speed * 3.6).toDouble() else null
     )
 
     /**

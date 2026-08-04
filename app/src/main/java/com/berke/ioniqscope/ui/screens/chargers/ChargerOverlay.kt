@@ -130,6 +130,23 @@ class ChargerOverlay(
     private val cellPx = 16f * density
 
     private val poiRadius = 3.2f * density
+
+    /**
+     * Smaller and paler than a station's name — 8.5sp against 10, and a grey rather
+     * than the map's ink. It should be legible when looked at and unnoticed when not.
+     */
+    private val poiLabel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = 8.5f * density
+        color = 0xFF8A8272.toInt()
+    }
+    private val poiLabelHalo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSize = 8.5f * density
+        style = Paint.Style.STROKE
+        strokeWidth = 2.6f * density
+        color = 0xE6F7F2E7.toInt()
+    }
     private val poiLabelGap = 3f * density
     private val poiFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val poiRing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -244,9 +261,10 @@ class ChargerOverlay(
     private val takenLabels = ArrayList<RectF>()
 
     override fun draw(canvas: Canvas, projection: Projection) {
-        // Under everything else. A cafe must never sit on top of the charger it is
-        // next to — the chargers are the reason the map is open.
-        drawPois(canvas, projection)
+        // Dots under everything else. A cafe must never sit on top of the charger it
+        // is next to — the chargers are the reason the map is open. Their names come
+        // last, after the stations have taken the space they need.
+        drawPoiDots(canvas, projection)
         drawRoutes(canvas, projection)
         drawUser(canvas, projection)
         if (sites.isEmpty()) return
@@ -305,6 +323,13 @@ class ChargerOverlay(
         }
 
         drawLabels(canvas, singleTargets, clusterTargets)
+        // After the stations, always. Label placement is first-come — whatever is
+        // drawn first claims the space and everything after it is dropped — so
+        // drawing these with the dots meant a row of cafe names could push out the
+        // name of the charger standing between them. Now a station name is never
+        // refused for an amenity; an amenity name is refused for a station, which is
+        // the right way round on a map for finding chargers.
+        drawPoiLabels(canvas, projection)
         // Last, over everything. A suggestion's end point is the one marker on this
         // screen the user is being pointed at, and drawn in with the rest it was a dot
         // among five hundred dots — indistinguishable from the stations it was being
@@ -331,26 +356,58 @@ class ChargerOverlay(
      * fits without fighting anything. A driver scanning for somewhere to plug in should
      * be able to ignore this layer entirely, and only notice it once they have stopped.
      */
-    private fun drawPois(canvas: Canvas, projection: Projection) {
+    private fun drawPoiDots(canvas: Canvas, projection: Projection) {
         if (pois.isEmpty()) return
-        val width = canvas.width
-        val height = canvas.height
-
         for (poi in pois) {
             projection.toPixels(GeoPoint(poi.lat, poi.lon), reusablePoint)
             val x = reusablePoint.x.toFloat()
             val y = reusablePoint.y.toFloat()
-            if (x < 0f || y < 0f || x > width || y > height) continue
+            if (x < 0f || y < 0f || x > canvas.width || y > canvas.height) continue
 
-            val colour = poiColour(poi.kind)
-            poiFill.color = colour
+            poiFill.color = poiColour(poi.kind)
             canvas.drawCircle(x, y, poiRadius, poiRing)
             canvas.drawCircle(x, y, poiRadius, poiFill)
+        }
+    }
 
-            poi.name?.let { name ->
-                place(canvas, name, x, y + poiRadius + poiLabelGap, bold = false)
+    /**
+     * Amenity names, in whatever room the stations left.
+     *
+     * Capped as well as deferred. A shopping street has thirty of these within a
+     * screen, and thirty names is not information — it is a wall of text with a map
+     * behind it. The nearest handful say what kind of place this is, which is all the
+     * layer is for.
+     */
+    private fun drawPoiLabels(canvas: Canvas, projection: Projection) {
+        if (pois.isEmpty()) return
+        var drawn = 0
+        for (poi in pois) {
+            if (drawn >= MAX_POI_LABELS) return
+            val name = poi.name?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+            projection.toPixels(GeoPoint(poi.lat, poi.lon), reusablePoint)
+            val x = reusablePoint.x.toFloat()
+            val y = reusablePoint.y.toFloat()
+            if (x < 0f || y < 0f || x > canvas.width || y > canvas.height) continue
+            if (placeQuiet(canvas, name, x, y + poiRadius + poiLabelGap + poiLabel.textSize)) {
+                drawn++
             }
         }
+    }
+
+    /** [place], in the amenity layer's smaller, paler type. */
+    private fun placeQuiet(canvas: Canvas, text: String, x: Float, y: Float): Boolean {
+        val shown = text.clipTo(MAX_POI_LABEL_CHARS)
+        val halfWidth = poiLabel.measureText(shown) / 2f
+        val box = RectF(
+            x - halfWidth, y - poiLabel.textSize,
+            x + halfWidth, y + poiLabel.textSize / 3f
+        )
+        if (takenLabels.any { RectF.intersects(it, box) }) return false
+        takenLabels += box
+
+        canvas.drawText(shown, x, y, poiLabelHalo)
+        canvas.drawText(shown, x, y, poiLabel)
+        return true
     }
 
     private fun poiColour(kind: String): Int = when (kind) {
@@ -842,6 +899,10 @@ class ChargerOverlay(
         const val MAX_LABELS = 40
         /** Up from 16, so the power is not what gets cut off the end of a name. */
         const val MAX_LABEL_CHARS = 22
+
+        /** A screenful of amenity names is a wall of text with a map behind it. */
+        const val MAX_POI_LABELS = 8
+        const val MAX_POI_LABEL_CHARS = 16
 
         /** Below this a route point is visually identical to the last one. */
         const val ROUTE_MIN_STEP_PX = 2f

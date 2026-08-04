@@ -58,6 +58,7 @@ import com.berke.ioniqscope.ui.components.BannerTone
 import com.berke.ioniqscope.ui.components.EmptyState
 import com.berke.ioniqscope.ui.components.GaugeCard
 import com.berke.ioniqscope.ui.components.formatReading
+import com.berke.ioniqscope.ui.screens.chargers.LocationFinder
 import com.berke.ioniqscope.ui.serviceViewModel
 import java.util.Locale
 import kotlinx.coroutines.Job
@@ -70,7 +71,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-class DashboardViewModel(services: ServiceLocator) : ViewModel() {
+class DashboardViewModel(private val services: ServiceLocator) : ViewModel() {
 
     private val manager = services.connectionManager
 
@@ -79,6 +80,42 @@ class DashboardViewModel(services: ServiceLocator) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = services.settings.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
+
+    /**
+     * Road speed from the satellite receiver, for the cars that will not report it.
+     *
+     * The standard PID for speed is 010D and an E-GMP answers it with NO DATA —
+     * measured on an Ioniq 6, along with module voltage and ambient temperature. So the
+     * one number a driver most expects to see was permanently blank on exactly the car
+     * this app was written for.
+     *
+     * The receiver has it anyway: it derives ground speed from Doppler shift rather
+     * than from successive positions, which is why it is good even where the position
+     * is not, and it works on every car ever made. It is not enough to time a 0-100
+     * with — that wants ten readings a second and this is one — so the Performance
+     * screen still waits for a car that answers on the wire.
+     */
+    private val _gpsSpeed = MutableStateFlow<Double?>(null)
+    val gpsSpeed: StateFlow<Double?> = _gpsSpeed.asStateFlow()
+
+    private var gpsJob: Job? = null
+
+    fun startGpsSpeed() {
+        if (gpsJob?.isActive == true) return
+        gpsJob = viewModelScope.launch {
+            runCatching {
+                LocationFinder(services.appContext).stream().collect { fix ->
+                    _gpsSpeed.value = fix.speedKmh
+                }
+            }
+        }
+    }
+
+    fun stopGpsSpeed() {
+        gpsJob?.cancel()
+        gpsJob = null
+        _gpsSpeed.value = null
+    }
 
     /**
      * Takes ownership of the poll loop with the user's chosen PID set.
@@ -101,6 +138,14 @@ fun DashboardScreen(services: ServiceLocator, onConnect: () -> Unit) {
 
     val connected = connection is ConnectionState.Connected
     val profile = VehicleProfile.byId(settings.vehicleProfileId)
+    val gpsSpeed by vm.gpsSpeed.collectAsStateWithLifecycle()
+
+    // Only while this screen is up, and only while connected: a satellite fix costs
+    // battery, and nobody wants it running because they once opened the dashboard.
+    DisposableEffect(connected) {
+        if (connected) vm.startGpsSpeed()
+        onDispose { vm.stopGpsSpeed() }
+    }
 
     LaunchedEffect(connected, settings.dashboardPidKeys, settings.pollIntervalMs) {
         if (connected) vm.claimPolling(settings)
@@ -142,6 +187,7 @@ fun DashboardScreen(services: ServiceLocator, onConnect: () -> Unit) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 SpeedHeroCard(
                     reading = state[speed.key],
+                    gpsSpeedKmh = gpsSpeed,
                     settings = settings
                 )
             }
@@ -188,7 +234,11 @@ fun DashboardScreen(services: ServiceLocator, onConnect: () -> Unit) {
             )
         }
 
-        val silent = selected.filter { state[it.key] == null }
+        // Speed drops out of this list once the receiver is answering for it: telling
+        // somebody a reading is missing while showing it to them is just wrong.
+        val silent = selected.filter {
+            state[it.key] == null && !(it.key == PidCatalog.speed.key && gpsSpeed != null)
+        }
         if (connected && silent.isNotEmpty() && state.isNotEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
@@ -227,9 +277,15 @@ private fun NotConnectedBanner(connected: Boolean, onConnect: () -> Unit) {
  * same angle means the same speed every time.
  */
 @Composable
-private fun SpeedHeroCard(reading: Reading?, settings: AppSettings) {
+private fun SpeedHeroCard(reading: Reading?, gpsSpeedKmh: Double?, settings: AppSettings) {
     val scheme = MaterialTheme.colorScheme
-    val kmh = reading?.value ?: 0.0
+    // The wire first, the sky second. A car that reports its own speed is telling you
+    // what its wheels are doing; the receiver is telling you what the whole car is
+    // doing over the ground, which is the same number until it is not — a wheelspin,
+    // a tunnel, a hill of trees.
+    val fromGps = reading == null && gpsSpeedKmh != null
+    val kmh = reading?.value ?: gpsSpeedKmh ?: 0.0
+    val haveSpeed = reading != null || gpsSpeedKmh != null
     val shown = settings.speedUnit.fromKmh(kmh)
 
     // The fastest seen since the screen opened. Remembered rather than stored: it is
@@ -286,11 +342,15 @@ private fun SpeedHeroCard(reading: Reading?, settings: AppSettings) {
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        PidCatalog.speed.label.uppercase(),
+                        // Named for where it came from. A speed off the satellites and
+                        // a speed off the car are different measurements, and a driver
+                        // comparing this against the dashboard in front of them should
+                        // know which one they are holding.
+                        if (fromGps) "HIZ · GPS" else PidCatalog.speed.label.uppercase(),
                         style = MaterialTheme.typography.labelSmall,
-                        color = scheme.onSurfaceVariant
+                        color = if (fromGps) scheme.tertiary else scheme.onSurfaceVariant
                     )
-                    if (reading == null) {
+                    if (!haveSpeed) {
                         Text(
                             "veri bekleniyor",
                             style = MaterialTheme.typography.titleMedium,

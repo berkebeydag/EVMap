@@ -33,16 +33,20 @@ BUNDLE = 'app/src/main/assets/chargers_tr.json'
 PARTIAL = 'data/pois_partial.jsonl'
 OUT = 'data/pois_raw.json'
 
+# Kumi first. The main instance rate-limits by IP and makes you wait for a slot, which
+# is where the time went: measured over fifteen boxes, most came back in two or three
+# seconds and a few took four hundred, and the four hundred was queueing rather than
+# work. Kumi is the more generous mirror and the main instance is the fallback.
 ENDPOINTS = (
-    'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass-api.de/api/interpreter',
 )
 
 CELL = 0.5
 KEEP_WITHIN_M = 250.0
-PAUSE_S = 1.5
-BACKOFF_S = 30.0
-MAX_TRIES = 3
+PAUSE_S = 1.0
+BACKOFF_S = 20.0
+MAX_ROUNDS = 3
 
 AMENITIES = 'cafe|restaurant|fast_food|fuel|pharmacy|toilets'
 SHOPS = 'supermarket|convenience|bakery|mall'
@@ -76,35 +80,41 @@ def query_for(box):
 
 
 def ask(box, depth=0):
+    """
+    One box, from whichever mirror answers.
+
+    The mirrors are tried back to back with no pause between them. The first version
+    slept thirty seconds before moving to the second, which meant every box a mirror
+    refused cost thirty seconds of nothing — measured, that was the whole runtime:
+    boxes that should take three seconds were taking ninety. A pause belongs after
+    everything has refused, not between two things that have not been asked yet.
+    """
     data = urllib.parse.urlencode({'data': query_for(box)}).encode()
-    for attempt in range(1, MAX_TRIES + 1):
-        endpoint = ENDPOINTS[(attempt - 1) % len(ENDPOINTS)]
-        try:
-            request = urllib.request.Request(endpoint, data=data, headers=HEADERS)
-            with urllib.request.urlopen(request, timeout=300) as response:
-                return json.load(response).get('elements', [])
-        except urllib.error.HTTPError as error:
-            if error.code in (429, 504) and attempt < MAX_TRIES:
-                time.sleep(BACKOFF_S)
-                continue
-            if error.code == 504 and depth < 2:
-                # Too much in one box: quarter it. Only ever needed over a city.
-                south, west, north, east = box
-                mid_lat, mid_lon = (south + north) / 2, (west + east) / 2
-                out = []
-                for quarter in ((south, west, mid_lat, mid_lon),
-                                (south, mid_lon, mid_lat, east),
-                                (mid_lat, west, north, mid_lon),
-                                (mid_lat, mid_lon, north, east)):
-                    out.extend(ask(quarter, depth + 1))
-                    time.sleep(PAUSE_S)
-                return out
-            raise
-        except Exception:                                # noqa: BLE001
-            if attempt < MAX_TRIES:
-                time.sleep(BACKOFF_S)
-                continue
-            raise
+    last = None
+    for round_number in range(MAX_ROUNDS):
+        for endpoint in ENDPOINTS:
+            try:
+                request = urllib.request.Request(endpoint, data=data, headers=HEADERS)
+                with urllib.request.urlopen(request, timeout=180) as response:
+                    return json.load(response).get('elements', [])
+            except urllib.error.HTTPError as error:
+                last = error
+                if error.code == 504 and depth < 2:
+                    # Too much in one box for this mirror: quarter it and ask again.
+                    south, west, north, east = box
+                    mid_lat, mid_lon = (south + north) / 2, (west + east) / 2
+                    out = []
+                    for quarter in ((south, west, mid_lat, mid_lon),
+                                    (south, mid_lon, mid_lat, east),
+                                    (mid_lat, west, north, mid_lon),
+                                    (mid_lat, mid_lon, north, east)):
+                        out.extend(ask(quarter, depth + 1))
+                    return out
+            except Exception as error:               # noqa: BLE001
+                last = error
+        if round_number < MAX_ROUNDS - 1:
+            time.sleep(BACKOFF_S)
+    print('    vazgecildi: %s' % last, flush=True)
     return []
 
 
