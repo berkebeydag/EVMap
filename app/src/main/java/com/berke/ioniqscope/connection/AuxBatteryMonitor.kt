@@ -25,6 +25,9 @@ class AuxBatteryMonitor(
     private val now: () -> Long = System::currentTimeMillis
 ) {
 
+    /** What [VehicleProfile] calls the 12V rail in its own battery answer. */
+    private val BMS_AUX_VOLTAGE_KEY = "aux_voltage"
+
     private var sessionStartPending = false
     private var lastRecordedAt = 0L
 
@@ -39,7 +42,18 @@ class AuxBatteryMonitor(
 
         scope.launch {
             manager.samples.collect { snapshot ->
-                val reading = snapshot[StandardPids.moduleVolt.key] ?: return@collect
+                // The standard PID first, the battery computer second.
+                //
+                // 0142 is the module voltage every car is supposed to publish, and an
+                // E-GMP answers it with NO DATA — so this collector returned on every
+                // sample and the card read "VERİ YOK" while the dashboard, two taps
+                // away, showed 12.5 V from the same car. The BMS reports the 12V rail
+                // as part of its own answer; it is the same rail measured by a
+                // different computer, and on a car that will not answer 0142 it is the
+                // only measurement there is.
+                val reading = snapshot[StandardPids.moduleVolt.key]
+                    ?: snapshot[BMS_AUX_VOLTAGE_KEY]
+                    ?: return@collect
                 record(reading.value)
             }
         }

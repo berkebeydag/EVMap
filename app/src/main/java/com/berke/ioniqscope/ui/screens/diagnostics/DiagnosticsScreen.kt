@@ -65,6 +65,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.berke.ioniqscope.obd.DtcInfo
 
 data class DiagnosticsUiState(
     val busy: Boolean = false,
@@ -447,18 +448,48 @@ private fun DtcRow(code: String) {
         )
     ) {
         Column(Modifier.padding(14.dp)) {
+            val meaning = DtcInfo.describe(code)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    code,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.weight(1f)
+                )
+                meaning?.let {
+                    Text(
+                        it.system,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // What the code's own structure states, and no more. A generic table would
+            // read P0243 as a turbocharger wastegate on a car with no turbocharger.
+            meaning?.let {
+                Text(
+                    it.scope,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+                it.note?.let { note ->
+                    Text(
+                        note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+
             Text(
-                code,
-                style = MaterialTheme.typography.titleLarge,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.tertiary
-            )
-            // No description is shown: IoniqScope ships no DTC dictionary, and
-            // inventing one would be worse than sending you to look the code up.
-            Text(
-                "Bu koda göre işlem yapmadan önce Hyundai/E-GMP dokümantasyonundan doğrula.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                "İşlem yapmadan önce kodun Hyundai/E-GMP karşılığını doğrula.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                modifier = Modifier.padding(top = 8.dp)
             )
         }
     }
