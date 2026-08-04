@@ -1752,18 +1752,30 @@ private const val CARTO_ATTRIBUTION = "© OpenStreetMap contributors © CARTO"
  * Same provider, same terms, same attribution, and no key or account either way.
  */
 /**
- * Positron, repainted to parchment as each tile is decoded.
+ * Voyager, drawn as CARTO ships it.
  *
- * The recolour is per pixel rather than a colour filter, for the reason set out in
- * [ParchmentTileSource]: one linear transform cannot warm the land, cool the water and
- * leave the type alone at the same time.
+ * This was Positron repainted parchment pixel by pixel, which was the only way to get
+ * a warm map out of a style that is deliberately colourless. Voyager is already warm —
+ * cream ground, tan buildings, a graded road hierarchy — and it carries what Positron
+ * throws away: building footprints, and motorways that look different from streets.
+ * Compared at zoom 16 over Konak, Positron renders the whole block as pale grey mush
+ * and Voyager separates every building on it.
+ *
+ * So the repaint goes. It cost a pass over every pixel of every tile to approximate
+ * something another style of the same provider already is, and it was doing that to a
+ * tile with less on it.
+ *
+ * What neither has is points of interest: no cafe, no fuel pump, no shop, at any zoom.
+ * CARTO's raster styles do not carry POI symbology at all — measured at 16, 17 and 18.
+ * Those have to come from somewhere else or not at all.
  */
-private val CARTO_PARCHMENT = ParchmentTileSource(
-    "carto-parchment",
+private val CARTO_PARCHMENT = XYTileSource(
+    "carto-voyager",
+    0, 20, 512, ".png",
     arrayOf(
-        "https://a.basemaps.cartocdn.com/rastertiles/light_all/",
-        "https://b.basemaps.cartocdn.com/rastertiles/light_all/",
-        "https://c.basemaps.cartocdn.com/rastertiles/light_all/"
+        "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
+        "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
+        "https://c.basemaps.cartocdn.com/rastertiles/voyager/"
     ),
     CARTO_ATTRIBUTION
 )
