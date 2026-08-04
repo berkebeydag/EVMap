@@ -82,6 +82,7 @@ import com.berke.ioniqscope.charging.ChargerTariffs
 import com.berke.ioniqscope.charging.ChargerTariffs.AS_OF
 import com.berke.ioniqscope.charging.Http
 import com.berke.ioniqscope.charging.Place
+import com.berke.ioniqscope.charging.Poi
 import com.berke.ioniqscope.connection.ConnectionState
 import com.berke.ioniqscope.data.OperatorCount
 import com.berke.ioniqscope.ui.components.Banner
@@ -132,6 +133,7 @@ fun ChargerMapScreen(
     val routes by vm.routes.collectAsStateWithLifecycle()
     val searchResults by vm.searchResults.collectAsStateWithLifecycle()
     val placeResults by vm.placeResults.collectAsStateWithLifecycle()
+    val pois by vm.pois.collectAsStateWithLifecycle()
 
     // The view model owns this. Remembering it here as well let the two disagree
     // whenever the screen left composition with the list open.
@@ -316,6 +318,7 @@ fun ChargerMapScreen(
             sites = sites,
             routes = routes,
             onBoundsChanged = vm::loadForBounds,
+            pois = pois,
             onSelect = { selected = it },
             onUserPan = vm::stopFollowing,
             userLocation = (location as? LocationState.Known)?.let { it.lat to it.lon },
@@ -1403,6 +1406,7 @@ private const val COARSE_FIX_M = 300f
 private fun ChargerMap(
     sites: List<ChargerSite>,
     routes: List<SiteRoute>,
+    pois: List<Poi>,
     onBoundsChanged: (BoundingBox) -> Unit,
     onSelect: (ChargerSite) -> Unit,
     onUserPan: () -> Unit,
@@ -1503,6 +1507,7 @@ private fun ChargerMap(
             // looks empty, and no cap that would cut by database order rather than
             // by geography.
             overlay.sites = sites
+            overlay.pois = pois
             overlay.routes = routes.mapIndexed { index, entry ->
                 ChargerOverlay.DrawnRoute(
                     points = entry.route.points,
@@ -1800,6 +1805,12 @@ private val MAP_MARKERS = ChargerOverlay.Colors(
     // the map instead of pasted over it.
     label = 0xFF5F5749.toInt(),
     labelHalo = 0xF0F6F1E6.toInt(),
+    // Muted against Voyager's own palette: present when looked for, invisible when
+    // scanning past. A cafe is context, not a destination.
+    poiFood = 0xFFD98A4A.toInt(),
+    poiFuel = 0xFF7E8AA0.toInt(),
+    poiService = 0xFF5FA08C.toInt(),
+    poiShop = 0xFFB08CC4.toInt(),
     routeCasing = 0x66000000
 )
 

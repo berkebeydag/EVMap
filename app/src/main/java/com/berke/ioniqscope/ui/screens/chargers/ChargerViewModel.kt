@@ -11,6 +11,8 @@ import com.berke.ioniqscope.charging.ChargerRepository
 import com.berke.ioniqscope.charging.ChargerTariffs
 import com.berke.ioniqscope.charging.Place
 import com.berke.ioniqscope.charging.PlaceIndex
+import com.berke.ioniqscope.charging.Poi
+import com.berke.ioniqscope.charging.PoiIndex
 import com.berke.ioniqscope.charging.Route
 import com.berke.ioniqscope.charging.RouteService
 import com.berke.ioniqscope.data.AppSettings
@@ -112,6 +114,31 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     val searchResults: StateFlow<List<ChargerSite>> = _searchResults.asStateFlow()
 
     private val places = PlaceIndex(services.appContext)
+
+    private val poiIndex = PoiIndex(services.appContext)
+    private val _pois = MutableStateFlow<List<Poi>>(emptyList())
+    val pois: StateFlow<List<Poi>> = _pois.asStateFlow()
+    private var poiJob: Job? = null
+
+    /**
+     * The amenities inside [box], but only once the map is close enough to mean them.
+     *
+     * The threshold is a span rather than a zoom level so it holds on any screen: about
+     * a kilometre and a half across, which is roughly zoom 15 on a phone. Wider than
+     * that they stop being "what is at this charger" and become a scattering of dots
+     * over a country, which is noise on a map whose job is finding somewhere to plug in.
+     */
+    private fun loadPois(box: BoundingBox) {
+        poiJob?.cancel()
+        val span = maxOf(box.maxLat - box.minLat, box.maxLon - box.minLon)
+        if (span > POI_MAX_SPAN_DEG) {
+            if (_pois.value.isNotEmpty()) _pois.value = emptyList()
+            return
+        }
+        poiJob = viewModelScope.launch {
+            _pois.value = poiIndex.inBounds(box.paddedBy(VIEWPORT_MARGIN))
+        }
+    }
     private val _placeResults = MutableStateFlow<List<Place>>(emptyList())
     val placeResults: StateFlow<List<Place>> = _placeResults.asStateFlow()
 
@@ -225,6 +252,7 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     /** Reloads the visible set for a viewport, applying the user's filters. */
     fun loadForBounds(box: BoundingBox) {
         lastBounds = box
+        loadPois(box)
         // While the list is showing nearest-first, panning the map underneath must
         // not quietly replace it with viewport results.
         if (_listMode.value && here != null) return
@@ -551,6 +579,9 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
 
     companion object {
         private const val NEAREST_LIMIT = 300
+
+        /** Roughly a kilometre and a half across — about zoom 15 on a phone. */
+        private const val POI_MAX_SPAN_DEG = 0.02
 
         /**
          * How much wider than the viewport each query reaches, as a fraction of the

@@ -16,6 +16,7 @@ import kotlin.math.PI
 import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.tan
+import com.berke.ioniqscope.charging.Poi
 
 /**
  * Draws every site in one overlay instead of one [org.osmdroid.views.overlay.Marker]
@@ -53,7 +54,12 @@ class ChargerOverlay(
         val userRing: Int,
         val label: Int,
         val labelHalo: Int,
-        val routeCasing: Int
+        val routeCasing: Int,
+        /** Amenity dots, muted so they read as context rather than as destinations. */
+        val poiFood: Int,
+        val poiFuel: Int,
+        val poiService: Int,
+        val poiShop: Int
     )
 
     var sites: List<ChargerSite> = emptyList()
@@ -62,6 +68,15 @@ class ChargerOverlay(
             singles = emptyList()
             clusters = emptyList()
         }
+
+    /**
+     * What is around the chargers, drawn only when the map is close enough to mean it.
+     *
+     * Empty at any distance where they would be noise rather than information: this is
+     * a map for finding chargers, and a country covered in cafe dots is a map for
+     * finding nothing.
+     */
+    var pois: List<Poi> = emptyList()
 
     /** Where the user is, drawn distinctly from the stations. */
     var userLocation: Pair<Double, Double>? = null
@@ -113,6 +128,15 @@ class ChargerOverlay(
      * shows the user the same single blob, minus the number telling them it is two.
      */
     private val cellPx = 16f * density
+
+    private val poiRadius = 3.2f * density
+    private val poiLabelGap = 3f * density
+    private val poiFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val poiRing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.4f * density
+        color = 0xCCFFFFFF.toInt()
+    }
     private val dotRadius = 5f * density
 
     /** How long each chevron's tail is. Small enough to sit inside the line's width. */
@@ -220,6 +244,9 @@ class ChargerOverlay(
     private val takenLabels = ArrayList<RectF>()
 
     override fun draw(canvas: Canvas, projection: Projection) {
+        // Under everything else. A cafe must never sit on top of the charger it is
+        // next to — the chargers are the reason the map is open.
+        drawPois(canvas, projection)
         drawRoutes(canvas, projection)
         drawUser(canvas, projection)
         if (sites.isEmpty()) return
@@ -296,6 +323,43 @@ class ChargerOverlay(
      * point on the map, which a circle does not have. The colour is what ties it to
      * its line and to its row in the panel.
      */
+    /**
+     * The amenities around the chargers: a small ringed dot and, where there is room,
+     * its name.
+     *
+     * Deliberately quieter than a station — smaller, paler, no label unless the name
+     * fits without fighting anything. A driver scanning for somewhere to plug in should
+     * be able to ignore this layer entirely, and only notice it once they have stopped.
+     */
+    private fun drawPois(canvas: Canvas, projection: Projection) {
+        if (pois.isEmpty()) return
+        val width = canvas.width
+        val height = canvas.height
+
+        for (poi in pois) {
+            projection.toPixels(GeoPoint(poi.lat, poi.lon), reusablePoint)
+            val x = reusablePoint.x.toFloat()
+            val y = reusablePoint.y.toFloat()
+            if (x < 0f || y < 0f || x > width || y > height) continue
+
+            val colour = poiColour(poi.kind)
+            poiFill.color = colour
+            canvas.drawCircle(x, y, poiRadius, poiRing)
+            canvas.drawCircle(x, y, poiRadius, poiFill)
+
+            poi.name?.let { name ->
+                place(canvas, name, x, y + poiRadius + poiLabelGap, bold = false)
+            }
+        }
+    }
+
+    private fun poiColour(kind: String): Int = when (kind) {
+        "cafe", "restaurant", "fast_food", "bakery" -> colors.poiFood
+        "fuel" -> colors.poiFuel
+        "toilets", "pharmacy" -> colors.poiService
+        else -> colors.poiShop
+    }
+
     private fun drawDestinations(canvas: Canvas, projection: Projection) {
         for (route in routes) {
             projection.toPixels(
