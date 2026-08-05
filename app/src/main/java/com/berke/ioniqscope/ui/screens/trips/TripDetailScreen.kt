@@ -51,6 +51,7 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import com.berke.ioniqscope.connection.GPS_LAT_KEY
 import com.berke.ioniqscope.connection.GPS_LON_KEY
+import com.berke.ioniqscope.data.RecordedSeries
 
 /** What the battery computer calls the 12V rail; the only source on a car that will
  *  not answer the standard module-voltage PID. */
@@ -64,6 +65,24 @@ private const val BMS_AUX_VOLTAGE_KEY = "aux_voltage"
  */
 private const val MIN_DISTANCE_FOR_CONSUMPTION_M = 300.0
 
+/** A chart's x value is an epoch millisecond; this is what to write under it. */
+private fun clockAt(x: Double): String =
+    clockFormatter.format(Instant.ofEpochMilli(x.toLong()))
+
+private val clockFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+    .withZone(ZoneId.systemDefault())
+
+/**
+ * Series that are recorded but make no sense as a curve.
+ *
+ * A latitude drawn against time is a chart of how far north you drove, which nobody
+ * has ever wanted to look at; the positions exist to measure distance. Speed and the
+ * two the power curve is built from already have their own sections.
+ */
+private val NOT_WORTH_CHARTING = setOf(
+    GPS_LAT_KEY, GPS_LON_KEY, GPS_SPEED_KEY, "hv_current", "hv_voltage"
+)
+
 data class TripDetail(
     val trip: TripEntity?,
     /** Counted from the rows themselves; the trip row's own column can be stale. */
@@ -73,8 +92,12 @@ data class TripDetail(
     val speedSeries: List<SeriesPoint> = emptyList(),
     /** Pack power in kW over the trip; negative is regeneration. */
     val powerSeries: List<SeriesPoint> = emptyList(),
-    /** Net energy out of the pack, regeneration already subtracted. */
-    val energyKwh: Double = 0.0,
+    /** Energy out of the pack while driving it. */
+    val energyUsedKwh: Double = 0.0,
+    /** Energy put back into it by braking and descending. */
+    val energyRegainedKwh: Double = 0.0,
+    /** Every other reading the trip recorded, with its own trace. */
+    val otherSeries: List<Pair<RecordedSeries, List<SeriesPoint>>> = emptyList(),
     val voltSeries: List<SeriesPoint> = emptyList(),
     val maxKmh: Double? = null,
     val avgKmh: Double? = null,
@@ -136,12 +159,23 @@ class TripDetailViewModel(
             val amps = dao.series(tripId, "hv_current")
             val volts2 = dao.series(tripId, "hv_voltage")
             val power = pairSeries(amps, volts2) { a, v -> a * v / 1000.0 }
-            val energyKwh = integrateEnergy(power)
+            // Kept apart rather than netted. "0.98 kWh, regeneration already
+            // subtracted" answers a question nobody asked — what a driver wants to
+            // know is how much went out and how much came back, and the ratio between
+            // them is the whole story of how a drive was driven.
+            val (used, regained) = splitEnergy(power)
+
+            // Everything else the trip holds, charted in whatever order it comes back.
+            val others = dao.recordedSeries(tripId)
+                .filter { it.sampleCount >= 2 && it.pidKey !in NOT_WORTH_CHARTING }
+                .map { it to dao.series(tripId, it.pidKey) }
 
             _detail.value = TripDetail(
                 trip = trip,
                 powerSeries = power,
-                energyKwh = energyKwh,
+                energyUsedKwh = used,
+                energyRegainedKwh = regained,
+                otherSeries = others,
                 sampleCount = realCount,
                 lastSampleAt = lastAt,
                 speedSeries = speed,
@@ -201,15 +235,42 @@ class TripDetailViewModel(
         }
     }
 
-    /** Trapezoidal integral of kW over time, in kWh. */
-    private fun integrateEnergy(power: List<SeriesPoint>): Double {
-        var total = 0.0
+    /**
+     * Splits the power trace into what was spent and what came back, in kWh.
+     *
+     * A segment whose endpoints straddle zero is cut at the crossing and each side
+     * counted separately, rather than assigned whole to whichever sign its average
+     * happened to have. That first version was defensible on paper and useless in
+     * practice: a drive that alternates between pulling and regenerating reported
+     * exactly zero regeneration, because every individual segment averaged positive.
+     * The crossing is where the trapezoid becomes two triangles and the arithmetic is
+     * no harder.
+     */
+    private fun splitEnergy(power: List<SeriesPoint>): Pair<Double, Double> {
+        var used = 0.0
+        var regained = 0.0
+
         for (i in 1 until power.size) {
             val hours = (power[i].atEpochMs - power[i - 1].atEpochMs) / 3_600_000.0
             if (hours <= 0 || hours > MAX_GAP_H) continue
-            total += (power[i].value + power[i - 1].value) / 2.0 * hours
+            val a = power[i - 1].value
+            val b = power[i].value
+
+            if (a >= 0 && b >= 0) {
+                used += (a + b) / 2.0 * hours
+            } else if (a <= 0 && b <= 0) {
+                regained += -(a + b) / 2.0 * hours
+            } else {
+                // Crosses zero. The fraction of the step before the crossing is
+                // a / (a - b), and each side is a triangle of its own endpoint.
+                val cross = a / (a - b)
+                val first = a / 2.0 * (hours * cross)
+                val second = b / 2.0 * (hours * (1 - cross))
+                if (a > 0) used += first else regained += -first
+                if (b > 0) used += second else regained += -second
+            }
         }
-        return total
+        return used to regained
     }
 
     /**
@@ -265,7 +326,9 @@ fun TripDetailScreen(services: ServiceLocator, tripId: Long) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            // Extra at the foot, because the navigation bar sits over the bottom of
+            // this column and was cutting the last chart's caption in half.
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
@@ -289,7 +352,8 @@ fun TripDetailScreen(services: ServiceLocator, tripId: Long) {
                 },
                 valueFormatter = {
                     String.format(Locale.US, "%.0f %s", it, settings.speedUnit.suffix)
-                }
+                },
+                xFormatter = ::clockAt
             )
         }
 
@@ -303,14 +367,18 @@ fun TripDetailScreen(services: ServiceLocator, tripId: Long) {
                 // merely low on a chart whose floor happens to be negative.
                 reference = 0.0,
                 referenceColor = MaterialTheme.colorScheme.outline,
-                valueFormatter = { String.format(Locale.US, "%.0f kW", it) }
+                valueFormatter = { String.format(Locale.US, "%.0f kW", it) },
+                xFormatter = ::clockAt
             )
             Text(
                 // Said plainly: a curve that dips under zero looks like an error
                 // unless you know it is the car putting energy back.
                 "Sıfırın altı geri kazanım — frende ve yokuş aşağı bataryaya geri " +
-                    "veriyor. Toplam ${String.format(Locale.US, "%.2f", detail.energyKwh)} " +
-                    "kWh harcandı, geri kazanım düşülmüş hâliyle.",
+                    "veriyor. Bu seferde " +
+                    "${String.format(Locale.US, "%.2f", detail.energyUsedKwh)} kWh " +
+                    "harcandı, " +
+                    "${String.format(Locale.US, "%.2f", detail.energyRegainedKwh)} kWh " +
+                    "geri kazanıldı.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)
@@ -323,14 +391,30 @@ fun TripDetailScreen(services: ServiceLocator, tripId: Long) {
             LineChart(
                 points = detail.voltSeries.map { ChartPoint(it.atEpochMs.toDouble(), it.value) },
                 lineColor = MaterialTheme.colorScheme.tertiary,
-                valueFormatter = { String.format(Locale.US, "%.2f V", it) }
+                valueFormatter = { String.format(Locale.US, "%.2f V", it) },
+                xFormatter = ::clockAt
             )
             Text(
-                "While driving this is the DC-DC converter's output rather than the " +
-                    "battery's own state — the resting trend on the 12V screen is the " +
-                    "one that says something about battery health.",
+                "Sürerken bu, akünün kendi durumu değil DC-DC dönüştürücünün çıkışı — " +
+                    "akü sağlığı hakkında bir şey söyleyen, 12V ekranındaki dinlenmiş " +
+                    "eğilim.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        // Everything else the trip wrote down. The screen used to show three charts
+        // against a table holding ten or more series, so state of charge, pack
+        // temperatures and battery health were recorded on every drive and had
+        // nowhere to appear.
+        detail.otherSeries.forEach { (meta, series) ->
+            HorizontalDivider()
+            SectionLabel(meta.label)
+            LineChart(
+                points = series.map { ChartPoint(it.atEpochMs.toDouble(), it.value) },
+                lineColor = MaterialTheme.colorScheme.primary,
+                valueFormatter = { String.format(Locale.US, "%.1f %s", it, meta.unit) },
+                xFormatter = ::clockAt
             )
         }
     }
@@ -399,15 +483,23 @@ private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
                     if (detail.distanceM > MIN_DISTANCE_FOR_CONSUMPTION_M) {
                         String.format(
                             Locale.US, "%.1f",
-                            detail.energyKwh / (detail.distanceM / 1000.0) * 100.0
+                            (detail.energyUsedKwh - detail.energyRegainedKwh) /
+                                (detail.distanceM / 1000.0) * 100.0
                         )
                     } else "—",
                     "kWh/100km"
                 )
                 Stat(
-                    "Enerji",
+                    "Harcanan",
                     if (detail.powerSeries.size >= 2) {
-                        String.format(Locale.US, "%.2f", detail.energyKwh)
+                        String.format(Locale.US, "%.2f", detail.energyUsedKwh)
+                    } else "—",
+                    "kWh"
+                )
+                Stat(
+                    "Geri kazanılan",
+                    if (detail.powerSeries.size >= 2) {
+                        String.format(Locale.US, "%.2f", detail.energyRegainedKwh)
                     } else "—",
                     "kWh"
                 )

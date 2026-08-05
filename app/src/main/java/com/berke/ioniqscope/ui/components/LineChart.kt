@@ -20,6 +20,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 import kotlin.math.abs
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Row
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 
 /** One point on a chart. [x] is usually a timestamp, [y] the measured value. */
 data class ChartPoint(val x: Double, val y: Double)
@@ -40,7 +50,12 @@ fun LineChart(
     lineColor: Color = MaterialTheme.colorScheme.primary,
     reference: Double? = null,
     referenceColor: Color = MaterialTheme.colorScheme.error,
-    valueFormatter: (Double) -> String = { String.format(Locale.US, "%.1f", it) }
+    valueFormatter: (Double) -> String = { String.format(Locale.US, "%.1f", it) },
+    /**
+     * How to write an x value. Null leaves the horizontal axis unlabelled, which is
+     * right for a chart whose x is an index and wrong for one whose x is a clock.
+     */
+    xFormatter: ((Double) -> String)? = null
 ) {
     if (points.size < 2) {
         EmptyState("Grafik için henüz yeterli veri yok.", modifier)
@@ -65,20 +80,59 @@ fun LineChart(
     val maxX = points.maxOf { it.x }
     val spanX = (maxX - minX).takeIf { abs(it) > 1e-9 } ?: 1.0
 
+    // Where the finger is, or null. A chart of six hundred points can be read at a
+    // glance for its shape and not at all for its numbers; touching it is how you ask
+    // what the number was at that moment.
+    var touchX by remember(points) { mutableStateOf<Float?>(null) }
+    var plotWidth by remember { mutableIntStateOf(0) }
+
+    val selected = touchX?.let { x ->
+        val fraction = (x / plotWidth.coerceAtLeast(1)).coerceIn(0f, 1f)
+        val target = minX + fraction * spanX
+        points.minByOrNull { abs(it.x - target) }
+    }
+
     Column(modifier) {
-        // Stacked above and below the plot, not side by side: these are the vertical
-        // extremes, and putting them left and right reads as a horizontal axis.
+        // What the finger is on, above the chart where it does not cover anything.
         Text(
-            valueFormatter(dataMax),
+            selected?.let { point ->
+                buildString {
+                    append(valueFormatter(point.y))
+                    xFormatter?.let { append("  ·  ").append(it(point.x)) }
+                }
+            } ?: valueFormatter(dataMax),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = if (selected != null) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant
         )
 
+        // Stacked above and below the plot, not side by side: these are the vertical
+        // extremes, and putting them left and right reads as a horizontal axis.
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(height)
                 .padding(vertical = 4.dp)
+                .onSizeChanged { plotWidth = it.width }
+                .pointerInput(points) {
+                    // Press and drag both scrub; letting go clears it, so the chart
+                    // goes back to describing itself rather than one moment of itself.
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { touchX = it.x },
+                        onDragEnd = { touchX = null },
+                        onDragCancel = { touchX = null },
+                        onDrag = { change, _ -> touchX = change.position.x }
+                    )
+                }
+                .pointerInput(points) {
+                    detectTapGestures(
+                        onPress = {
+                            touchX = it.x
+                            tryAwaitRelease()
+                            touchX = null
+                        }
+                    )
+                }
         ) {
             Canvas(Modifier.fillMaxWidth().height(height)) {
                 fun px(p: ChartPoint) = Offset(
@@ -121,13 +175,36 @@ fun LineChart(
 
                 // Mark the newest sample — on a trend chart that is the one that matters.
                 drawCircle(color = lineColor, radius = 5f, center = offsets.last())
+
+                selected?.let { point ->
+                    val at = px(point)
+                    drawLine(
+                        color = lineColor.copy(alpha = 0.55f),
+                        start = Offset(at.x, 0f),
+                        end = Offset(at.x, size.height),
+                        strokeWidth = 2f
+                    )
+                    drawCircle(color = lineColor, radius = 7f, center = at)
+                }
             }
         }
 
-        Text(
-            valueFormatter(dataMin),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(Modifier.fillMaxWidth()) {
+            Text(
+                valueFormatter(dataMin),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            // The clock, at the two ends. A chart of a drive with no time on it says
+            // what happened but never when, and "when" is half of reading one back.
+            xFormatter?.let { format ->
+                Text(
+                    "${format(minX)} – ${format(maxX)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }

@@ -272,6 +272,21 @@ interface TripDao {
      * duration at all. Its last sample is when it actually stopped recording, which is
      * the honest answer and within a second of the real one.
      */
+    /**
+     * Everything this trip recorded, and what to call it.
+     *
+     * The screen used to show three charts against a table holding ten or more series
+     * — state of charge, pack temperatures, health, voltage, current — none of which
+     * had anywhere to appear. Asking the data what it contains means a new PID needs
+     * no screen work at all.
+     */
+    @Query(
+        "SELECT pid_key AS pidKey, label AS label, unit AS unit, COUNT(*) AS sampleCount " +
+            "FROM trip_samples WHERE trip_id = :tripId GROUP BY pid_key, label, unit " +
+            "ORDER BY pid_key"
+    )
+    suspend fun recordedSeries(tripId: Long): List<RecordedSeries>
+
     @Query("SELECT MAX(at) FROM trip_samples WHERE trip_id = :tripId")
     suspend fun lastSampleAt(tripId: Long): Long?
 
@@ -337,6 +352,14 @@ interface TripDao {
     )
     suspend fun stats(tripId: Long, pidKey: String): PidStats?
 }
+
+/** One kind of reading a trip holds, and how much of it there is. */
+data class RecordedSeries(
+    @androidx.room.ColumnInfo(name = "pidKey") val pidKey: String,
+    @androidx.room.ColumnInfo(name = "label") val label: String,
+    @androidx.room.ColumnInfo(name = "unit") val unit: String,
+    @androidx.room.ColumnInfo(name = "sampleCount") val sampleCount: Int
+)
 
 /** A bare lat/lon pair, for queries that need nothing else. */
 data class Coordinate(
