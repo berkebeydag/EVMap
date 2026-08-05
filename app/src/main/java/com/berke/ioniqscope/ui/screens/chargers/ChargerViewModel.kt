@@ -580,6 +580,19 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
         loadRoutes(place.lat, place.lon)
     }
 
+    /**
+     * Moves the anchor by hand.
+     *
+     * [settled] is false while the thumb is still down: the marker follows, the list
+     * re-sorts, and nothing is routed. Routing on every move would fire five requests
+     * per centimetre of drag at a free service.
+     */
+    fun moveViewpoint(lat: Double, lon: Double, settled: Boolean) {
+        _viewpoint.value = lat to lon
+        lastBounds?.let { loadForBounds(it) }
+        if (settled) loadRoutes(lat, lon)
+    }
+
     /** Back to answering about where the phone is. */
     fun clearViewpoint() {
         _viewpoint.value = null

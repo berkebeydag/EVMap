@@ -14,6 +14,7 @@ import org.osmdroid.views.Projection
 import org.osmdroid.views.overlay.Overlay
 import kotlin.math.PI
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.ln
 import kotlin.math.tan
 import com.berke.ioniqscope.charging.Poi
@@ -59,7 +60,9 @@ class ChargerOverlay(
         val poiFood: Int,
         val poiFuel: Int,
         val poiService: Int,
-        val poiShop: Int
+        val poiShop: Int,
+        /** The anchor pin, distinct from both a station and the user's own dot. */
+        val viewpoint: Int
     )
 
     var sites: List<ChargerSite> = emptyList()
@@ -77,6 +80,20 @@ class ChargerOverlay(
      * finding nothing.
      */
     var pois: List<Poi> = emptyList()
+
+    /**
+     * The point the suggestions are measured from, when that is not the phone.
+     *
+     * Searching a place moved the map there and drew five routes converging on nothing
+     * — the lines began in mid-air, because the place itself was never on the map. It
+     * is a marker now, and one that can be picked up: the anchor is a question ("what
+     * is around here"), and being able to drag the question a street over is most of
+     * what makes it useful.
+     */
+    var viewpoint: Pair<Double, Double>? = null
+
+    /** Called while a drag is in progress, and once more when it is let go. */
+    var onViewpointMoved: ((lat: Double, lon: Double, settled: Boolean) -> Unit)? = null
 
     /** Where the user is, drawn distinctly from the stations. */
     var userLocation: Pair<Double, Double>? = null
@@ -128,6 +145,16 @@ class ChargerOverlay(
      * shows the user the same single blob, minus the number telling them it is two.
      */
     private val cellPx = 16f * density
+
+    private var draggingViewpoint = false
+    private val viewpointRadius = 9f * density
+    private val viewpointGrab = 30f * density
+    private val viewpointFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val viewpointStem = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 3.5f * density
+        strokeCap = Paint.Cap.ROUND
+    }
 
     private val poiRadius = 3.2f * density
 
@@ -323,6 +350,7 @@ class ChargerOverlay(
         }
 
         drawLabels(canvas, singleTargets, clusterTargets)
+        drawViewpoint(canvas, projection)
         // After the stations, always. Label placement is first-come — whatever is
         // drawn first claims the space and everything after it is dropped — so
         // drawing these with the dots meant a row of cafe names could push out the
@@ -415,6 +443,34 @@ class ChargerOverlay(
         "fuel" -> colors.poiFuel
         "toilets", "pharmacy" -> colors.poiService
         else -> colors.poiShop
+    }
+
+    /**
+     * The anchor pin: a ring on a stem, deliberately unlike a station.
+     *
+     * Hollow, because it is not a place you can plug into — it is where the question is
+     * being asked from. A filled pin here would read as a sixth suggestion.
+     */
+    private fun drawViewpoint(canvas: Canvas, projection: Projection) {
+        val (lat, lon) = viewpoint ?: return
+        projection.toPixels(GeoPoint(lat, lon), reusablePoint)
+        val x = reusablePoint.x.toFloat()
+        val y = reusablePoint.y.toFloat()
+
+        val radius = viewpointRadius * (if (draggingViewpoint) 1.25f else 1f)
+        val tip = y + radius * 2.2f
+
+        viewpointStem.color = colors.outline
+        canvas.drawLine(x, y, x, tip, viewpointStem)
+        viewpointStem.color = colors.viewpoint
+        canvas.drawLine(x, y, x, tip - 2f * density, viewpointStem)
+
+        viewpointFill.color = colors.outline
+        canvas.drawCircle(x, y, radius + 2f * density, viewpointFill)
+        viewpointFill.color = colors.viewpoint
+        canvas.drawCircle(x, y, radius, viewpointFill)
+        viewpointFill.color = colors.outline
+        canvas.drawCircle(x, y, radius * 0.42f, viewpointFill)
     }
 
     private fun drawDestinations(canvas: Canvas, projection: Projection) {
@@ -834,6 +890,51 @@ class ChargerOverlay(
      * and the combined pan-and-zoom animation osmdroid runs for it visibly snapped.
      * Framing the members instead lands in one move and always separates them.
      */
+    /**
+     * Picks the anchor up and puts it down again.
+     *
+     * Handled here rather than by the map, because the map's own gesture handling would
+     * read the same finger as a pan and drag the whole world instead. Returning true
+     * from ACTION_DOWN is what claims the gesture; every later event then arrives here
+     * first.
+     */
+    override fun onTouchEvent(e: MotionEvent, mapView: MapView): Boolean {
+        val anchor = viewpoint ?: return false
+
+        when (e.action) {
+            MotionEvent.ACTION_DOWN -> {
+                mapView.projection.toPixels(GeoPoint(anchor.first, anchor.second), reusablePoint)
+                val dx = e.x - reusablePoint.x
+                val dy = e.y - reusablePoint.y
+                // Generous, and biased downwards: the pin is drawn above its point and
+                // a thumb lands on the body of it, not on the tip.
+                if (hypot(dx, dy + viewpointRadius) <= viewpointGrab) {
+                    draggingViewpoint = true
+                    mapView.invalidate()
+                    return true
+                }
+            }
+            MotionEvent.ACTION_MOVE -> if (draggingViewpoint) {
+                val point = mapView.projection.fromPixels(e.x.toInt(), e.y.toInt())
+                viewpoint = point.latitude to point.longitude
+                onViewpointMoved?.invoke(point.latitude, point.longitude, false)
+                mapView.invalidate()
+                return true
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (draggingViewpoint) {
+                draggingViewpoint = false
+                val point = mapView.projection.fromPixels(e.x.toInt(), e.y.toInt())
+                viewpoint = point.latitude to point.longitude
+                // Only the release recomputes the routes. Doing it on every move would
+                // fire a handful of requests per centimetre of thumb.
+                onViewpointMoved?.invoke(point.latitude, point.longitude, true)
+                mapView.invalidate()
+                return true
+            }
+        }
+        return false
+    }
+
     override fun onSingleTapConfirmed(e: MotionEvent, mapView: MapView): Boolean {
         val threshold = 24f * density
 

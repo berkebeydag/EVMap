@@ -139,6 +139,7 @@ fun ChargerMapScreen(
     val searchResults by vm.searchResults.collectAsStateWithLifecycle()
     val placeResults by vm.placeResults.collectAsStateWithLifecycle()
     val pois by vm.pois.collectAsStateWithLifecycle()
+    val viewpoint by vm.viewpoint.collectAsStateWithLifecycle()
 
     // The view model owns this. Remembering it here as well let the two disagree
     // whenever the screen left composition with the list open.
@@ -333,6 +334,8 @@ fun ChargerMapScreen(
             routes = routes,
             onBoundsChanged = vm::loadForBounds,
             pois = pois,
+            viewpoint = viewpoint,
+            onViewpointMoved = vm::moveViewpoint,
             onSelect = { selected = it },
             onUserPan = vm::stopFollowing,
             userLocation = (location as? LocationState.Known)?.let { it.lat to it.lon },
@@ -1446,6 +1449,8 @@ private fun ChargerMap(
     sites: List<ChargerSite>,
     routes: List<SiteRoute>,
     pois: List<Poi>,
+    viewpoint: Pair<Double, Double>?,
+    onViewpointMoved: (Double, Double, Boolean) -> Unit,
     onBoundsChanged: (BoundingBox) -> Unit,
     onSelect: (ChargerSite) -> Unit,
     onUserPan: () -> Unit,
@@ -1547,6 +1552,8 @@ private fun ChargerMap(
             // by geography.
             overlay.sites = sites
             overlay.pois = pois
+            overlay.viewpoint = viewpoint
+            overlay.onViewpointMoved = onViewpointMoved
             overlay.routes = routes.mapIndexed { index, entry ->
                 ChargerOverlay.DrawnRoute(
                     points = entry.route.points,
@@ -1850,6 +1857,9 @@ private val MAP_MARKERS = ChargerOverlay.Colors(
     poiFuel = 0xFF7E8AA0.toInt(),
     poiService = 0xFF5FA08C.toInt(),
     poiShop = 0xFFB08CC4.toInt(),
+    // Ink rather than a brand colour: the anchor belongs to the app, not to a network,
+    // and a coloured pin here would be mistaken for a sixth suggestion.
+    viewpoint = 0xFF3F3A31.toInt(),
     routeCasing = 0x66000000
 )
 
