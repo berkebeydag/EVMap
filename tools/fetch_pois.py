@@ -59,7 +59,9 @@ BACKOFF_S = 12.0
 MAX_ROUNDS = 3
 
 AMENITIES = 'cafe|restaurant|fast_food|fuel|pharmacy|toilets'
-SHOPS = 'supermarket|convenience|bakery|mall'
+# department_store belongs here: it is what a Turkish AVM is usually tagged as when it
+# is not tagged shop=mall, and leaving it out lost most of them.
+SHOPS = 'supermarket|convenience|bakery|mall|department_store'
 
 HEADERS = {
     'User-Agent': 'SarjBul/1.0 (one-off bundle build; berke.beydag@gmail.com)',
@@ -105,8 +107,17 @@ def boxes(points):
 def query_for(box):
     south, west, north, east = box
     bbox = '%.4f,%.4f,%.4f,%.4f' % (south, west, north, east)
+    # nwr, not node.
+    #
+    # A shopping centre is a building, and a building is a way or a relation. Asking
+    # only for nodes found the corner shops and missed every mall in the country:
+    # Agora AVM in İzmir is a relation, İzmirPARK and Çiğli AVM and Palmiye AVM are
+    # ways, and none of them was ever in the answer. Same for the larger supermarkets
+    # and most fuel forecourts, which are drawn as their footprint.
+    #
+    # `out center` gives each one a single point, which is what a dot on a map needs.
     return ('[out:json][timeout:180][bbox:%s];'
-            '(node["amenity"~"^(%s)$"];node["shop"~"^(%s)$"];);out;'
+            '(nwr["amenity"~"^(%s)$"];nwr["shop"~"^(%s)$"];);out center;'
             % (bbox, AMENITIES, SHOPS))
 
 
@@ -200,13 +211,19 @@ def main():
             for element in elements:
                 tags = element.get('tags') or {}
                 kind = tags.get('amenity') or tags.get('shop')
-                lat, lon = element.get('lat'), element.get('lon')
+                # A way or a relation has no lat/lon of its own; `out center` puts one
+                # on it.
+                centre = element.get('center') or {}
+                lat = element.get('lat', centre.get('lat'))
+                lon = element.get('lon', centre.get('lon'))
                 if not kind or lat is None or lon is None:
                     continue
                 if not near_station(float(lat), float(lon)):
                     continue
                 rows.append({
-                    'id': element.get('id'),
+                    # Ids repeat across types — node 1 and way 1 are different things —
+                    # so the type has to be part of the key or one would drop the other.
+                    'id': '%s%s' % (element['type'][0], element.get('id')),
                     'lat': round(float(lat), 5),
                     'lon': round(float(lon), 5),
                     'kind': kind,

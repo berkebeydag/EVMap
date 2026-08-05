@@ -1822,7 +1822,11 @@ private const val CARTO_ATTRIBUTION = "© OpenStreetMap contributors © CARTO"
  */
 private val CARTO_PARCHMENT = XYTileSource(
     "carto-voyager",
-    0, 20, 512, ".png",
+    // 512 and "@2x.png" together, or neither. Declared 512 while asking for ".png"
+    // fetched CARTO's 256-pixel tile and had osmdroid scale it to twice the size, so
+    // every place name on the map was a 256-pixel name blown up — which is exactly
+    // what "ILICA" and "Çeşme" looked like. The @2x endpoint returns the real 512.
+    0, 20, 512, "@2x.png",
     arrayOf(
         "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
         "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
