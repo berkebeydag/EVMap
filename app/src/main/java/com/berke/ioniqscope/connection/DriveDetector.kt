@@ -53,22 +53,15 @@ class DriveDetector(
                 // speed at all.
                 val speed = snapshot[PidCatalog.speed.key]?.value
                     ?: snapshot[GPS_SPEED_KEY]?.value
+                // Recording starts the moment the adapter is connected, without
+                // waiting to see the car move. The alternative was to wait for
+                // movement, and then the first minute of every drive — reversing off
+                // a driveway, the queue at the gate — was missing from the log of it.
+                startIfIdle()
+
                 if (speed != null) {
                     sawSpeed = true
                     evaluate(speed)
-                } else if (!sawSpeed && snapshot.isNotEmpty()) {
-                    // The car answers something, just not speed. Measured on an Ioniq
-                    // 6: 010D returns NO DATA, so this collector used to return here on
-                    // every single sample and no trip was ever recorded on that car —
-                    // the log was empty and looked broken rather than inapplicable.
-                    //
-                    // With nothing to time the start against, the connection is the
-                    // start: the adapter is plugged into a car that is switched on, and
-                    // it stops answering when the car is switched off. That is coarser
-                    // than waiting for movement — a trip begun while parked on the
-                    // driveway includes the parking — but it is the difference between
-                    // a log and no log.
-                    startIfIdle()
                 }
             }
         }
@@ -93,6 +86,14 @@ class DriveDetector(
         startedByUs = true
     }
 
+    /**
+     * Stops when the car stops and starts again when it moves, all without unplugging.
+     *
+     * Standing at a charger for forty minutes with the adapter in is not part of the
+     * drive, and one trip that spans the whole afternoon because the link never dropped
+     * says nothing about either half of it. So stillness ends a trip and movement
+     * begins the next — the connection is only the outermost fallback.
+     */
     private fun evaluate(speedKmh: Double) {
         val timestamp = now()
         val logging = TripLoggingService.activeTripId.value != null

@@ -261,6 +261,16 @@ interface TripDao {
     @Query("UPDATE trips SET ended_at = :endedAt, sample_count = :count WHERE id = :tripId")
     suspend fun finishTrip(tripId: Long, endedAt: Long, count: Int)
 
+    @Query(
+        "UPDATE trips SET distance_m = :distanceM, energy_used_kwh = :used, " +
+            "energy_regained_kwh = :regained WHERE id = :tripId"
+    )
+    suspend fun setTotals(tripId: Long, distanceM: Double, used: Double, regained: Double)
+
+    /** Trips with no totals yet — recorded before there was anywhere to put them. */
+    @Query("SELECT id FROM trips WHERE distance_m IS NULL")
+    suspend fun tripsWithoutTotals(): List<Long>
+
     @Query("SELECT COUNT(*) FROM trip_samples WHERE trip_id = :tripId")
     suspend fun sampleCount(tripId: Long): Int
 
@@ -313,8 +323,11 @@ interface TripDao {
      * selected has no average speed, and 0 km/h is a different claim.
      */
     @Query(
+        // Either speed: the car's own when it publishes one, the receiver's when it
+        // does not. Keyed on 'speed' alone this returned nothing for every E-GMP trip
+        // ever recorded, because an E-GMP answers 010D with NO DATA.
         "SELECT trip_id AS tripId, AVG(value) AS averageSpeed, MAX(value) AS topSpeed " +
-            "FROM trip_samples WHERE pid_key = 'speed' GROUP BY trip_id"
+            "FROM trip_samples WHERE pid_key IN ('speed', 'gps_speed') GROUP BY trip_id"
     )
     fun observeSpeedSummaries(): Flow<List<TripSpeedSummary>>
 

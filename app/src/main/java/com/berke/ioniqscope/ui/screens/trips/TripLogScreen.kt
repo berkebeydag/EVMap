@@ -65,6 +65,8 @@ import kotlin.math.roundToInt
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.berke.ioniqscope.data.TripTotals
+import java.util.Locale
 
 class TripLogViewModel(private val services: ServiceLocator) : ViewModel() {
 
@@ -299,10 +301,29 @@ private fun TripRow(
             }
 
             val duration = trip.endedAtEpochMs?.let { it - trip.startedAtEpochMs }
+            val totals = trip.distanceM?.let {
+                TripTotals(it, trip.energyUsedKwh ?: 0.0, trip.energyRegainedKwh ?: 0.0)
+            }
+
+            // What a drive was, on the row, so the list can be read without opening
+            // anything. Distance and consumption are the two figures anybody compares
+            // between drives; the rest is detail and lives on the detail screen.
             Row(
-                Modifier.padding(top = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(18.dp)
+                Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                TripStat(
+                    "Mesafe",
+                    totals?.takeIf { it.distanceM > 0 }
+                        ?.let { String.format(Locale.US, "%.1f km", it.distanceM / 1000.0) }
+                        ?: "—"
+                )
+                TripStat(
+                    "Tüketim",
+                    totals?.consumptionPer100Km
+                        ?.let { String.format(Locale.US, "%.1f kWh/100km", it) }
+                        ?: "—"
+                )
                 TripStat(
                     "Süre",
                     when {
@@ -313,13 +334,30 @@ private fun TripRow(
                         else -> "yarım kaldı"
                     }
                 )
-                // Absent rather than zero: a trip logged without the speed PID selected
-                // has no average speed, and 0 km/h is a different claim about it.
-                speed?.let {
-                    TripStat("Ort. hız", "${it.averageSpeed.roundToInt()} km/h")
-                    TripStat("En yüksek", "${it.topSpeed.roundToInt()} km/h")
-                }
-                TripStat("Örnek", trip.sampleCount.toString())
+            }
+
+            Row(
+                Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                TripStat(
+                    "Harcanan",
+                    totals?.takeIf { it.energyUsedKwh > 0 }
+                        ?.let { String.format(Locale.US, "%.2f kWh", it.energyUsedKwh) }
+                        ?: "—"
+                )
+                TripStat(
+                    "Geri kazanılan",
+                    totals?.takeIf { it.energyRegainedKwh > 0 }
+                        ?.let { String.format(Locale.US, "%.2f kWh", it.energyRegainedKwh) }
+                        ?: "—"
+                )
+                // Absent rather than zero: a trip logged with no speed at all has no
+                // average, and 0 km/h is a different claim about it.
+                TripStat(
+                    "Ort. hız",
+                    speed?.let { "${it.averageSpeed.roundToInt()} km/h" } ?: "—"
+                )
             }
 
             Row(

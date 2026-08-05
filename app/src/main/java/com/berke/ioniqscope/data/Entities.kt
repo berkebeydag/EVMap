@@ -94,7 +94,18 @@ data class TripEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     @ColumnInfo(name = "started_at") val startedAtEpochMs: Long,
     @ColumnInfo(name = "ended_at") val endedAtEpochMs: Long? = null,
-    @ColumnInfo(name = "sample_count") val sampleCount: Int = 0
+    @ColumnInfo(name = "sample_count") val sampleCount: Int = 0,
+    /**
+     * What the trip came to, worked out once when it closed.
+     *
+     * Stored rather than derived on demand because the list would otherwise have to
+     * walk every sample of every trip to draw a row — eleven thousand of them for one
+     * nineteen-minute drive — and a summary that is expensive to show is a summary
+     * nobody sees.
+     */
+    @ColumnInfo(name = "distance_m") val distanceM: Double? = null,
+    @ColumnInfo(name = "energy_used_kwh") val energyUsedKwh: Double? = null,
+    @ColumnInfo(name = "energy_regained_kwh") val energyRegainedKwh: Double? = null
 )
 
 /**

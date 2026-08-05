@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import com.berke.ioniqscope.MainActivity
 import com.berke.ioniqscope.R
 import com.berke.ioniqscope.ServiceLocator
+import com.berke.ioniqscope.data.TripSummary
 import com.berke.ioniqscope.data.TripEntity
 import com.berke.ioniqscope.data.TripSampleEntity
 import com.berke.ioniqscope.obd.VehicleState
@@ -140,6 +141,14 @@ class TripLoggingService : LifecycleService() {
             if (id != 0L) {
                 val count = runCatching { tripDao.sampleCount(id) }.getOrDefault(0)
                 runCatching { tripDao.finishTrip(id, System.currentTimeMillis(), count) }
+                // Totalled here, once, so the list can draw a row without walking
+                // eleven thousand samples to do it.
+                runCatching {
+                    val totals = TripSummary.compute(tripDao, id)
+                    tripDao.setTotals(
+                        id, totals.distanceM, totals.energyUsedKwh, totals.energyRegainedKwh
+                    )
+                }
             }
             _activeTripId.value = null
             ServiceCompat.stopForeground(this@TripLoggingService, ServiceCompat.STOP_FOREGROUND_REMOVE)

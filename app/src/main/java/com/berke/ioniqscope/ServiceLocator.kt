@@ -1,6 +1,7 @@
 package com.berke.ioniqscope
 
 import android.content.Context
+import com.berke.ioniqscope.data.TripSummary
 import com.berke.ioniqscope.service.TripLoggingService
 import com.berke.ioniqscope.charging.ChargerRepository
 import com.berke.ioniqscope.charging.ChargerSeeder
@@ -89,6 +90,15 @@ class ServiceLocator private constructor(context: Context) {
                     val count = dao.sampleCount(id)
                     val endedAt = dao.lastSampleAt(id) ?: continue
                     dao.finishTrip(id, endedAt, count)
+                }
+                // And total anything recorded before there were columns for it, so an
+                // old trip shows the same row as a new one.
+                for (id in dao.tripsWithoutTotals()) {
+                    if (TripLoggingService.activeTripId.value == id) continue
+                    val totals = TripSummary.compute(dao, id)
+                    dao.setTotals(
+                        id, totals.distanceM, totals.energyUsedKwh, totals.energyRegainedKwh
+                    )
                 }
             }
         }
