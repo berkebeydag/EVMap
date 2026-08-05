@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.text.Normalizer
+import kotlin.math.cos
 
 /** A province, district or neighbourhood the map can be sent to. */
 data class Place(
@@ -59,11 +60,21 @@ class PlaceIndex(private val context: Context) {
     /**
      * Places whose name matches [query], best first.
      *
-     * A name that starts with what was typed beats one that merely contains it —
-     * "Bal" should reach Balçova before Karabalçık — and among equals the place with
-     * more stations wins, because that is the one more people mean.
+     * A name that starts with what was typed beats one that merely contains it — "Bal"
+     * should reach Balçova before Karabalçık. Among equals it is the nearest that wins,
+     * not the one with the most chargers: Turkey has an Alsancak in Kayseri and one in
+     * İzmir, and somebody standing in İzmir who types it means theirs. Ranking by
+     * station count put Kayseri's seven above İzmir's one, seven hundred kilometres
+     * away.
+     *
+     * With no position to measure from, the count decides — it is the only signal left,
+     * and the bigger place is the one more people mean.
      */
-    suspend fun search(query: String, limit: Int = 6): List<Place> {
+    suspend fun search(
+        query: String,
+        near: Pair<Double, Double>? = null,
+        limit: Int = 6
+    ): List<Place> {
         val needle = fold(query)
         if (needle.length < MIN_QUERY) return emptyList()
         return load()
@@ -71,9 +82,19 @@ class PlaceIndex(private val context: Context) {
                 val at = place.key.indexOf(needle)
                 if (at < 0) null else place to at
             }
-            .sortedWith(compareBy({ it.second }, { -it.first.count }))
+            .sortedWith(
+                if (near == null) compareBy({ it.second }, { -it.first.count })
+                else compareBy({ it.second }, { roughDistance(near, it.first) })
+            )
             .take(limit)
             .map { it.first }
+    }
+
+    /** Good enough to order by; nothing here needs a real great-circle distance. */
+    private fun roughDistance(from: Pair<Double, Double>, place: Place): Double {
+        val dLat = place.lat - from.first
+        val dLon = (place.lon - from.second) * cos(Math.toRadians(from.first))
+        return dLat * dLat + dLon * dLon
     }
 
     private companion object {

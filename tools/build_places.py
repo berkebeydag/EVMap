@@ -20,8 +20,8 @@ having: the only places you can search for are places the app can actually answe
 about. There is no Turkish district in this file that would take you somewhere with
 nothing to show.
 
-Neighbourhoods are kept only where at least two stations agree on them. One station is
-not evidence that a name is a place rather than a mis-parsed street.
+Anything that looks like a street — a number in it, or one of the words a street name
+is made of — is dropped, and what survives is kept however few stations it has.
 """
 
 import io
@@ -32,7 +32,12 @@ import unicodedata
 BUNDLE = 'app/src/main/assets/chargers_tr.json'
 OUT = 'app/src/main/assets/places_tr.json'
 
-MIN_STATIONS_FOR_NEIGHBOURHOOD = 2
+# One is enough. Two was meant to keep mis-parsed streets out, and the street filter
+# already does that — what it actually kept out was İzmir's Alsancak, which has exactly
+# one station filed under that name because TomTom writes the others as Umurbey and
+# Çınarlı. A neighbourhood with one charger is still a place you can be sent to, and
+# saying "1 istasyon" beside it is honest about what is there.
+MIN_STATIONS_FOR_NEIGHBOURHOOD = 1
 
 # Things that turn up in the neighbourhood slot but are streets, not places.
 STREET_WORDS = (

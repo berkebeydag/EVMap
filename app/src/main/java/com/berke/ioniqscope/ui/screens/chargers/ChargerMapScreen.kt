@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -716,7 +717,12 @@ private fun SearchPanel(
                 )
             }
 
-            LazyColumn(Modifier.fillMaxWidth()) {
+            // Bounded, and therefore scrollable. Unbounded, the list simply grew past
+            // the bottom of the screen and the rest of the matches could not be
+            // reached — it looked like there were eight results when there were forty.
+            LazyColumn(
+                Modifier.fillMaxWidth().heightIn(max = SEARCH_PANEL_MAX_HEIGHT)
+            ) {
                 // Places first, and labelled, because they answer a different question:
                 // a station is somewhere to plug in and a place is somewhere to go, and
                 // most searches typed into a map are the second kind.
@@ -748,7 +754,7 @@ private fun SearchPanel(
                     item { HorizontalDivider(Modifier.padding(vertical = 4.dp)) }
                 }
 
-                items(results.take(SEARCH_RESULTS_SHOWN), key = { it.id }) { site ->
+                items(results, key = { it.id }) { site ->
                     TextButton(
                         onClick = { onPick(site) },
                         modifier = Modifier.fillMaxWidth()
@@ -1916,7 +1922,13 @@ private const val USER_ZOOM = 14.0
 /** Close enough to see the forecourt of the place that was picked. */
 private const val PICKED_ZOOM = 16.0
 
-private const val SEARCH_RESULTS_SHOWN = 8
+/**
+ * How tall the results are allowed to get.
+ *
+ * Enough to show several without covering the map it is searching, and a hard stop so
+ * the list scrolls inside itself rather than off the end of the screen.
+ */
+private val SEARCH_PANEL_MAX_HEIGHT = 420.dp
 
 /**
  * How close to sit when sent to a place.

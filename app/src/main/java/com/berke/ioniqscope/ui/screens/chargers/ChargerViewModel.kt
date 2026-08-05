@@ -544,11 +544,20 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
             return
         }
         searchJob = viewModelScope.launch {
-            val anchor = anchorPoint ?: DEFAULT_ANCHOR
-            _placeResults.value = places.search(query)
+            val from = anchorPoint
+            val matched = places.search(query, near = from)
+            _placeResults.value = matched
+
+            // Stations are ordered around the place that was typed, not around the
+            // phone. Typing "Alsancak" is asking about Alsancak; answering with the
+            // chargers nearest the driveway you are parked on is answering a question
+            // about somewhere else. With no place matched — a search for "ZES" — the
+            // phone is the only anchor there is.
+            val anchor = matched.firstOrNull()?.let { it.lat to it.lon }
+                ?: from ?: DEFAULT_ANCHOR
             _searchResults.value = groupIntoSites(
                 repo.search(query, anchor.first, anchor.second)
-                    .map { it.withDistance(anchorPoint) }
+                    .map { it.withDistance(anchor) }
             )
         }
     }
