@@ -602,8 +602,16 @@ class ChargerViewModel(private val services: ServiceLocator) : ViewModel() {
     companion object {
         private const val NEAREST_LIMIT = 300
 
-        /** Roughly a kilometre and a half across — about zoom 15 on a phone. */
-        private const val POI_MAX_SPAN_DEG = 0.02
+        /**
+         * About five kilometres across, which is a town rather than a country.
+         *
+         * Two was the first guess and it was too strict — it wanted the map at roughly
+         * zoom 16 before anything appeared, which is closer than anyone looks while
+         * deciding where to stop. Five shows them over a district and still keeps the
+         * country-wide view clear, which is the thing worth protecting: a map for
+         * finding chargers, covered in cafe dots, finds nothing.
+         */
+        private const val POI_MAX_SPAN_DEG = 0.05
 
         /**
          * How much wider than the viewport each query reaches, as a fraction of the

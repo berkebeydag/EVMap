@@ -33,19 +33,29 @@ BUNDLE = 'app/src/main/assets/chargers_tr.json'
 PARTIAL = 'data/pois_partial.jsonl'
 OUT = 'data/pois_raw.json'
 
-# Kumi first. The main instance rate-limits by IP and makes you wait for a slot, which
-# is where the time went: measured over fifteen boxes, most came back in two or three
-# seconds and a few took four hundred, and the four hundred was queueing rather than
-# work. Kumi is the more generous mirror and the main instance is the fallback.
+# The main instance, alone, because it is the only one that answers.
+#
+# Kumi was the primary and is simply down — forty-five seconds with no response at all,
+# repeatedly. overpass.osm.ch answers but is a regional mirror and returns nothing
+# outside Switzerland; it looked healthy and would have quietly reported zero POIs for
+# every Turkish box.
 ENDPOINTS = (
-    'https://overpass.kumi.systems/api/interpreter',
     'https://overpass-api.de/api/interpreter',
 )
+
+# Short, and that is the whole point.
+#
+# Measured over 199 boxes: 15.4 hours, of which 6.8 minutes was queries returning and
+# the rest was waiting. 67 boxes came back inside fifteen seconds and 132 took longer,
+# and the long ones were not the server thinking — they were a 180-second socket
+# timeout being spent on a mirror that was never going to answer. A dead endpoint has
+# to cost seconds.
+REQUEST_TIMEOUT_S = 25
 
 CELL = 0.5
 KEEP_WITHIN_M = 250.0
 PAUSE_S = 1.0
-BACKOFF_S = 20.0
+BACKOFF_S = 12.0
 MAX_ROUNDS = 3
 
 AMENITIES = 'cafe|restaurant|fast_food|fuel|pharmacy|toilets'
@@ -65,10 +75,31 @@ def stations():
 
 
 def boxes(points):
-    """Only the half-degree boxes that actually contain a charger."""
+    """
+    The half-degree boxes that contain a charger, busiest first.
+
+    Sorted by coordinate, the order is south to north, and Turkey's chargers are not
+    distributed south to north — Istanbul was box 294 of 335, so a run interrupted at
+    two thirds had covered İzmir, Ankara, Antalya and Gaziantep and not the city with
+    the most stations in the country. Densest first means an interrupted run is missing
+    the emptiest boxes rather than the fullest.
+
+    The box index has to stay stable across runs, though, because the resume file keys
+    on it. So the coordinate order still defines the numbering and only the order of
+    work changes.
+    """
     occupied = sorted({(int(math.floor(la / CELL)), int(math.floor(lo / CELL)))
                        for la, lo in points})
-    return [(i * CELL, j * CELL, (i + 1) * CELL, (j + 1) * CELL) for i, j in occupied]
+
+    weight = collections.Counter(
+        (int(math.floor(la / CELL)), int(math.floor(lo / CELL))) for la, lo in points
+    )
+    order = sorted(range(len(occupied)), key=lambda k: -weight[occupied[k]])
+    return [
+        (index, (i * CELL, j * CELL, (i + 1) * CELL, (j + 1) * CELL))
+        for index in order
+        for i, j in [occupied[index]]
+    ]
 
 
 def query_for(box):
@@ -95,7 +126,7 @@ def ask(box, depth=0):
         for endpoint in ENDPOINTS:
             try:
                 request = urllib.request.Request(endpoint, data=data, headers=HEADERS)
-                with urllib.request.urlopen(request, timeout=180) as response:
+                with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_S) as response:
                     return json.load(response).get('elements', [])
             except urllib.error.HTTPError as error:
                 last = error
@@ -108,14 +139,23 @@ def ask(box, depth=0):
                                     (south, mid_lon, mid_lat, east),
                                     (mid_lat, west, north, mid_lon),
                                     (mid_lat, mid_lon, north, east)):
-                        out.extend(ask(quarter, depth + 1))
+                        part = ask(quarter, depth + 1)
+                        # One quarter failing loses the whole box, rather than
+                        # quietly returning a smaller answer for it.
+                        if part is None:
+                            return None
+                        out.extend(part)
                     return out
             except Exception as error:               # noqa: BLE001
                 last = error
         if round_number < MAX_ROUNDS - 1:
             time.sleep(BACKOFF_S)
+    # None, not an empty list. A box that failed and a box that genuinely holds no
+    # cafes look identical downstream, and the caller was writing both as "done" —
+    # so sixteen boxes that had 504'd were recorded as having no POIs at all and would
+    # never have been asked again.
     print('    vazgecildi: %s' % last, flush=True)
-    return []
+    return None
 
 
 def main():
@@ -147,10 +187,15 @@ def main():
 
     started = time.time()
     with io.open(PARTIAL, 'a', encoding='utf-8', newline='') as handle:
-        for index, box in enumerate(todo):
+        for index, box in todo:
             if index in done:
                 continue
             elements = ask(box)
+            if elements is None:
+                # Left out of the file entirely, so the next run picks it up.
+                print('%3d/%d  atlandi, tekrar denenecek' % (index + 1, len(todo)), flush=True)
+                time.sleep(PAUSE_S)
+                continue
             rows = []
             for element in elements:
                 tags = element.get('tags') or {}
