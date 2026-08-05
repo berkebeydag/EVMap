@@ -101,6 +101,10 @@ import org.osmdroid.tileprovider.tilesource.XYTileSource
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import com.berke.ioniqscope.data.CurrentFilter
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 
 /**
  * What a site with no operator and no name is called.
@@ -140,6 +144,15 @@ fun ChargerMapScreen(
     val showList by vm.listMode.collectAsStateWithLifecycle()
     val sortByPrice by vm.sortByPrice.collectAsStateWithLifecycle()
     var searching by remember { mutableStateOf(false) }
+    /** The query lives with the bar now, not inside a panel that comes and goes. */
+    var query by remember { mutableStateOf("") }
+    val searchFocus = remember { FocusRequester() }
+
+    // Opening the bar puts the caret in it. A search box that has to be tapped twice
+    // is a search box that was not really opened by the first tap.
+    LaunchedEffect(searching) {
+        if (searching) runCatching { searchFocus.requestFocus() }
+    }
     var selected by remember { mutableStateOf<ChargerSite?>(null) }
     /** Where something outside the map wants it, and how close to sit when it arrives. */
     var moveTo by remember { mutableStateOf<Pair<GeoPoint, Double>?>(null) }
@@ -345,16 +358,24 @@ fun ChargerMapScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // The bar is the field. Pressing it used to open a second box under
+                // it with its own outline and its own label, so the screen carried two
+                // search boxes and you typed into the lower one — which is the sort of
+                // thing that happens when a panel is written before the bar it opens
+                // from. Now the bar itself takes the caret and the results hang under
+                // it.
                 Surface(
                     shape = RoundedCornerShape(23.dp),
                     color = MAP_CHROME,
                     contentColor = MAP_CHROME_INK,
                     shadowElevation = 6.dp,
+                    // A no-op while open: the field inside owns the taps then, and a
+                    // clickable Surface over it would eat the ones meant for the caret.
                     onClick = { searching = true },
                     modifier = Modifier.weight(1f).height(46.dp)
                 ) {
                     Row(
-                        Modifier.padding(horizontal = 16.dp),
+                        Modifier.padding(start = 16.dp, end = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -364,12 +385,55 @@ fun ChargerMapScreen(
                             tint = MAP_CHROME_MUTED,
                             modifier = Modifier.size(17.dp)
                         )
-                        Text(
-                            "İstasyon veya konum ara",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MAP_CHROME_MUTED,
-                            maxLines = 1
-                        )
+                        if (searching) {
+                            BasicTextField(
+                                value = query,
+                                onValueChange = {
+                                    query = it
+                                    vm.search(it)
+                                },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyMedium
+                                    .copy(color = MAP_CHROME_INK),
+                                cursorBrush = SolidColor(MAP_CHROME_ACCENT),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(searchFocus)
+                            ) { field ->
+                                if (query.isEmpty()) {
+                                    Text(
+                                        "Balçova, Çeşme, ZES…",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MAP_CHROME_MUTED,
+                                        maxLines = 1
+                                    )
+                                }
+                                field()
+                            }
+                            IconButton(
+                                onClick = {
+                                    searching = false
+                                    query = ""
+                                    vm.clearSearch()
+                                },
+                                modifier = Modifier.size(30.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Aramayı kapat",
+                                    tint = MAP_CHROME_MUTED,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        } else {
+                            Text(
+                                "İstasyon veya konum ara",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MAP_CHROME_MUTED,
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
                 MapRoundButton(onClick = toConnect) {
@@ -406,7 +470,7 @@ fun ChargerMapScreen(
                 SearchPanel(
                     results = searchResults,
                     places = placeResults,
-                    onQuery = vm::search,
+                    query = query,
                     onPickPlace = { place ->
                         // Sent to the place and asked about it: the map moves, and the
                         // five suggestions are recomputed as though the driver were
@@ -416,6 +480,7 @@ fun ChargerMapScreen(
                         moveTo = GeoPoint(place.lat, place.lon) to placeZoom(place)
                         vm.viewFrom(place)
                         searching = false
+                        query = ""
                         vm.clearSearch()
                     },
                     onPick = { site ->
@@ -427,10 +492,6 @@ fun ChargerMapScreen(
                         searching = false
                         vm.clearSearch()
                     },
-                    onClose = {
-                        searching = false
-                        vm.clearSearch()
-                    }
                 )
             }
 
@@ -633,88 +694,58 @@ private fun MapButton(
 private fun SearchPanel(
     results: List<ChargerSite>,
     places: List<Place>,
-    onQuery: (String) -> Unit,
+    query: String,
     onPick: (ChargerSite) -> Unit,
-    onPickPlace: (Place) -> Unit,
-    onClose: () -> Unit
+    onPickPlace: (Place) -> Unit
 ) {
-    var query by remember { mutableStateOf("") }
+    if (query.isBlank()) return
 
     Surface(
         shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         shadowElevation = 4.dp
     ) {
-        Column(Modifier.padding(10.dp)) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = {
-                    query = it
-                    onQuery(it)
-                },
-                singleLine = true,
-                label = { Text("Yer ya da istasyon ara") },
-                placeholder = { Text("Balçova, Çeşme, ZES…") },
-                trailingIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Filled.Close, contentDescription = "Aramayı kapat")
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            if (query.isNotBlank() && results.isEmpty() && places.isEmpty()) {
+        Column(Modifier.padding(vertical = 6.dp)) {
+            if (results.isEmpty() && places.isEmpty()) {
                 Text(
-                    "Eşleşen bir şey yok. Arama, cihazdaki istasyonlar üzerinde çalışıyor; " +
-                        "haritanın tamamında değil.",
+                    "Eşleşen bir şey yok. Arama, cihazdaki istasyonlar ve yerler " +
+                        "üzerinde çalışıyor.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(8.dp)
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                 )
             }
 
-            LazyColumn(
-                Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) {
+            LazyColumn(Modifier.fillMaxWidth()) {
                 // Places first, and labelled, because they answer a different question:
                 // a station is somewhere to plug in and a place is somewhere to go, and
                 // most searches typed into a map are the second kind.
-                if (places.isNotEmpty()) {
-                    items(places, key = { "place_" + it.kind + it.name + it.detail }) { place ->
-                        TextButton(
-                            onClick = { onPickPlace(place) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Filled.Place,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(17.dp)
+                items(places, key = { "place_" + it.kind + it.name + it.detail }) { place ->
+                    TextButton(
+                        onClick = { onPickPlace(place) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Filled.Place,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(17.dp)
+                            )
+                            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                                Text(place.name, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    "${place.detail} · ${place.count} istasyon",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                                    Text(
-                                        place.name,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Text(
-                                        "${place.detail} · ${place.count} istasyon",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
                             }
                         }
                     }
-                    if (results.isNotEmpty()) {
-                        item {
-                            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                        }
-                    }
+                }
+
+                if (places.isNotEmpty() && results.isNotEmpty()) {
+                    item { HorizontalDivider(Modifier.padding(vertical = 4.dp)) }
                 }
 
                 items(results.take(SEARCH_RESULTS_SHOWN), key = { it.id }) { site ->
@@ -734,7 +765,9 @@ private fun SearchPanel(
                                     site.address
                                 ).joinToString(" · "),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
