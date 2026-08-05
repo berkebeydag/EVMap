@@ -52,6 +52,8 @@ import kotlin.math.hypot
 import com.berke.ioniqscope.connection.GPS_LAT_KEY
 import com.berke.ioniqscope.connection.GPS_LON_KEY
 import com.berke.ioniqscope.data.RecordedSeries
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.text.style.TextAlign
 
 /** What the battery computer calls the 12V rail; the only source on a car that will
  *  not answer the standard module-voltage PID. */
@@ -437,7 +439,7 @@ private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Stat(
                     "Mesafe",
@@ -450,7 +452,7 @@ private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
             HorizontalDivider()
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Stat(
                     "En yüksek",
@@ -476,7 +478,7 @@ private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
             // is the figure an EV driver compares between drives, so it gets the room.
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Stat(
                     "Tüketim",
@@ -497,7 +499,7 @@ private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
                     "kWh"
                 )
                 Stat(
-                    "Geri kazanılan",
+                    "Geri kazanım",
                     if (detail.powerSeries.size >= 2) {
                         String.format(Locale.US, "%.2f", detail.energyRegainedKwh)
                     } else "—",
@@ -509,18 +511,35 @@ private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
 }
 
 @Composable
-private fun Stat(label: String, value: String, unit: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun RowScope.Stat(label: String, value: String, unit: String) {
+    // Weighted rather than spaced apart. Three of these across a phone with
+    // "Geri kazanılan · kWh" among them ran into each other — SpaceEvenly divides the
+    // gaps, not the columns, so a long label simply grew past its neighbour. An equal
+    // share each, and the label wraps inside its own column instead.
+    Column(
+        modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
             value,
             style = MaterialTheme.typography.headlineSmall,
-            fontFamily = FontFamily.Monospace
+            fontFamily = FontFamily.Monospace,
+            maxLines = 1
         )
         Text(
-            if (unit.isBlank()) label else "$label · $unit",
+            label,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
         )
+        if (unit.isNotBlank()) {
+            Text(
+                unit,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
