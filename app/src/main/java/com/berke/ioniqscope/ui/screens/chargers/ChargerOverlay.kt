@@ -156,7 +156,16 @@ class ChargerOverlay(
         strokeCap = Paint.Cap.ROUND
     }
 
-    private val poiRadius = 3.2f * density
+    /**
+     * Smaller than a station and without a ring, which is the whole difference.
+     *
+     * They were 3.2dp with a white outline, which is exactly how a station is drawn —
+     * so on a map with both, the eye had to read colour to tell a charger from a
+     * bakery. A white ring is what makes a dot read as a marker; taking it away and
+     * halving the size turns these back into what they are, which is texture. The
+     * stations keep theirs and stand off the map because of it.
+     */
+    private val poiRadius = 2.2f * density
 
     /**
      * Smaller and paler than a station's name — 8.5sp against 10, and a grey rather
@@ -176,10 +185,11 @@ class ChargerOverlay(
     }
     private val poiLabelGap = 3f * density
     private val poiFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    /** A hairline of basemap, so a dot on a dark road still separates from it. */
     private val poiRing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 1.4f * density
-        color = 0xCCFFFFFF.toInt()
+        strokeWidth = 1f * density
+        color = 0x66FFFFFF
     }
     private val dotRadius = 5f * density
 
@@ -392,9 +402,14 @@ class ChargerOverlay(
             val y = reusablePoint.y.toFloat()
             if (x < 0f || y < 0f || x > canvas.width || y > canvas.height) continue
 
+            // Fill first, hairline over it: the ring is a separator, not an outline,
+            // and drawing it under a translucent fill would show through as a halo.
             poiFill.color = poiColour(poi.kind)
-            canvas.drawCircle(x, y, poiRadius, poiRing)
+            // After the colour, never before: Paint.color writes the whole ARGB and
+            // would silently put the alpha back to opaque.
+            poiFill.alpha = POI_ALPHA
             canvas.drawCircle(x, y, poiRadius, poiFill)
+            canvas.drawCircle(x, y, poiRadius, poiRing)
         }
     }
 
@@ -1003,6 +1018,9 @@ class ChargerOverlay(
 
         /** A screenful of amenity names is a wall of text with a map behind it. */
         const val MAX_POI_LABELS = 8
+
+        /** Present when looked for, unnoticed when scanning past. */
+        const val POI_ALPHA = 165
         const val MAX_POI_LABEL_CHARS = 16
 
         /** Below this a route point is visually identical to the last one. */
