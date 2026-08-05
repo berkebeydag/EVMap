@@ -73,6 +73,10 @@ private sealed interface PollMode {
 /** Where road speed from the satellite receiver is published, when the car will not. */
 const val GPS_SPEED_KEY = "gps_speed"
 
+/** The position that came with it, so a trip can be measured rather than integrated. */
+const val GPS_LAT_KEY = "gps_lat"
+const val GPS_LON_KEY = "gps_lon"
+
 class ObdConnectionManager(
     private val appContext: Context,
     private val scope: CoroutineScope,
@@ -452,8 +456,16 @@ class ObdConnectionManager(
             runCatching {
                 LocationFinder(appContext).stream().collect { fix ->
                     val kmh = fix.speedKmh ?: return@collect
-                    val merged = _vehicleState.value +
-                        (GPS_SPEED_KEY to Reading("Hız (GPS)", kmh, "km/h"))
+                    // The position rides along with the speed. Distance measured from
+                    // where the car actually went beats distance integrated from a
+                    // speed trace sampled once a second — the integral turns every
+                    // missed second into a straight line at the last known speed,
+                    // where two positions are just how far apart they are.
+                    val merged = _vehicleState.value + mapOf(
+                        GPS_SPEED_KEY to Reading("Hız (GPS)", kmh, "km/h"),
+                        GPS_LAT_KEY to Reading("Enlem", fix.lat, "°"),
+                        GPS_LON_KEY to Reading("Boylam", fix.lon, "°")
+                    )
                     _vehicleState.value = merged
                     _samples.tryEmit(merged)
                     performanceMeter.onSpeed(

@@ -47,10 +47,22 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import com.berke.ioniqscope.connection.GPS_SPEED_KEY
+import kotlin.math.cos
+import kotlin.math.hypot
+import com.berke.ioniqscope.connection.GPS_LAT_KEY
+import com.berke.ioniqscope.connection.GPS_LON_KEY
 
 /** What the battery computer calls the 12V rail; the only source on a car that will
  *  not answer the standard module-voltage PID. */
 private const val BMS_AUX_VOLTAGE_KEY = "aux_voltage"
+
+/**
+ * Below this, kWh/100km is arithmetic rather than information.
+ *
+ * A hundred metres of manoeuvring with the air conditioning on divides a real number by
+ * a tiny one and reports four hundred kWh/100km, which is true and useless.
+ */
+private const val MIN_DISTANCE_FOR_CONSUMPTION_M = 300.0
 
 data class TripDetail(
     val trip: TripEntity?,
@@ -59,6 +71,10 @@ data class TripDetail(
     /** When recording actually stopped, for a trip that never closed. */
     val lastSampleAt: Long? = null,
     val speedSeries: List<SeriesPoint> = emptyList(),
+    /** Pack power in kW over the trip; negative is regeneration. */
+    val powerSeries: List<SeriesPoint> = emptyList(),
+    /** Net energy out of the pack, regeneration already subtracted. */
+    val energyKwh: Double = 0.0,
     val voltSeries: List<SeriesPoint> = emptyList(),
     val maxKmh: Double? = null,
     val avgKmh: Double? = null,
@@ -104,20 +120,96 @@ class TripDetailViewModel(
                 ?.takeIf { it.sampleCount > 0 }
                 ?: dao.stats(tripId, BMS_AUX_VOLTAGE_KEY)?.takeIf { it.sampleCount > 0 }
 
+            // Distance from where the car went, falling back to the speed trace when
+            // there are no positions — an old trip, or one recorded indoors.
+            val lats = dao.series(tripId, GPS_LAT_KEY)
+            val lons = dao.series(tripId, GPS_LON_KEY)
+            val travelled = pathDistance(lats, lons).takeIf { it > 0.0 }
+                ?: integrateDistance(speed)
+
+            // Energy is the integral of pack power, and pack power is the product of
+            // two things the battery computer already reports. Negative current is
+            // regeneration, so it subtracts itself — which is the whole point of
+            // measuring consumption this way rather than from the state of charge,
+            // whose resolution is half a percent and whose meaning drifts with
+            // temperature.
+            val amps = dao.series(tripId, "hv_current")
+            val volts2 = dao.series(tripId, "hv_voltage")
+            val power = pairSeries(amps, volts2) { a, v -> a * v / 1000.0 }
+            val energyKwh = integrateEnergy(power)
+
             _detail.value = TripDetail(
                 trip = trip,
+                powerSeries = power,
+                energyKwh = energyKwh,
                 sampleCount = realCount,
                 lastSampleAt = lastAt,
                 speedSeries = speed,
                 voltSeries = volts,
                 maxKmh = speedStats?.maxValue,
                 avgKmh = speedStats?.avgValue,
-                distanceM = integrateDistance(speed),
+                distanceM = travelled,
                 minVolts = voltStats?.minValue,
                 maxVolts = voltStats?.maxValue,
                 loading = false
             )
         }
+    }
+
+    /**
+     * How far the car actually went, from its own positions.
+     *
+     * Latitude and longitude are written in the same snapshot, so they share a
+     * timestamp and can be paired by it. Segments longer than [MAX_SEGMENT_M] are
+     * dropped: a fix that jumps a kilometre between two seconds is a bad fix, not a
+     * kilometre, and one of those would add more error than the whole rest of a drive.
+     */
+    private fun pathDistance(lats: List<SeriesPoint>, lons: List<SeriesPoint>): Double {
+        if (lats.size < 2 || lons.isEmpty()) return 0.0
+        val lonAt = lons.associate { it.atEpochMs to it.value }
+
+        var total = 0.0
+        var previous: Pair<Double, Double>? = null
+        for (point in lats) {
+            val lon = lonAt[point.atEpochMs] ?: continue
+            val here = point.value to lon
+            previous?.let { (pLat, pLon) ->
+                val dLat = (here.first - pLat) * 111_320.0
+                val dLon = (here.second - pLon) * 111_320.0 * cos(Math.toRadians(pLat))
+                val step = hypot(dLat, dLon)
+                // A fix that jumps a kilometre between two seconds is a bad fix, not a
+                // kilometre. One of those adds more error than a whole drive of good ones.
+                if (step <= MAX_SEGMENT_M) total += step
+            }
+            previous = here
+        }
+        return total
+    }
+
+    /** Two series sharing timestamps, combined value by value. */
+    private fun pairSeries(
+        first: List<SeriesPoint>,
+        second: List<SeriesPoint>,
+        combine: (Double, Double) -> Double
+    ): List<SeriesPoint> {
+        if (first.isEmpty() || second.isEmpty()) return emptyList()
+        val byTime = second.associate { it.atEpochMs to it.value }
+        return first.mapNotNull { point ->
+            byTime[point.atEpochMs]?.let {
+                SeriesPoint(point.atEpochMs, combine(point.value, it))
+            }
+        }
+    }
+
+    /** Trapezoidal integral of kW over time, in kWh. */
+    private fun integrateEnergy(power: List<SeriesPoint>): Double {
+        var total = 0.0
+        for (i in 1 until power.size) {
+            val hours = (power[i].atEpochMs - power[i - 1].atEpochMs) / 3_600_000.0
+            if (hours <= 0 || hours > MAX_GAP_H) continue
+            total += (power[i].value + power[i - 1].value) / 2.0 * hours
+        }
+        return total
     }
 
     /**
@@ -138,6 +230,12 @@ class TripDetailViewModel(
     }
 
     private companion object {
+        /** Beyond this in one step, the receiver jumped rather than the car moved. */
+        const val MAX_SEGMENT_M = 400.0
+
+        /** A gap longer than this is a pause in recording, not an hour of driving. */
+        const val MAX_GAP_H = 1.0 / 60.0
+
         const val MAX_GAP_MS = 30_000L
     }
 }
@@ -195,9 +293,33 @@ fun TripDetailScreen(services: ServiceLocator, tripId: Long) {
             )
         }
 
+        if (detail.powerSeries.size >= 2) {
+            HorizontalDivider()
+            SectionLabel("Güç")
+            LineChart(
+                points = detail.powerSeries.map { ChartPoint(it.atEpochMs.toDouble(), it.value) },
+                lineColor = MaterialTheme.colorScheme.secondary,
+                // Zero drawn in, so regeneration reads as below a line rather than
+                // merely low on a chart whose floor happens to be negative.
+                reference = 0.0,
+                referenceColor = MaterialTheme.colorScheme.outline,
+                valueFormatter = { String.format(Locale.US, "%.0f kW", it) }
+            )
+            Text(
+                // Said plainly: a curve that dips under zero looks like an error
+                // unless you know it is the car putting energy back.
+                "Sıfırın altı geri kazanım — frende ve yokuş aşağı bataryaya geri " +
+                    "veriyor. Toplam ${String.format(Locale.US, "%.2f", detail.energyKwh)} " +
+                    "kWh harcandı, geri kazanım düşülmüş hâliyle.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
         if (detail.voltSeries.size >= 2) {
             HorizontalDivider()
-            SectionLabel("Bu seferdeki 12V")
+        SectionLabel("Bu seferdeki 12V")
             LineChart(
                 points = detail.voltSeries.map { ChartPoint(it.atEpochMs.toDouble(), it.value) },
                 lineColor = MaterialTheme.colorScheme.tertiary,
@@ -262,6 +384,32 @@ private fun SummaryCard(detail: TripDetail, settings: AppSettings) {
                         String.format(Locale.US, "%.1f–%.1f", detail.minVolts, detail.maxVolts)
                     } else "—",
                     "V"
+                )
+            }
+            HorizontalDivider()
+            // Its own row rather than a fourth column. Four of these across a phone
+            // ran the units into each other — "km/hOrtalama · km/hTüketim" — and this
+            // is the figure an EV driver compares between drives, so it gets the room.
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Stat(
+                    "Tüketim",
+                    if (detail.distanceM > MIN_DISTANCE_FOR_CONSUMPTION_M) {
+                        String.format(
+                            Locale.US, "%.1f",
+                            detail.energyKwh / (detail.distanceM / 1000.0) * 100.0
+                        )
+                    } else "—",
+                    "kWh/100km"
+                )
+                Stat(
+                    "Enerji",
+                    if (detail.powerSeries.size >= 2) {
+                        String.format(Locale.US, "%.2f", detail.energyKwh)
+                    } else "—",
+                    "kWh"
                 )
             }
         }
